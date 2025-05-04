@@ -383,13 +383,24 @@ export default {
         const usableWidth = pageWidth - marginX * 2;
         const usableHeight = pageHeight - marginY * 2;
 
-        // --- Header ---
-        pdf.setFontSize(18);
-        pdf.text('DASHBOARD MEETING POINTS (MDoNER)', pageWidth / 2, marginY + 7, { align: 'center' });
         pdf.setFontSize(12);
-        const today = new Date().toLocaleDateString('en-IN');
-        pdf.text(`As on ${today}`, pageWidth - marginX, marginY + 7, { align: 'right' });
+        pdf.setFont('Arial', 'bold'); // Make text bold
 
+        const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+        const headerWidth = pdf.getTextWidth(headerText);
+        pdf.setFillColor(255, 255, 0); // Yellow background
+        pdf.rect(104, 6, headerWidth+1.25, 6, 'F');
+        pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+
+        pdf.setFontSize(12);
+        const today = new Date();
+        const options = { timeZone: 'Asia/Kolkata' };
+
+
+        const formattedDate = today.toLocaleDateString('en-IN', options).replace(/\//g, '.').replace(/\b(\d)\b/g, '0$1');
+        pdf.setFillColor(255, 255, 0);
+        pdf.rect(pageWidth - marginX-30.2, marginY -4.5, 30.2,6, 'F');
+        pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
         let position = marginY + 18;
 
         // --- Process Rows ---
@@ -504,11 +515,26 @@ export default {
 
               if (renderedHeight < canvas.height) {
                 pdf.addPage(orientation, 'a4')
-                pdf.setFontSize(18)
-                pdf.text('DASHBOARD MEETING POINTS (MDoNER)', pageWidth / 2, marginY + 7, { align: 'center' })
-                pdf.setFontSize(12)
-                pdf.text(`As on ${today}`, pageWidth - marginX, marginY + 7, { align: 'right' })
-                position = marginY + 18
+
+                pdf.setFontSize(12);
+                pdf.setFont('Arial', 'bold'); // Make text bold
+
+                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+                const headerWidth = pdf.getTextWidth(headerText);
+                pdf.setFillColor(255, 255, 0); // Yellow background
+                pdf.rect(104, 6, headerWidth+1.25, 6, 'F');
+                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+
+                pdf.setFontSize(12);
+                const today = new Date();
+                const options = { timeZone: 'Asia/Kolkata' };
+
+
+                const formattedDate = today.toLocaleDateString('en-IN', options).replace(/\//g, '.').replace(/\b(\d)\b/g, '0$1');
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(pageWidth - marginX-30.2, marginY -4.5, 30.2,6, 'F');
+                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+                position = marginY + 18;
               } else {
                 position += 8
               }
