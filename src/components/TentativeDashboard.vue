@@ -383,27 +383,14 @@ export default {
         const usableWidth = pageWidth - marginX * 2;
         const usableHeight = pageHeight - marginY * 2;
 
-        // --- Header Styling ---
-        pdf.setFontSize(13);
-        pdf.setFont(undefined, 'bold');
-        const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
-        const dateText = `As on ${new Date().toLocaleDateString('en-IN')}`;
+        // --- Header ---
+        pdf.setFontSize(18);
+        pdf.text('DASHBOARD MEETING POINTS (MDoNER)', pageWidth / 2, marginY + 7, { align: 'center' });
+        pdf.setFontSize(12);
+        const today = new Date().toLocaleDateString('en-IN');
+        pdf.text(`As on ${today}`, pageWidth - marginX, marginY + 7, { align: 'right' });
 
-        // Calculate text dimensions
-        const headerWidth = pdf.getTextWidth(headerText);
-        const dateWidth = pdf.getTextWidth(dateText);
-
-        // Draw yellow background boxes
-        pdf.setFillColor(255, 255, 0);
-        pdf.rect(marginX + 2, marginY + 3, headerWidth + 4, 9, 'F');
-        pdf.rect(pageWidth - marginX - dateWidth - 6, marginY + 3, dateWidth + 4, 9, 'F');
-
-        // Add header texts
-        pdf.setTextColor(0);
-        pdf.text(headerText, marginX + 4, marginY + 7);
-        pdf.text(dateText, pageWidth - marginX - dateWidth - 4, marginY + 7);
-
-        let position = marginY + 20;
+        let position = marginY + 18;
 
         // --- Process Rows ---
         const rows = document.querySelectorAll('.table-row');
@@ -411,20 +398,6 @@ export default {
 
         for (let i = 0; i < rows.length; i++) {
           const rowClone = rows[i].cloneNode(true);
-
-          // ===== Style Special Columns =====
-          rowClone.querySelectorAll('td').forEach((td, index) => {
-            // Target Original Date (4), Responsibility (5), Review Date (6)
-            if ([4, 5, 6].includes(index)) {
-              const wrapper = document.createElement('span');
-              wrapper.className = 'pdf-date-cell';
-              wrapper.textContent = td.textContent;
-              td.innerHTML = '';
-              td.appendChild(wrapper);
-              td.style.textAlign = 'center';
-              td.style.verticalAlign = 'middle';
-            }
-          });
 
           // ===== List Processing =====
           const processLists = (element, depth = 0) => {
@@ -448,7 +421,7 @@ export default {
                   marker.textContent = `${this.getMarker(counter, styles[depth % 3])}. `;
                   counter++;
                 } else {
-                  const bullets = ['•', '◦', '▪'];
+                  const bullets = ['•', '•', '•'];
                   marker.textContent = `${bullets[depth % 3]} `;
                 }
 
@@ -459,7 +432,7 @@ export default {
           };
           processLists(rowClone);
 
-          // ===== Content Wrapper =====
+          // ===== Critical Content Wrapper =====
           rowClone.querySelectorAll('li').forEach(li => {
             const contentWrapper = document.createElement('span');
             contentWrapper.style.display = 'inline-block';
@@ -471,7 +444,7 @@ export default {
             li.appendChild(contentWrapper);
           });
 
-          // ===== Temporary Container =====
+          // ===== Temporary Container Setup =====
           const tempDiv = document.createElement('div');
           tempDiv.className = 'pdf-capture-mode';
           tempDiv.style.position = 'absolute';
@@ -489,20 +462,17 @@ export default {
             if (cell) cell.remove();
           });
 
-          // --- Table Styling ---
-          tableInRow.querySelectorAll('td, th').forEach(cell => {
-            cell.style.border = '1px solid #94A3B8';
-            cell.style.padding = '8px';
+          tableInRow.querySelectorAll('td').forEach(cell => {
+            cell.style.borderRight = '1px dotted #ccc';
           });
 
           try {
-            // --- Canvas Rendering ---
             const canvas = await html2canvas(rowClone, {
               scale: 2,
               useCORS: true,
               backgroundColor: '#FFF',
               width: 1120
-            });
+            })
 
             // --- PDF Page Management ---
             let renderedHeight = 0;
@@ -510,49 +480,43 @@ export default {
               const sliceHeightPx = Math.min(
                 ((usableHeight - 15) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
-              );
+              )
 
-              const sliceCanvas = document.createElement('canvas');
-              sliceCanvas.width = canvas.width;
-              sliceCanvas.height = sliceHeightPx;
-              const sliceCtx = sliceCanvas.getContext('2d');
-              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+              const sliceCanvas = document.createElement('canvas')
+              sliceCanvas.width = canvas.width
+              sliceCanvas.height = sliceHeightPx
+              const sliceCtx = sliceCanvas.getContext('2d')
+              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx)
 
-              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0);
-              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width;
+              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0)
+              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width
 
-              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth, sliceImgHeight);
+              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth, sliceImgHeight)
 
-              // Add separator
               if (renderedHeight + sliceHeightPx >= canvas.height) {
-                pdf.setDrawColor(203, 213, 225);
-                pdf.setLineWidth(0.3);
-                pdf.line(marginX, position + sliceImgHeight + 2, pageWidth - marginX, position + sliceImgHeight + 2);
+                pdf.setDrawColor(200, 200, 200)
+                pdf.setLineWidth(0.5)
+                pdf.line(marginX, position + sliceImgHeight + 2, pageWidth - marginX, position + sliceImgHeight + 2)
               }
 
-              renderedHeight += sliceHeightPx;
-              position += sliceImgHeight;
+              renderedHeight += sliceHeightPx
+              position += sliceImgHeight
 
               if (renderedHeight < canvas.height) {
-                pdf.addPage(orientation, 'a4');
-                // Repeat header
-                pdf.setFontSize(13);
-                pdf.setFont(undefined, 'bold');
-                pdf.setFillColor(255, 255, 0);
-                pdf.rect(marginX + 2, marginY + 3, headerWidth + 4, 9, 'F');
-                pdf.rect(pageWidth - marginX - dateWidth - 6, marginY + 3, dateWidth + 4, 9, 'F');
-                pdf.setTextColor(0);
-                pdf.text(headerText, marginX + 4, marginY + 7);
-                pdf.text(dateText, pageWidth - marginX - dateWidth - 4, marginY + 7);
-                position = marginY + 20;
+                pdf.addPage(orientation, 'a4')
+                pdf.setFontSize(18)
+                pdf.text('DASHBOARD MEETING POINTS (MDoNER)', pageWidth / 2, marginY + 7, { align: 'center' })
+                pdf.setFontSize(12)
+                pdf.text(`As on ${today}`, pageWidth - marginX, marginY + 7, { align: 'right' })
+                position = marginY + 18
               } else {
-                position += 8;
+                position += 8
               }
             }
-            document.body.removeChild(tempDiv);
+            document.body.removeChild(tempDiv)
           } catch (error) {
-            console.error(`Row ${i} error:`, error);
-            document.body.removeChild(tempDiv);
+            console.error(`Row ${i} error:`, error)
+            document.body.removeChild(tempDiv)
           }
         }
 
@@ -560,7 +524,8 @@ export default {
       } catch (error) {
         console.error('PDF generation failed:', error);
       }
-    },editTask (task) {
+    },
+    editTask (task) {
       this.currentTask = { ...task }
       this.taskModalMode = 'edit'
       this.showTaskModal = true
