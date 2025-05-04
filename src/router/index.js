@@ -1,6 +1,10 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import Signin from '../components/Signin.vue'
+import TentativeDashboard from '../components/TentativeDashboard.vue'
+import FinalDashboard from '../components/FinalDashboard.vue'
+import CompletedTasks from '../components/CompletedTasks.vue'
+import Home from '../components/Home.vue'
 
 Vue.use(Router)
 
@@ -10,13 +14,28 @@ const router = new Router({
     {
       path: '/',
       name: 'Home',
-      component: Signin
+      component: Home
     },
     {
       path: '/login',
       name: 'Signin',
       component: Signin
-    }
+    },
+    {
+      path: '/tentative',
+      name: 'TentativeDashboard',
+      component: TentativeDashboard
+    },
+    {
+      path: '/final',
+      name: 'FinalDashboard',
+      component: FinalDashboard
+    },
+    {
+      path: '/completed',
+      name: 'CompletedTasks',
+      component: CompletedTasks
+    },
     // {
     //   path: '/dashboard',
     //   name: 'Dashboard',

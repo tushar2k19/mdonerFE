@@ -8,15 +8,13 @@
 
 <script>
 import Header1 from './components/Header1.vue'
-// import Navbar from './components/Navbar.vue'
 
 const AuthenticatedLayout = {
-  // components: { Header1, Navbar },
+  components: { Header1 },
   template: `
     <div>
       <Header1 class="header"/>
       <div class="content-wrapper">
-<!--        <Navbar class="fixed-right-navbar" />-->
         <slot></slot>
       </div>
     </div>
@@ -24,14 +22,16 @@ const AuthenticatedLayout = {
 }
 
 const UnauthenticatedLayout = {
-  template: '<div><slot></slot></div>'
+  template: `
+    <div><slot></slot></div>
+  `
 }
 
 export default {
   name: 'App',
-  data() {
+  data () {
     return {
-      isAuthenticated: false
+      isAuthenticated: true
     }
   },
   computed: {
@@ -63,80 +63,70 @@ export default {
 </script>
 
 <style>
+
 * {
-  margin: 0px;
-  padding: 0px;
+  margin: 0;
+  padding: 0;
 }
+ul, ol {
+  margin: 0.5em 0;
+  padding-left: 20px;
+}
+
+li {
+  margin: 0.3em 0;
+}
+
+
 #app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
+  color: #1a1a1a;
+  background-color: #f8fafc;
+  min-height: 100vh;
 }
 
 .content-wrapper {
-  display: flex; /* Use flexbox for horizontal layout */
+  display: flex;
+  max-width: 1920px;/*
+  margin: 0 auto;
+  padding: 1.5rem;*/
+  gap: 2rem;
 }
 
-
-
 .router-view-container {
-  flex: 1; /* Allow the router-view to fill the remaining space */
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Add to your global stylesheet */
+/* Add/Modify these styles in App.vue */
+.pdf-capture-mode ul,
+.pdf-capture-mode ol {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 0.5em 0 !important;
+}
+
+.pdf-capture-mode li {
+  position: relative;
+  padding-left: 20px !important;  /* Reduced from 25px */
+  margin-bottom: 4px !important;
+  page-break-inside: avoid;
+  display: flex !important;  /* Add flex layout */
+  align-items: baseline;  /* Align marker with text */
+}
+
+.pdf-capture-mode li > .list-marker {
+  position: static !important;  /* Remove absolute positioning */
+  flex-shrink: 0;
+  width: 20px !important;
+  display: inline-block !important;
+  margin-right: 4px !important;
 }
 </style>
 
-
-<!--<template>-->
-<!--  <div id="app">-->
-<!--    <div v-if="isAuthenticated">-->
-<!--      <Header1 class="header"/>-->
-<!--      <div class="content-wrapper">-->
-<!--        <Navbar class="fixed-right-navbar" />-->
-<!--        <router-view class="router-view-container" />-->
-<!--      </div>-->
-<!--    </div>-->
-<!--    <div v-else>-->
-<!--      <router-view style="margin-right: -5px"/>-->
-<!--    </div>-->
-<!--  </div>-->
-<!--</template>-->
-
-<!--<script>-->
-<!--import Header1 from './components/Header1.vue'-->
-<!--import Navbar from './components/Navbar.vue'-->
-
-<!--export default {-->
-<!--  name: 'App',-->
-<!--  components: { Header1, Navbar },-->
-<!--  data() {-->
-<!--    return {-->
-<!--      prevAuthState: false-->
-<!--    }-->
-<!--  },-->
-<!--  computed: {-->
-<!--    isAuthenticated() {-->
-<!--      return !!localStorage.getItem('signedIn');-->
-<!--    },-->
-<!--  },-->
-<!--  watch: {-->
-<!--    isAuthenticated: {-->
-<!--      handler(newVal) {-->
-<!--        if (newVal && !this.prevAuthState) {-->
-<!--          // User just logged in-->
-<!--          this.$nextTick(() => {-->
-<!--            alert('Auth state changed: ' + newVal);-->
-<!--            window.scrollTo(0, 0);-->
-<!--          });-->
-<!--        }-->
-<!--        this.prevAuthState = newVal;-->
-<!--      },-->
-<!--      immediate: true-->
-<!--    }-->
-<!--  },-->
-<!--  created() {-->
-<!--    console.log('Initial auth state:', this.isAuthenticated);-->
-<!--    this.prevAuthState = this.isAuthenticated;-->
-<!--  },-->
-<!--}-->
-<!--</script>-->

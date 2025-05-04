@@ -53,7 +53,7 @@ securedAxiosInstance.interceptors.response.use(null, error => {
       }).catch(error => {
         delete localStorage.csrf
         delete localStorage.signedIn
-        location.replace('/')
+        location.replace('/login')
         return Promise.reject(error)
       })
   } else {

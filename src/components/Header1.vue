@@ -1,130 +1,238 @@
 <template>
   <header class="header">
-    <img src="../assets/img/wadi_logo3.png" alt="Logo" class="main-logo">
-    <div class="user-info">
-      <span @click="toggleDropdown">{{ userName }}</span>
-      <div v-if="dropdownVisible" class="dropdown">
-        <ul>
-          <li @click="signOut">Logout</li>
-        </ul>
+    <div class="header-container">
+      <div class="logo-section">
+        <div class="govt-logo">
+          <span class="ne">NE</span><span class="volve">volve</span>
+        </div>
+      </div>
+
+      <nav class="nav-center" v-if="isAuthenticated">
+        <router-link
+          v-for="route in navigationRoutes"
+          :key="route.path"
+          :to="route.path"
+          class="nav-link"
+          :class="{ active: $route.path === route.path }"
+        >
+          {{ route.label }}
+        </router-link>
+      </nav>
+
+      <div class="nav-right">
+        <NotificationComponent
+          v-if="isAuthenticated"
+          class="notification-wrapper"
+        />
+        <button
+          v-if="isAuthenticated"
+          class="btn-auth"
+          @click="handleSignOut"
+        >
+          <span class="logout-icon">⟲</span>
+          <span class="auth-text">Log out</span>
+        </button>
+        <router-link
+          v-else
+          to="/login"
+          class="btn-auth"
+        >
+          <span class="auth-text">Login</span>
+        </router-link>
       </div>
     </div>
   </header>
 </template>
 
 <script>
+import NotificationComponent from './NotificationComponent.vue'
+
 export default {
-  data () {
+  name: 'Header',
+  components: {
+    NotificationComponent
+  },
+  data() {
     return {
-      userName: null,
-      dropdownVisible: false
+      navigationRoutes: [
+        { path: '/', label: 'Home' },
+        { path: '/tentative', label: 'Illustrative Dashboard' },
+        // { path: '/final', label: 'Final Dashboard' },
+      ]
+    }
+  },
+  computed: {
+    isAuthenticated() {
+      const hasUserInfo = document.cookie.split(';').some(cookie =>
+        cookie.trim().startsWith('user_info=')
+      )
+      const isSignedIn = localStorage.getItem('signedIn') !== null
+      return hasUserInfo && isSignedIn
     }
   },
   methods: {
-    toggleDropdown() {
-      this.dropdownVisible = !this.dropdownVisible;
-    },
-    signOut () {
-      this.$http.secured.delete('/signout')
-        .then(response => {
-          delete localStorage.signedIn
-          delete localStorage.lastLocation
-          this.$router.replace('/login')
-          // window.location.reload()
-        })
-        .catch(error => {
-          alert('signout_error -> ' + error)
-        })
-    },
-    userInfo () {
-      name = 'user_info'
-      const value = `; ${document.cookie}`
-      const parts = value.split(`; ${name}=`)
-      if (parts.length === 2) {
-        let encodedValue = parts.pop().split(';').shift()
-        console.log('inside', JSON.parse(decodeURIComponent(encodedValue)))
-        return JSON.parse(decodeURIComponent(encodedValue)).username
+    async handleSignOut() {
+      try {
+        await this.$http.secured.delete('/signout')
+        document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+        localStorage.removeItem('signedIn')
+        this.$router.replace('/login')
+      } catch (error) {
+        console.error('Signout failed:', error)
+        this.$toast.error('Failed to sign out. Please try again.')
       }
     }
-  },
-  created () {
-    this.userName = this.userInfo().replace(/\+/g, ' ') || 'tmkoc'
   }
 }
 </script>
 
 <style scoped>
 .header {
+  background: white;
+  border-bottom: 1px solid #E5E7EB;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
-  background-color: white;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  position: relative;
+  background: white;
 }
 
-.main-logo {
-  height: 40px;
-  width: 120px;
-  margin-left: 50px;
-  margin-top: -8px;
+.logo-section {
+  display: flex;
+  align-items: center;
 }
 
-.user-info {
-  position: relative;
-  cursor: pointer;
+.govt-logo {
+  font-size: 28px;  /* Increased from 24px to 28px */
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  line-height: 1;  /* Added to improve vertical alignment */
+  letter-spacing: -0.5px;  /* Added to improve text spacing */
 }
 
-.user-info span {
-  font-weight: bold;
-  color: #333;
-  font-size: 16px;
+.ne {
+  color: #0066FF;
+  font-weight: bolder;
+  font-size: 40px;
+
 }
 
-.dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background-color: white;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.volve {
+  color: #009951;
+  font-weight: bolder;
+  font-size: 40px;
+}
+
+.nav-center {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: white;
+  padding: 4px;
   border-radius: 8px;
-  margin-top: 10px;
-  width: 170px;
-  z-index: 2;
 }
 
-.dropdown ul {
-  list-style: none;
-  padding: 10px;
-  margin: 0;
-}
-
-.dropdown ul li {
-  padding: 12px 10px;
-  cursor: pointer;
-  color: #333;
-  border-radius: 5px;
-  text-align: center;
+.nav-link {
+  text-decoration: none;
+  color: #1F2937;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 20px;
+  height: 36px;
+  min-width: fit-content;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
+  border: none;
 }
 
-.dropdown ul li:hover {
-  background-color: #f1f1f1;
-  color: #27ae60;
+.nav-link:not(.active) {
+  background: #F0F3FF;
+}
+
+.nav-link:hover:not(.active) {
+  background: #E8F0FE;
+}
+
+.nav-link.active {
+  background: #0066FF;
+  color: white;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.notification-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.btn-auth {
+  height: 36px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #1F2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-auth:hover {
+  background: #F9FAFB;
+}
+
+.logout-icon {
+  font-size: 16px;
+  color: #1F2937;
 }
 
 @media (max-width: 768px) {
-  .header {
-    padding: 10px;
+  .header-container {
+    padding: 0.5rem 1rem;
   }
 
-  .user-info span {
-    font-size: 14px;
+  .nav-center {
+    gap: 6px;
   }
 
-  .dropdown {
-    width: 120px;
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .govt-logo {
+    font-size: 24px;  /* Adjusted mobile size */
+  }
+
+  .nav-right {
+    gap: 1rem;
+  }
+
+  .btn-auth {
+    padding: 6px 12px;
+    font-size: 13px;
   }
 }
 </style>

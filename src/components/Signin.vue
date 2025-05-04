@@ -1,30 +1,13 @@
-<template>
-  <div class="login-page">
-    <div class="login-box">
-      <h2>Login</h2>
-      <form @submit.prevent="signin">
-        <div class = "error-card" v-if="error"> {{ error }}</div>
-        <div class="input-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" v-model="email" placeholder="abc@xyz.com" @input="clearError" required>
-        </div>
-        <div class="input-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" v-model="password" placeholder="********" @input="clearError" required>
-        </div>
-        <button type="submit">Submit</button>
-      </form>
-    </div>
-  </div>
-</template>
 
 <script>
 // import {mapActions} from "vuex";
 import CryptoJS from 'crypto-js'
 import Cookies from 'js-cookie'
+import ParticleBackground from './ParticleBackground.vue'
 
 export default {
   name: 'Signin',
+  components: {ParticleBackground},
   data () {
     return {
       email: '',
@@ -43,11 +26,11 @@ export default {
     clearError () {
       this.error = ''
     },
-    // checkSignedin: function () {
-    //   if (localStorage.signedIn) {
-    //     this.$router.replace('/dashboard')
-    //   }
-    // },
+    checkSignedin: function () {
+      if (localStorage.signedIn) {
+        this.$router.replace('/')
+      }
+    },
     signin () {
       this.$http.plain.post('/signin', {
         email: this.email,
@@ -110,10 +93,9 @@ export default {
       })
       localStorage.signedIn = true
       this.error = ''
-      this.$router.replace('/dashboard')
+      this.$router.replace('/')
     },
     signinFailed: function (error) {
-      alert(`There was an error logging you in. Please try again or contain admin\n\n आपका लॉगिन नहीं हो पा रहा है. कृपया पुनः प्रयास करें या व्यवस्थापक से संपर्क करें`)
       this.error = (error.response && error.response.data && error.response.data.error) || ''
       this.password = ''
       this.email = ''
@@ -123,72 +105,414 @@ export default {
 }
 </script>
 
+<template>
+  <div class="login-page">
+    <div class="login-container">
+      <!-- Left Panel -->
+      <div class="login-box">
+        <!-- Logo Section -->
+        <div class="logo-section">
+          <p class="welcome-text">Welcome to</p>
+          <h1 class="logo">
+            <span class="ne">NE</span><span class="volve">volve</span>
+          </h1>
+          <p class="tagline">
+            A Smart task management tool prioritizing progress<br>
+            for effective governance
+          </p>
+        </div>
+
+        <!-- Login Form Section -->
+        <div class="login-form">
+          <h2 class="login-title">Log in to your Account</h2>
+          <p class="login-subtitle">Enter your credential to proceed</p>
+
+          <form @submit.prevent="signin">
+            <div class="error-message" v-if="error">
+              {{ error }}
+            </div>
+
+            <div class="form-group">
+              <div class="input-wrapper">
+                <span class="input-icon">✉</span>
+                <input
+                  type="email"
+                  id="email"
+                  v-model="email"
+                  placeholder="Email"
+                  @input="clearError"
+                  required
+                >
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-wrapper">
+                <span class="input-icon">🔒</span>
+                <input
+                  type="password"
+                  id="password"
+                  v-model="password"
+                  placeholder="Password"
+                  @input="clearError"
+                  required
+                >
+                <span class="password-toggle">👁</span>
+              </div>
+            </div>
+
+            <div class="forgot-password">
+              <a href="#">Forgot Password?</a>
+            </div>
+
+            <button type="submit" class="login-button">
+              Log In
+            </button>
+
+            <p class="disclaimer">For illustration purpose only</p>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Panel -->
+      <div class="illustration-panel">
+        <div class="task-diagram">
+          <div class="task-nodes">
+            <div class="task-node task-1">
+              <span class="task-label">Task 1</span>
+            </div>
+            <div class="task-node task-2">
+              <span class="task-label">Task 2</span>
+            </div>
+            <div class="task-node task-3">
+              <span class="task-label">Task 3</span>
+            </div>
+          </div>
+
+
+          <div class="preview-card">
+            <div class="card-header"> </div>
+            <div class="card-header"> </div><div class="card-header" style="margin-top: 5px"> </div>
+            <div class="card-content">
+              <div class="preview-line"></div>
+              <div class="preview-line"></div>
+              <div class="preview-line"></div>
+              <div class="preview-line"></div>
+              <div class="preview-line"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="illustration-text">
+          <h3>Stay on top of what matters most</h3>
+          <p>Our platform smartly prioritizes tasks to boost efficiency and drive impactful decision.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
 .login-page {
-  background-image: url("../assets/download.png"); /* Replace with your image */
-  background-size: cover;
-  background-position: center;
-  width: 100%;
-  height: 100vh;
+  min-height: 100vh;  /* Changed from height to min-height for better responsiveness */
+  min-width: 100vw;       /* Using viewport width unit */
   display: flex;
-  justify-content: center;
-  align-items: center;
+  align-items: stretch;  /* Changed from center to stretch */
+  background-color: #f8f9fa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;   /* Prevent horizontal scrollbar */
 }
 
+.login-container {
+  display: flex;
+  width: 100%;
+  min-width: 100vw;
+  min-height: 600px;
+  height: 100vh;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+  margin: 0;           /* Remove any margin */
+  border-radius: 0;
+}
+
+/* Left Panel Styles */
 .login-box {
-  background-color: white;
-  padding: 30px;
-  border-radius: 5px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 400px;
+  flex: 1;
+  padding: 40px 80px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  align-items: center;  /* Vertical centering */
+  justify-content: center;
+}
+
+.logo-section {
   text-align: center;
+  margin-bottom: 48px;
 }
 
-h2 {
-  margin-bottom: 20px;
+.welcome-text {
+  font-size: 16px;
   color: #333;
+  margin-bottom: 8px;
 }
 
-.error-card {
-  background-color: #f8d7da;
-  color: #721c24;
-  padding: 1rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 1rem;
+.logo {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
 }
 
-.input-group {
-  margin-bottom: 15px;
-  text-align: left;
+.ne {
+  color: #0066FF;
 }
 
-.input-group label {
-  display: block;
-  margin-bottom: 5px;
-  color: #555;
+.volve {
+  color: #009951;
 }
 
-.input-group input {
+.tagline {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Login Form Styles */
+.login-form {
+  max-width: 400px;
+  margin: 0 auto;
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
 }
 
-button {
+.login-title {
+  color: #0066FF;
+  font-size: 24px;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+}
+
+.login-subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.input-wrapper {
+  position: relative;
   width: 100%;
-  padding: 10px;
-  background-color: #27ae60;
-  color: white;
-  border: none;
-  border-radius: 5px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 16px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
   cursor: pointer;
   font-size: 16px;
 }
 
-button:hover {
-  background-color: #2ecc71;
+input {
+  width: 100%;
+  padding: 12px 40px;
+  border: 1px solid #E0E0E0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #FAFAFA;
+  transition: all 0.3s ease;
+}
+
+input:focus {
+  outline: none;
+  border-color: #0066FF;
+  background: white;
+}
+
+.forgot-password {
+  text-align: right;
+  margin: 16px 0 24px;
+}
+
+.forgot-password a {
+  color: #0066FF;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.login-button {
+  width: 100%;
+  padding: 12px;
+  background: #0066FF;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.login-button:hover {
+  background: #0052CC;
+}
+
+.disclaimer {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  margin-top: 24px;
+}
+
+/* Right Panel Styles */
+.illustration-panel {
+  height: 100%;
+  flex: 1;
+  background: #0066FF;
+  padding: 48px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+}
+
+.task-diagram {
+  position: relative;
+  height: 300px;
+  margin-bottom: 48px;
+}
+
+.task-nodes {
+  position: relative;
+  height: 100%;
+}
+
+.task-node {
+  width: 48px;
+  height: 48px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-label {
+  position: absolute;
+  color: white;
+  font-size: 12px;
+  top: -24px;
+  white-space: nowrap;
+}
+
+.task-1 { top: 20%; left: 50%; transform: translateX(-50%); }
+.task-2 { bottom: 30%; left: 30%; }
+.task-3 { bottom: 30%; right: 30%; }
+
+.task-lines {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 160px;
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+  border-right: 2px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.preview-card {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.preview-line {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.illustration-text {
+  text-align: center;
+}
+
+.illustration-text h3 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.illustration-text p {
+  font-size: 14px;
+  opacity: 0.9;
+  line-height: 1.6;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.error-message {
+  background: #FEE2E2;
+  color: #DC2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+  .login-container {
+    margin: 24px;
+    flex-direction: column;
+  }
+
+  .login-box {
+    padding: 40px;
+  }
+
+  .illustration-panel {
+    padding: 40px 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-box {
+    padding: 24px;
+  }
+
+  .illustration-panel {
+    display: none;
+  }
 }
 </style>

@@ -1,44 +1,31 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
-import {stat} from "copy-webpack-plugin/dist/utils/promisify";
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    isAuthenticated: false,
-    username: null,
-    csrf: null,
+    user: null,
+    notifications: []
   },
   mutations: {
-    setAuth(state, auth) {
-      state.isAuthenticated = auth
-      // console.log("name". isAuthenticated, state.isAuthenticated)
+    SET_USER (state, user) {
+      state.user = user
     },
-    setUsername(state, username) {
-      state.username = username
-      // console.log("name". username, state.username)
+    ADD_NOTIFICATION (state, notification) {
+      state.notifications.unshift(notification)
     },
-    setCsrf(state, csrf) {
-      state.csrf = csrf
-      // console.log("name". csrf, state.csrf)
+    MARK_NOTIFICATION_READ (state, notificationId) {
+      const notification = state.notifications.find(n => n.id === notificationId)
+      if (notification) {
+        notification.read = true
+      }
     }
   },
   actions: {
-    login({ commit }, response) {
-      commit('setAuth', true)
-      commit('setUsername', response.username)
-      commit('setCsrf', response.csrf)
-    },
-    logout({ commit }) {
-      commit('setAuth', false)
-      commit('setUsername', null)
-      commit('setCsrf', null)
+    logout ({ commit }) {
+      // Call your logout API
+      commit('SET_USER', null)
     }
-  },
-  getters: {
-    isAuthenticated: state => state.isAuthenticated,
-    username: state => state.username,
-    csrf: state => state.csrf
   }
 })
