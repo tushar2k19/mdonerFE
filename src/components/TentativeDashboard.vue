@@ -378,30 +378,78 @@ export default {
         const pdf = new jsPDF(orientation, 'mm', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const marginX = 10;
-        const marginY = 10;
+        const marginX = 5;
+        const marginY = 5;
         const usableWidth = pageWidth - marginX * 2;
-        const usableHeight = pageHeight - marginY * 2;
+        let position = marginY;
 
+        // --- Main Header ---
         pdf.setFontSize(12);
-        pdf.setFont('Arial', 'bold'); // Make text bold
+        pdf.setFont('Arial', 'bold');
 
+        // Main title
         const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
         const headerWidth = pdf.getTextWidth(headerText);
-        pdf.setFillColor(255, 255, 0); // Yellow background
-        pdf.rect(104, 6, headerWidth+1.25, 6, 'F');
+        pdf.setFillColor(255, 255, 0);
+        pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
         pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
 
-        pdf.setFontSize(12);
+        // Date header
         const today = new Date();
         const options = { timeZone: 'Asia/Kolkata' };
-
-
-        const formattedDate = today.toLocaleDateString('en-IN', options).replace(/\//g, '.').replace(/\b(\d)\b/g, '0$1');
+        const formattedDate = today.toLocaleDateString('en-IN', options)
+          .replace(/\//g, '.')
+          .replace(/\b(\d)\b/g, '0$1');
         pdf.setFillColor(255, 255, 0);
-        pdf.rect(pageWidth - marginX-30.2, marginY -4.5, 30.2,6, 'F');
+        pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
         pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
-        let position = marginY + 18;
+
+        // position += 18;
+        position += 1;
+
+        // --- Custom Table Headers ---
+        const columnWidths = [3, 7, 7, 62, 7, 7, 7]; // Percentage widths
+        const headers = [
+          'S No.',
+          'Sector/Division',
+          'Description',
+          'Action to be Taken',
+          'Original Date',
+          'Responsibility',
+          'Review Date'
+        ];
+
+        // Convert percentages to mm based on usable width
+        const mmWidths = columnWidths.map(w => (usableWidth * w) / 100);
+        let xPosition = marginX;
+
+         pdf.setFontSize(8);
+        pdf.setFont('Arial', 'bold');
+
+        headers.forEach((header, index) => {
+          const cellWidth = mmWidths[index];
+          const textWidth = pdf.getTextWidth(header);
+
+          // Add 5px (1.75mm) margin on both sides
+          const paddedWidth = cellWidth + 1.5;
+          const xStart = xPosition - 0.25;
+
+          // Background rectangle
+          pdf.setFillColor(59, 130, 246);
+          pdf.rect(xStart, position, paddedWidth, 8, 'F');
+
+          // Header text
+          // pdf.setTextColor(230, 217, 9);
+          pdf.text(
+            header,
+            xPosition + (cellWidth - textWidth) / 2,
+            position + 5.5
+          );
+
+          xPosition += cellWidth;
+        });
+
+        position += 10;
 
         // --- Process Rows ---
         const rows = document.querySelectorAll('.table-row');
@@ -410,7 +458,40 @@ export default {
         for (let i = 0; i < rows.length; i++) {
           const rowClone = rows[i].cloneNode(true);
 
-          // ===== List Processing =====
+          const tableInRow = rowClone.querySelector('table');
+          [9].forEach(n => {
+            const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
+            if (cell) cell.remove()
+          });
+          [8].forEach(n => {
+            const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
+            if (cell) cell.remove()
+          });
+
+          for (let col of [1, 2, 3, 4]) {
+            const tds = tableInRow.querySelectorAll(
+              `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
+            );
+            tds.forEach(td => {
+              td.style.background = '#45a885';
+              td.style.border = 'solid 3px red';
+            });
+          }
+          for (let col of [5, 6, 7]) {
+            const tds = tableInRow.querySelectorAll(
+              `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
+            );
+            tds.forEach(td => {
+              td.style.background = '#71e679';
+              td.style.border = 'solid 3px red';
+            });
+          }
+          tableInRow.style.border = 'green 3px solid'
+
+          rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
+            menu.style.display = 'none';
+          });
+          // List processing
           const processLists = (element, depth = 0) => {
             element.querySelectorAll('ul, ol').forEach(list => {
               list.style.listStyle = 'none';
@@ -443,7 +524,7 @@ export default {
           };
           processLists(rowClone);
 
-          // ===== Critical Content Wrapper =====
+          // Content wrapper
           rowClone.querySelectorAll('li').forEach(li => {
             const contentWrapper = document.createElement('span');
             contentWrapper.style.display = 'inline-block';
@@ -455,7 +536,7 @@ export default {
             li.appendChild(contentWrapper);
           });
 
-          // ===== Temporary Container Setup =====
+          // Temporary container
           const tempDiv = document.createElement('div');
           tempDiv.className = 'pdf-capture-mode';
           tempDiv.style.position = 'absolute';
@@ -466,83 +547,69 @@ export default {
           tempDiv.appendChild(rowClone);
           document.body.appendChild(tempDiv);
 
-          // --- Column Cleanup ---
-          const tableInRow = rowClone.querySelector('table');
-          [8, 9].forEach(n => {
-            const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
-            if (cell) cell.remove();
-          });
-
-          tableInRow.querySelectorAll('td').forEach(cell => {
-            cell.style.borderRight = '1px dotted #ccc';
-          });
-
           try {
             const canvas = await html2canvas(rowClone, {
               scale: 2,
               useCORS: true,
               backgroundColor: '#FFF',
               width: 1120
-            })
+            });
 
-            // --- PDF Page Management ---
+            // Page management
             let renderedHeight = 0;
             while (renderedHeight < canvas.height) {
               const sliceHeightPx = Math.min(
-                ((usableHeight - 15) * canvas.width) / usableWidth,
+                ((pageHeight - position - 15) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
-              )
+              );
 
-              const sliceCanvas = document.createElement('canvas')
-              sliceCanvas.width = canvas.width
-              sliceCanvas.height = sliceHeightPx
-              const sliceCtx = sliceCanvas.getContext('2d')
-              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx)
+              const sliceCanvas = document.createElement('canvas');
+              sliceCanvas.width = canvas.width;
+              sliceCanvas.height = sliceHeightPx;
+              const sliceCtx = sliceCanvas.getContext('2d');
+              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
 
-              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0)
-              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width
+              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0);
+              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width;
 
-              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth, sliceImgHeight)
+              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth, sliceImgHeight);
 
-              if (renderedHeight + sliceHeightPx >= canvas.height) {
-                pdf.setDrawColor(200, 200, 200)
-                pdf.setLineWidth(0.5)
-                pdf.line(marginX, position + sliceImgHeight + 2, pageWidth - marginX, position + sliceImgHeight + 2)
-              }
-
-              renderedHeight += sliceHeightPx
-              position += sliceImgHeight
+              renderedHeight += sliceHeightPx;
+              position += sliceImgHeight;
 
               if (renderedHeight < canvas.height) {
-                pdf.addPage(orientation, 'a4')
+                pdf.addPage(orientation, 'a4');
+                position = marginY;
 
-                pdf.setFontSize(12);
-                pdf.setFont('Arial', 'bold'); // Make text bold
+                // Redraw headers on new page
+                xPosition = marginX;
+                pdf.setFontSize(10);
+                pdf.setFont('Arial', 'bold');
+                pdf.setFillColor(59, 130, 246);
 
-                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
-                const headerWidth = pdf.getTextWidth(headerText);
-                pdf.setFillColor(255, 255, 0); // Yellow background
-                pdf.rect(104, 6, headerWidth+1.25, 6, 'F');
-                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+                headers.forEach((header, index) => {
+                  const cellWidth = mmWidths[index];
+                  const textWidth = pdf.getTextWidth(header);
+                  const xStart = xPosition - 1.75;
 
-                pdf.setFontSize(12);
-                const today = new Date();
-                const options = { timeZone: 'Asia/Kolkata' };
+                  pdf.rect(xStart, position, cellWidth + 3.5, 8, 'F');
+                  pdf.setTextColor(255, 255, 255);
+                  pdf.text(
+                    header,
+                    xPosition + (cellWidth - textWidth) / 2,
+                    position + 5.5
+                  );
 
+                  xPosition += cellWidth;
+                });
 
-                const formattedDate = today.toLocaleDateString('en-IN', options).replace(/\//g, '.').replace(/\b(\d)\b/g, '0$1');
-                pdf.setFillColor(255, 255, 0);
-                pdf.rect(pageWidth - marginX-30.2, marginY -4.5, 30.2,6, 'F');
-                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
-                position = marginY + 18;
-              } else {
-                position += 8
+                position += 10;
               }
             }
-            document.body.removeChild(tempDiv)
+            document.body.removeChild(tempDiv);
           } catch (error) {
-            console.error(`Row ${i} error:`, error)
-            document.body.removeChild(tempDiv)
+            console.error(`Row ${i} error:`, error);
+            document.body.removeChild(tempDiv);
           }
         }
 
