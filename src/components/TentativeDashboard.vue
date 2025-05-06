@@ -253,9 +253,6 @@ export default {
               const paddedDay = dayNum.toString().padStart(2, '0');
               const paddedMonth = monthNum.toString().padStart(2, '0');
               const standardizedDate = `${paddedDay}/${paddedMonth}`;
-
-              console.log(`Found date: ${match}, standardized to: ${standardizedDate}`);
-
               if (dayNum === today.getDate() && monthNum === (today.getMonth() + 1)) {
                 return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`;
               }
@@ -301,9 +298,6 @@ export default {
       let matches = content.matchAll(dateRegex);
       for (const match of matches) {
         const [, day, month] = match;
-        console.log('Found date:', day, month);
-
-        // Create date for current year first, but add one day to compensate for timezone conversion
         let adjustedDay = parseInt(day) + 1; // Add one day
         let adjustedMonth = parseInt(month);
         let year = 2024;
@@ -327,7 +321,6 @@ export default {
           year = 2025;
           date = new Date(year, adjustedMonth - 1, adjustedDay);
           date = new Date(date.getTime() + totalOffset * 60000);
-          console.log('Date was in past, using next year:', date.toISOString());
         }
 
         validDates.push(date);
@@ -335,11 +328,9 @@ export default {
 
       // Find earliest future date
       const futureDates = validDates.filter(date => date > indiaToday);
-      console.log('Valid future dates:', futureDates.map(d => d.toISOString()));
-
       if (futureDates.length > 0) {
         const earliestDate = new Date(Math.min(...futureDates));
-        console.log('Selected earliest future date:', earliestDate.toISOString());
+
         return earliestDate.toISOString().split('T')[0];
       }
 
@@ -350,7 +341,7 @@ export default {
         await this.$http.secured.post(`/task/${task.id}/complete`)
         await this.fetchTasksByDate()
         this.bus.$emit('notifications-updated')
-        console.log()
+
       } catch (error) {
         console.error('Error marking task as complete:', error)
       }
@@ -379,7 +370,7 @@ export default {
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
         const marginX = 5;
-        const marginY = 5;
+        const marginY = 10;
         const usableWidth = pageWidth - marginX * 2;
         let position = marginY;
 
@@ -408,7 +399,7 @@ export default {
         position += 1;
 
         // --- Custom Table Headers ---
-        const columnWidths = [3, 7, 7, 62, 7, 7, 7]; // Percentage widths
+        const columnWidths = [2.5, 6.5, 8, 65, 6, 6, 6] // Percentage widths
         const headers = [
           'S No.',
           'Sector/Division',
@@ -423,7 +414,7 @@ export default {
         const mmWidths = columnWidths.map(w => (usableWidth * w) / 100);
         let xPosition = marginX;
 
-         pdf.setFontSize(8);
+         pdf.setFontSize(7.5);
         pdf.setFont('Arial', 'bold');
 
         headers.forEach((header, index) => {
@@ -449,7 +440,8 @@ export default {
           xPosition += cellWidth;
         });
 
-        position += 10;
+        position += 8;
+
 
         // --- Process Rows ---
         const rows = document.querySelectorAll('.table-row');
@@ -459,6 +451,12 @@ export default {
           const rowClone = rows[i].cloneNode(true);
 
           const tableInRow = rowClone.querySelector('table');
+
+          rowClone.style.margin = '0';
+          rowClone.style.padding = '0';
+          tableInRow.style.margin = '0';
+          tableInRow.style.padding = '0';
+
           [9].forEach(n => {
             const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
             if (cell) cell.remove()
@@ -490,6 +488,13 @@ export default {
 
           rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
             menu.style.display = 'none';
+          });
+          //updates the width of table
+          const newColumnWidths = [3, 6, 8, 65, 6, 6, 6];
+          const tds = tableInRow.querySelectorAll('tr > td:not(table table td)');
+          tds.forEach((td, index) => {
+            td.style.width = `${newColumnWidths[index]}%`;
+            td.style.boxSizing = 'border-box';
           });
           // List processing
           const processLists = (element, depth = 0) => {
@@ -528,7 +533,7 @@ export default {
           rowClone.querySelectorAll('li').forEach(li => {
             const contentWrapper = document.createElement('span');
             contentWrapper.style.display = 'inline-block';
-            contentWrapper.style.width = 'calc(100% - 24px)';
+            contentWrapper.style.width = 'calc(100% - 2px)';
 
             while (li.childNodes.length > 1) {
               contentWrapper.appendChild(li.childNodes[1]);
@@ -542,8 +547,9 @@ export default {
           tempDiv.style.position = 'absolute';
           tempDiv.style.left = '-9999px';
           tempDiv.style.background = '#fff';
-          tempDiv.style.width = '1120px';
-          rowClone.style.width = '1120px';
+          tempDiv.style.marginLeft = '-20px';
+          tempDiv.style.width = '1165px';
+          rowClone.style.width = '1165px'
           tempDiv.appendChild(rowClone);
           document.body.appendChild(tempDiv);
 
@@ -572,7 +578,7 @@ export default {
               const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0);
               const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width;
 
-              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth, sliceImgHeight);
+              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth+1, sliceImgHeight);
 
               renderedHeight += sliceHeightPx;
               position += sliceImgHeight;
@@ -581,9 +587,8 @@ export default {
                 pdf.addPage(orientation, 'a4');
                 position = marginY;
 
-                // Redraw headers on new page
                 xPosition = marginX;
-                pdf.setFontSize(10);
+                // pdf.setFontSize(10);
                 pdf.setFont('Arial', 'bold');
                 pdf.setFillColor(59, 130, 246);
 
@@ -855,6 +860,7 @@ export default {
   border-radius: 0.5rem;
   margin: 0.75rem 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-align: center;
 }
 
 .table-row table {
