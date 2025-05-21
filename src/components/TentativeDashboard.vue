@@ -38,7 +38,7 @@
           <td>{{ index + 1 }}</td>
           <td>{{ task.sector_division }}</td>
           <td>{{ task.description }}</td>
-          <td v-html="processActionContent(task.action_to_be_taken)"></td>
+          <td v-html="processActionContent(task.action_to_be_taken)" style="align-content: center; !important;"></td>
           <td>{{ formatDate(task.original_date) }}</td>
           <td>{{ task.responsibility }}</td>
           <td>{{ formatDate(task.review_date) }}</td>
@@ -399,7 +399,7 @@ export default {
         position += 1;
 
         // --- Custom Table Headers ---
-        const columnWidths = [2.5, 6.5, 8, 65, 6, 6, 6] // Percentage widths
+        const columnWidths = [2.5, 6.5, 8, 65, 7.2, 5.8, 5] // Percentage widths
         const headers = [
           'S No.',
           'Sector/Division',
@@ -412,9 +412,34 @@ export default {
 
         // Convert percentages to mm based on usable width
         const mmWidths = columnWidths.map(w => (usableWidth * w) / 100);
+        // In the tableBorderStyle section replace with:
+        const tableBorderStyle = `
+  .pdf-capture-mode table {
+    border-collapse: collapse !important;
+    border: 1px solid #ddd !important;
+  }
+  .pdf-capture-mode th,
+  .pdf-capture-mode td:not(:nth-child(4)) {
+    border: 1px solid #ddd !important;
+    padding: 1.5px 2px !important;
+  }
+  .pdf-capture-mode td:nth-child(4) {
+    border: none !important;
+    padding: 2px 1px !important;
+  }
+  .pdf-capture-mode table table {
+    border: none !important;
+    margin: 1px 0 !important;
+  }
+  .pdf-capture-mode table table td {
+    border: none !important;
+    padding: 1px 0 !important;
+    background: transparent !important;
+  }
+`;
         let xPosition = marginX;
 
-         pdf.setFontSize(7.5);
+        pdf.setFontSize(7.5);
         pdf.setFont('Arial', 'bold');
 
         headers.forEach((header, index) => {
@@ -425,12 +450,8 @@ export default {
           const paddedWidth = cellWidth + 1.5;
           const xStart = xPosition - 0.25;
 
-          // Background rectangle
           pdf.setFillColor(59, 130, 246);
           pdf.rect(xStart, position, paddedWidth, 8, 'F');
-
-          // Header text
-          // pdf.setTextColor(230, 217, 9);
           pdf.text(
             header,
             xPosition + (cellWidth - textWidth) / 2,
@@ -449,6 +470,9 @@ export default {
 
         for (let i = 0; i < rows.length; i++) {
           const rowClone = rows[i].cloneNode(true);
+          const style = document.createElement('style');
+          style.textContent = tableBorderStyle;
+          rowClone.appendChild(style);
 
           const tableInRow = rowClone.querySelector('table');
 
@@ -466,29 +490,58 @@ export default {
             if (cell) cell.remove()
           });
 
-          for (let col of [1, 2, 3, 4]) {
-            const tds = tableInRow.querySelectorAll(
-              `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
-            );
+          [5, 6, 7].forEach(colIndex => {
+            const tds = tableInRow.querySelectorAll(`tr > td:nth-child(${colIndex}):not(table table td)`);
             tds.forEach(td => {
-              td.style.background = '#45a885';
-              td.style.border = 'solid 3px red';
+              // Wrap content in styled span
+              td.innerHTML = `<span style="
+      background-color: yellow !important;
+      font-weight: bold !important;
+      padding: 1px 3px !important;
+      border-radius: 2px !important;
+      display: inline-block !important;
+      color: red;
+    ">${td.textContent}</span>`;
+
+              // Clear cell background
+              td.style.background = 'transparent !important';
+              td.style.padding = '4px 2px !important';
             });
+          });
+
+          // Inside the row processing loop, add this after cloning:
+          const actionColumn = rowClone.querySelector('td:nth-child(4)');
+          if (actionColumn) {
+            actionColumn.style.transform = 'scale(0.95)';
+            actionColumn.style.transformOrigin = 'top left';
+            actionColumn.style.width = `${actionColumn.offsetWidth / 0.97}px`; // Compensate width
+            actionColumn.style.height = `${actionColumn.offsetHeight / 0.97}px`; // Compensate height
           }
-          for (let col of [5, 6, 7]) {
-            const tds = tableInRow.querySelectorAll(
-              `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
-            );
-            tds.forEach(td => {
-              td.style.background = '#71e679';
-              td.style.border = 'solid 3px red';
-            });
-          }
-          tableInRow.style.border = 'green 3px solid'
+
+          // for (let col of [1, 2, 3, 4]) {
+          //   const tds = tableInRow.querySelectorAll(
+          //     `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
+          //   );
+          //   tds.forEach(td => {
+          //     td.style.background = '#45a885';
+          //     td.style.border = 'solid 3px red';
+          //   });
+          // }
+          // for (let col of [5, 6, 7]) {
+          //   const tds = tableInRow.querySelectorAll(
+          //     `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
+          //   );
+          //   tds.forEach(td => {
+          //     td.style.background = '#71e679';
+          //     td.style.border = 'solid 3px red';
+          //   });
+          // }
+          // tableInRow.style.border = 'green 3px solid'
 
           rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
             menu.style.display = 'none';
-          });
+          })
+
           //updates the width of table
           const newColumnWidths = [3, 6, 8, 65, 6, 6, 6];
           const tds = tableInRow.querySelectorAll('tr > td:not(table table td)');
@@ -558,14 +611,24 @@ export default {
               scale: 2,
               useCORS: true,
               backgroundColor: '#FFF',
-              width: 1120
+              width: 1120,
+              logging: true,
+              allowTaint: true,
+              letterRendering: true,
+              fontFamilyCSS: '*',
+              onclone: (clonedDoc) => {
+                // Force layout stability
+                clonedDoc.body.style.overflow = 'visible';
+                clonedDoc.body.style.position = 'static';
+              },
+
             });
 
             // Page management
             let renderedHeight = 0;
             while (renderedHeight < canvas.height) {
               const sliceHeightPx = Math.min(
-                ((pageHeight - position - 15) * canvas.width) / usableWidth,
+                ((pageHeight - position - 10) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
               );
 
@@ -588,17 +651,42 @@ export default {
                 position = marginY;
 
                 xPosition = marginX;
-                // pdf.setFontSize(10);
+                pdf.setFontSize(12);
                 pdf.setFont('Arial', 'bold');
-                pdf.setFillColor(59, 130, 246);
+
+                // Main title
+                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+                const headerWidth = pdf.getTextWidth(headerText);
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
+                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+
+                // Date header
+                const today = new Date();
+                const options = { timeZone: 'Asia/Kolkata' };
+                const formattedDate = today.toLocaleDateString('en-IN', options)
+                  .replace(/\//g, '.')
+                  .replace(/\b(\d)\b/g, '0$1');
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
+                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+
+                // position += 18;
+                position += 1;
+
+                pdf.setFontSize(7.5);
+                pdf.setFont('Arial', 'bold');
 
                 headers.forEach((header, index) => {
                   const cellWidth = mmWidths[index];
                   const textWidth = pdf.getTextWidth(header);
-                  const xStart = xPosition - 1.75;
 
-                  pdf.rect(xStart, position, cellWidth + 3.5, 8, 'F');
-                  pdf.setTextColor(255, 255, 255);
+                  // Add 5px (1.75mm) margin on both sides
+                  const paddedWidth = cellWidth + 1.5;
+                  const xStart = xPosition - 0.25;
+
+                  pdf.setFillColor(59, 130, 246);
+                  pdf.rect(xStart, position, paddedWidth, 8, 'F');
                   pdf.text(
                     header,
                     xPosition + (cellWidth - textWidth) / 2,
@@ -607,7 +695,6 @@ export default {
 
                   xPosition += cellWidth;
                 });
-
                 position += 10;
               }
             }
@@ -784,6 +871,7 @@ export default {
   margin-right: 0.5rem;
 }
 
+
 /* Filter button */
 .filter-btn {
   width: 173px;
@@ -805,30 +893,41 @@ export default {
 }
 .pdf-capture-mode {
   font-family: Arial !important;
+  overflow: visible !important;
 }
+
+.pdf-capture-mode tr > td:not(table table td):nth-child(1),  /* S No. */
+.pdf-capture-mode tr > td:not(table table td):nth-child(2),  /* Sector/Division */
+.pdf-capture-mode tr > td:not(table table td):nth-child(3),  /* Description */
+.pdf-capture-mode tr > td:not(table table td):nth-child(5),  /* Original Date */
+.pdf-capture-mode tr > td:not(table table td):nth-child(6),  /* Responsibility */
+.pdf-capture-mode tr > td:not(table table td):nth-child(7) { /* Review Date */
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+
+/* the following code makes the content uniform (12px) for 4th col. remove them to preserve the styling of "action to be taken" */
 
 .pdf-capture-mode td {
   font-size: 12pt !important;
-  padding: 8px !important;
+  padding: 2px 5px !important;
 }
 
-.pdf-capture-mode th {
-  font-size: 12.5pt !important;
-  font-weight: bold !important;
-}
-.pdf-capture-mode .pdf-date-cell {
-  background-color: yellow !important;
-  font-weight: bold !important;
-  font-size: 12pt !important;
-  padding: 3px 6px !important;
-  border-radius: 3px !important;
-  display: inline-block !important;
-}
 
 .filter-btn:hover {
   background: #F8FAFC;
 }
 
+
+.pdf-capture-mode td:nth-child(4) {
+  overflow: visible !important;
+  padding: 5px !important;
+}
+
+.pdf-capture-mode td:nth-child(4) * {
+  transform-origin: top left !important;
+  display: inline-block !important; /* Required for proper scaling */
+}
 
 /* Table headers section */
 .table-headers {

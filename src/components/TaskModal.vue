@@ -113,21 +113,54 @@ export default {
       editorConfig: {
         height: 425,
         menubar: true,
-
         plugins: [
           'advlist autolink lists link charmap preview',
           'searchreplace visualblocks code fullscreen',
           'table paste code help wordcount',
           'textcolor visualchars directionality',
-          'textpattern'
+          'textpattern advlist'
         ],
 
         toolbar: [
           'undo redo | formatselect | bold italic underline strikethrough | superscript subscript',
           'fontsizeselect | forecolor backcolor | alignleft aligncenter alignright alignjustify',
-          'bullist numlist outdent indent | table | charmap hr',
-          'removeformat | help | code fullscreen'
+          'numlist bullist | outdent indent | table | charmap hr',
+          'removeformat | styles | help | code fullscreen'
         ].join(' | '),
+
+        advlist_number_styles: 'default,lower-alpha,lower-roman,upper-alpha,upper-roman',
+        advlist_bullet_styles: 'default,circle,square',
+
+        content_style: `
+    body { margin: 1rem; }
+    ol {
+      list-style-type: decimal !important;
+      padding-left: 2em !important;
+      margin: 0.25em 0 !important;
+    }
+    ol[style*="lower-alpha"] { list-style-type: lower-alpha !important; }
+    ol[style*="upper-alpha"] { list-style-type: upper-alpha !important; }
+    ol[style*="lower-roman"] { list-style-type: lower-roman !important; }
+    ol[style*="upper-roman"] { list-style-type: upper-roman !important; }
+    ul {
+      list-style-type: disc !important;
+      padding-left: 2em !important;
+      margin: 0.25em 0 !important;
+    }
+  `,
+
+        style_formats: [
+          {
+            title: 'List Styles',
+            items: [
+              { title: 'Decimal', format: 'numlist' },
+              { title: 'Lower Alpha', format: 'numlist lower-alpha' },
+              { title: 'Upper Alpha', format: 'numlist upper-alpha' },
+              { title: 'Lower Roman', format: 'numlist lower-roman' },
+              { title: 'Upper Roman', format: 'numlist upper-roman' }
+            ]
+          }
+        ],
 
         // Basic settings
         branding: false,
@@ -164,15 +197,6 @@ export default {
         force_p_newlines: true,
         forced_root_block: 'p',
         remove_trailing_brs: true,
-
-        // Modify your content_style to handle spacing better
-        content_style: `
-    body { margin: 1rem; }
-    ul { list-style-type: disc !important; padding-left: 2em !important; margin: 0.25em 0 !important; }
-    ol { list-style-type: decimal !important; padding-left: 2em !important; margin: 0.25em 0 !important; }
-    ul li, ol li { margin: 0.25em 0 !important; display: list-item !important; }
-    p { margin: 0.5em 0 !important; }
-    `
       }
     }
   },
