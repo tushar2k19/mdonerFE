@@ -423,18 +423,22 @@ export default {
     border: 1px solid #ddd !important;
     padding: 1.5px 2px !important;
   }
-  .pdf-capture-mode td:nth-child(4) {
+  /* Explicitly reset styles for column 4 and its nested elements */
+  .pdf-capture-mode td:nth-child(4),
+  .pdf-capture-mode td:nth-child(4) * {
     border: none !important;
-    padding: 2px 1px !important;
+    background: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
   }
-  .pdf-capture-mode table table {
+  .pdf-capture-mode td:nth-child(4) table {
     border: none !important;
-    margin: 1px 0 !important;
-  }
-  .pdf-capture-mode table table td {
-    border: none !important;
-    padding: 1px 0 !important;
     background: transparent !important;
+  }
+  .pdf-capture-mode td:nth-child(4) td {
+    border: none !important;
+    padding: 2px 0 !important;
   }
 `;
         let xPosition = marginX;
@@ -540,7 +544,15 @@ export default {
 
           rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
             menu.style.display = 'none';
-          })
+          });
+          actionColumn.querySelectorAll('table').forEach(nestedTable => {
+            nestedTable.style.border = 'none !important';
+            nestedTable.style.background = 'none !important';
+          });
+          actionColumn.querySelectorAll('td, th').forEach(cell => {
+            cell.style.border = 'none !important';
+            cell.style.padding = '0 !important';
+          });
 
           //updates the width of table
           const newColumnWidths = [3, 6, 8, 65, 6, 6, 6];
