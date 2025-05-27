@@ -85,11 +85,6 @@
     <CommentsModal v-if="showCommentsModal"
                    :task="currentTask"
                    @close="closeCommentsModal" />
-
-    <!--    <DownloadDashboard-->
-    <!--      :tasks="activeTasks"-->
-    <!--      :visible="pdfVisible"-->
-    <!--    />-->
   </div>
 </template>
 
@@ -101,7 +96,7 @@ import Datepicker from 'vuejs-datepicker'
 import ParticleBackground from './ParticleBackground.vue'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import DownloadDashboard from './DownloadDashboard.vue'
+
 
 export default {
   name: 'TentativeDashboard',
@@ -112,7 +107,6 @@ export default {
     CommentsModal,
     Datepicker,
     ParticleBackground,
-    DownloadDashboard: DownloadDashboard
   },
 
   data () {
@@ -499,13 +493,13 @@ export default {
             tds.forEach(td => {
               // Wrap content in styled span
               td.innerHTML = `<span style="
-      background-color: yellow !important;
-      font-weight: bold !important;
-      padding: 1px 3px !important;
-      border-radius: 2px !important;
-      display: inline-block !important;
-      color: red;
-    ">${td.textContent}</span>`;
+              background-color: yellow !important;
+              font-weight: bold !important;
+              padding: 1px 3px !important;
+              border-radius: 2px !important;
+              display: inline-block !important;
+              color: red;
+            ">${td.textContent}</span>`;
 
               // Clear cell background
               td.style.background = 'transparent !important';
@@ -521,26 +515,6 @@ export default {
             actionColumn.style.width = `${actionColumn.offsetWidth / 0.97}px`; // Compensate width
             actionColumn.style.height = `${actionColumn.offsetHeight / 0.97}px`; // Compensate height
           }
-
-          // for (let col of [1, 2, 3, 4]) {
-          //   const tds = tableInRow.querySelectorAll(
-          //     `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
-          //   );
-          //   tds.forEach(td => {
-          //     td.style.background = '#45a885';
-          //     td.style.border = 'solid 3px red';
-          //   });
-          // }
-          // for (let col of [5, 6, 7]) {
-          //   const tds = tableInRow.querySelectorAll(
-          //     `tr > td:nth-child(${col}):not(table table td)` // Key exclusion
-          //   );
-          //   tds.forEach(td => {
-          //     td.style.background = '#71e679';
-          //     td.style.border = 'solid 3px red';
-          //   });
-          // }
-          // tableInRow.style.border = 'green 3px solid'
 
           rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
             menu.style.display = 'none';
@@ -622,7 +596,7 @@ export default {
             const canvas = await html2canvas(rowClone, {
               scale: 2,
               useCORS: true,
-              backgroundColor: '#FFF',
+              backgroundColor: null,
               width: 1120,
               logging: true,
               allowTaint: true,

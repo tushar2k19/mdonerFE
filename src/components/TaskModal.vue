@@ -120,10 +120,13 @@ export default {
           'textcolor visualchars directionality',
           'textpattern advlist'
         ],
-
+        valid_elements: '*[*]',
+        valid_styles: {
+          '*': 'color,background-color' // Allow background styles
+        },
         toolbar: [
           'undo redo | formatselect | bold italic underline strikethrough | superscript subscript',
-          'fontsizeselect | forecolor backcolor | alignleft aligncenter alignright alignjustify',
+          'fontsizeselect fontsize | forecolor backcolor | alignleft aligncenter alignright alignjustify',
           'numlist bullist | outdent indent | table | charmap hr',
           'removeformat | styles | help | code fullscreen'
         ].join(' | '),
@@ -167,8 +170,8 @@ export default {
         promotion: false,
 
         // Font settings
-        fontsize_formats: '8pt 10pt 12pt 14pt 16pt 18pt 24pt 36pt',
-
+        fontsize_formats: '8p 10pt 12pt 14pt 16pt 18pt 20pt 24pt 30pt 36pt 48pt 54pt 60pt 72pt',
+        fontsize_input: true,
         // Table settings
         table_default_attributes: {
           border: '1'

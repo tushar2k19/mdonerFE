@@ -96,8 +96,6 @@ export default {
           await this.notificationService.markAsRead(notification.id)
           notification.read = true
         }
-
-        // Instead of routing to specific task, route to dashboard
         this.$router.push({
           name: 'TentativeDashboard',
           query: { highlightTaskId: notification.task_id }
