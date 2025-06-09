@@ -62,8 +62,6 @@
                   <button v-if="canApprove(task)"
                           @click="approveTask(task)"
                           class="menu-item">Approve</button>
-                  <!--                  <button @click="markAsComplete(task)"-->
-                  <!--                          class="menu-item">Mark Complete</button>-->
                 </div>
               </button>
             </div>
@@ -208,84 +206,72 @@ export default {
           return {
             ...task,
             review_date: nearestDate || task.review_date
-          };
-        }));
+          }
+        }))
 
         this.activeTasks = processedTasks.sort((a, b) => {
-          const dateA = new Date(a.review_date);
-          const dateB = new Date(b.review_date);
-          return dateA - dateB;
-        });
-
-        this.completedTasks = response.data.completed;
+          const dateA = new Date(a.review_date)
+          const dateB = new Date(b.review_date)
+          return dateA - dateB
+        })
+        this.completedTasks = response.data.completed
       } catch (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching tasks:', error)
       }
     },
     processActionContent(content) {
-
-      if (!content) return '';
-
-      const today = new Date();
+      if (!content) return ''
+      const today = new Date()
       try {
-        const parser = new DOMParser();
+        const parser = new DOMParser()
         const doc = parser.parseFromString(content, 'text/html');
 
         const processNode = (node) => {
           if (node.nodeType === Node.TEXT_NODE) {
-            // Modified regex to handle single-digit months and days
-            // (\d{1,2}) matches one or two digits for both day and month
-            const dateRegex = /(\d{1,2})\/(\d{1,2})/g;
-            let newContent = node.textContent;
+            const dateRegex = /(\d{1,2})\/(\d{1,2})/g
+            let newContent = node.textContent
 
             newContent = newContent.replace(dateRegex, (match, day, month) => {
-              // Convert to numbers for comparison
-              const dayNum = parseInt(day);
-              const monthNum = parseInt(month);
-
-              // Pad single digits with leading zeros for display
-              const paddedDay = dayNum.toString().padStart(2, '0');
-              const paddedMonth = monthNum.toString().padStart(2, '0');
-              const standardizedDate = `${paddedDay}/${paddedMonth}`;
+              const dayNum = parseInt(day)
+              const monthNum = parseInt(month)
+              const paddedDay = dayNum.toString().padStart(2, '0')
+              const paddedMonth = monthNum.toString().padStart(2, '0')
+              const standardizedDate = `${paddedDay}/${paddedMonth}`
               if (dayNum === today.getDate() && monthNum === (today.getMonth() + 1)) {
-                return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`;
+                return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`
               }
-              return `<span style="background-color: yellow">${standardizedDate}</span>`;
+              return `<span style="background-color: yellow">${standardizedDate}</span>`
             });
 
             if (newContent !== node.textContent) {
-              const span = doc.createElement('span');
-              span.innerHTML = newContent;
-              node.parentNode.replaceChild(span, node);
+              const span = doc.createElement('span')
+              span.innerHTML = newContent
+              node.parentNode.replaceChild(span, node)
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            Array.from(node.childNodes).forEach(processNode);
+            Array.from(node.childNodes).forEach(processNode)
           }
-        };
-
-        Array.from(doc.body.childNodes).forEach(processNode);
-        return doc.body.innerHTML;
-
+        }
+        Array.from(doc.body.childNodes).forEach(processNode)
+        return doc.body.innerHTML
       } catch (error) {
-        console.error('Error in processActionContent:', error);
-        return content;
+        console.error('Error in processActionContent:', error)
+        return content
       }
     },
-    findNearestDate(content, currentReviewDate) {
-      if (!content) return currentReviewDate;
-
-      const dateRegex = /(\d{2})\/(\d{2})/g;
-
+    findNearestDate (content, currentReviewDate) {
+      if (!content) return currentReviewDate
+      const dateRegex = /(\d{2})\/(\d{2})/g
       // Create today's date in Indian timezone
-      const today = new Date();
-      const indiaOffset = 330; // 5:30 hours in minutes
-      const localOffset = today.getTimezoneOffset();
-      const totalOffset = indiaOffset + localOffset;
-      const indiaToday = new Date(today.getTime() + totalOffset * 60000);
+      const today = new Date()
+      const indiaOffset = 330
+      const localOffset = today.getTimezoneOffset()
+      const totalOffset = indiaOffset + localOffset
+      const indiaToday = new Date(today.getTime() + totalOffset * 60000)
 
       let validDates = []
       if (currentReviewDate) {
-        validDates.push(new Date(currentReviewDate));
+        validDates.push(new Date(currentReviewDate))
       }
 
       // Process all dates found in content
@@ -553,8 +539,8 @@ export default {
                 marker.style.display = 'inline-block';
 
                 if (isOl) {
-                  const styles = ['decimal', 'lower-alpha', 'lower-roman'];
-                  marker.textContent = `${this.getMarker(counter, styles[depth % 3])}. `;
+                  const styles = ['decimal', 'lower-alpha', 'lower-roman']
+                  marker.textContent = `${this.getMarker(counter, styles[depth % 3])}. `
                   counter++;
                 } else {
                   const bullets = ['•', '•', '•'];
@@ -563,34 +549,34 @@ export default {
 
                 li.insertBefore(marker, li.firstChild);
                 if (li.querySelector('ul, ol')) processLists(li, depth + 1);
-              });
-            });
-          };
+              })
+            })
+          }
           processLists(rowClone);
 
           // Content wrapper
           rowClone.querySelectorAll('li').forEach(li => {
             const contentWrapper = document.createElement('span');
-            contentWrapper.style.display = 'inline-block';
-            contentWrapper.style.width = 'calc(100% - 2px)';
+            contentWrapper.style.display = 'inline-block'
+            contentWrapper.style.width = 'calc(100% - 2px)'
 
             while (li.childNodes.length > 1) {
               contentWrapper.appendChild(li.childNodes[1]);
             }
-            li.appendChild(contentWrapper);
+            li.appendChild(contentWrapper)
           });
 
           // Temporary container
-          const tempDiv = document.createElement('div');
-          tempDiv.className = 'pdf-capture-mode';
-          tempDiv.style.position = 'absolute';
-          tempDiv.style.left = '-9999px';
-          tempDiv.style.background = '#fff';
-          tempDiv.style.marginLeft = '-20px';
-          tempDiv.style.width = '1165px';
+          const tempDiv = document.createElement('div')
+          tempDiv.className = 'pdf-capture-mode'
+          tempDiv.style.position = 'absolute'
+          tempDiv.style.left = '-9999px'
+          tempDiv.style.background = '#fff'
+          tempDiv.style.marginLeft = '-20px'
+          tempDiv.style.width = '1165px'
           rowClone.style.width = '1165px'
-          tempDiv.appendChild(rowClone);
-          document.body.appendChild(tempDiv);
+          tempDiv.appendChild(rowClone)
+          document.body.appendChild(tempDiv)
 
           try {
             const canvas = await html2canvas(rowClone, {
@@ -606,9 +592,8 @@ export default {
                 // Force layout stability
                 clonedDoc.body.style.overflow = 'visible';
                 clonedDoc.body.style.position = 'static';
-              },
-
-            });
+              }
+            })
 
             // Page management
             let renderedHeight = 0;
@@ -616,7 +601,7 @@ export default {
               const sliceHeightPx = Math.min(
                 ((pageHeight - position - 10) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
-              );
+              )
 
               const sliceCanvas = document.createElement('canvas');
               sliceCanvas.width = canvas.width;
@@ -629,65 +614,62 @@ export default {
 
               pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth+1, sliceImgHeight);
 
-              renderedHeight += sliceHeightPx;
-              position += sliceImgHeight;
+              renderedHeight += sliceHeightPx
+              position += sliceImgHeight
 
               if (renderedHeight < canvas.height) {
-                pdf.addPage(orientation, 'a4');
-                position = marginY;
+                pdf.addPage(orientation, 'a4')
+                position = marginY
 
-                xPosition = marginX;
-                pdf.setFontSize(12);
-                pdf.setFont('Arial', 'bold');
+                xPosition = marginX
+                pdf.setFontSize(12)
+                pdf.setFont('Arial', 'bold')
 
                 // Main title
-                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
-                const headerWidth = pdf.getTextWidth(headerText);
-                pdf.setFillColor(255, 255, 0);
-                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
-                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)'
+                const headerWidth = pdf.getTextWidth(headerText)
+                pdf.setFillColor(255, 255, 0)
+                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F')
+                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' })
 
                 // Date header
-                const today = new Date();
-                const options = { timeZone: 'Asia/Kolkata' };
+                const today = new Date()
+                const options = { timeZone: 'Asia/Kolkata' }
                 const formattedDate = today.toLocaleDateString('en-IN', options)
                   .replace(/\//g, '.')
-                  .replace(/\b(\d)\b/g, '0$1');
-                pdf.setFillColor(255, 255, 0);
-                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
-                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+                  .replace(/\b(\d)\b/g, '0$1')
+                pdf.setFillColor(255, 255, 0)
+                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F')
+                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' })
 
                 // position += 18;
-                position += 1;
+                position += 1
 
-                pdf.setFontSize(7.5);
-                pdf.setFont('Arial', 'bold');
+                pdf.setFontSize(7.5)
+                pdf.setFont('Arial', 'bold')
 
                 headers.forEach((header, index) => {
-                  const cellWidth = mmWidths[index];
-                  const textWidth = pdf.getTextWidth(header);
+                  const cellWidth = mmWidths[index]
+                  const textWidth = pdf.getTextWidth(header)
+                  const paddedWidth = cellWidth + 1.5
+                  const xStart = xPosition - 0.25
 
-                  // Add 5px (1.75mm) margin on both sides
-                  const paddedWidth = cellWidth + 1.5;
-                  const xStart = xPosition - 0.25;
-
-                  pdf.setFillColor(59, 130, 246);
-                  pdf.rect(xStart, position, paddedWidth, 8, 'F');
+                  pdf.setFillColor(59, 130, 246)
+                  pdf.rect(xStart, position, paddedWidth, 8, 'F')
                   pdf.text(
                     header,
                     xPosition + (cellWidth - textWidth) / 2,
                     position + 5.5
-                  );
-
-                  xPosition += cellWidth;
-                });
-                position += 10;
+                  )
+                  xPosition += cellWidth
+                })
+                position += 10
               }
             }
-            document.body.removeChild(tempDiv);
+            document.body.removeChild(tempDiv)
           } catch (error) {
-            console.error(`Row ${i} error:`, error);
-            document.body.removeChild(tempDiv);
+            console.error(`Row ${i} error:`, error)
+            document.body.removeChild(tempDiv)
           }
         }
 
@@ -798,6 +780,7 @@ export default {
       };
       return statusMap[status] || status;
     },
+
     showActionMenu(taskId) {
       this.activeMenuId = taskId;
     },

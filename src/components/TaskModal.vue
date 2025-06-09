@@ -170,7 +170,7 @@ export default {
         promotion: false,
 
         // Font settings
-        fontsize_formats: '8p 10pt 12pt 14pt 16pt 18pt 20pt 24pt 30pt 36pt 48pt 54pt 60pt 72pt',
+        fontsize_formats: '4pt 6pt 8pt 10pt 12pt 14pt 16pt 18pt 20pt 24pt 30pt 36pt 48pt 54pt 60pt 72pt',
         fontsize_input: true,
         // Table settings
         table_default_attributes: {
