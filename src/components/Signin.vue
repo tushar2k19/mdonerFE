@@ -1,6 +1,5 @@
 
 <script>
-// import {mapActions} from "vuex";
 import CryptoJS from 'crypto-js'
 import Cookies from 'js-cookie'
 import ParticleBackground from './ParticleBackground.vue'

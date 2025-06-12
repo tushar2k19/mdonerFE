@@ -184,13 +184,11 @@ export default {
           params: {
             date: this.selectedDate.toISOString().split('T')[0]
           }
-        });
+        })
 
         const processedTasks = await Promise.all(response.data.active.map(async task => {
-          // Pass current review_date to findNearestDate
           const nearestDate = this.findNearestDate(task.action_to_be_taken, task.review_date);
 
-          // Only update if the nearest date is different
           if (nearestDate && nearestDate !== task.review_date) {
             try {
               await this.$http.secured.put(`/task/${task.id}`, {
@@ -199,7 +197,7 @@ export default {
                 }
               })
             } catch (error) {
-              console.error('Error updating review date:', error);
+              console.error('Error updating review date:', error)
             }
           }
 
@@ -274,29 +272,26 @@ export default {
         validDates.push(new Date(currentReviewDate))
       }
 
-      // Process all dates found in content
-      let matches = content.matchAll(dateRegex);
+      let matches = content.matchAll(dateRegex)
       for (const match of matches) {
-        const [, day, month] = match;
-        let adjustedDay = parseInt(day) + 1; // Add one day
-        let adjustedMonth = parseInt(month);
-        let year = 2024;
+        const [, day, month] = match
+        let adjustedDay = parseInt(day) + 1
+        let adjustedMonth = parseInt(month)
+        let year = 2024
 
-        // Handle month rollover if day becomes greater than month length
-        const daysInMonth = new Date(year, adjustedMonth, 0).getDate();
+        const daysInMonth = new Date(year, adjustedMonth, 0).getDate()
         if (adjustedDay > daysInMonth) {
-          adjustedDay = 1;
-          adjustedMonth++;
+          adjustedDay = 1
+          adjustedMonth++
           if (adjustedMonth > 12) {
-            adjustedMonth = 1;
-            year++;
+            adjustedMonth = 1
+            year++
           }
         }
 
         let date = new Date(year, adjustedMonth - 1, adjustedDay);
         date = new Date(date.getTime() + totalOffset * 60000);
 
-        // If date is in past, try next year's date
         if (date < indiaToday) {
           year = 2025;
           date = new Date(year, adjustedMonth - 1, adjustedDay);
@@ -305,8 +300,6 @@ export default {
 
         validDates.push(date);
       }
-
-      // Find earliest future date
       const futureDates = validDates.filter(date => date > indiaToday);
       if (futureDates.length > 0) {
         const earliestDate = new Date(Math.min(...futureDates));
@@ -316,22 +309,11 @@ export default {
 
       return currentReviewDate;
     },
-    async markAsComplete (task) {
-      try {
-        await this.$http.secured.post(`/task/${task.id}/complete`)
-        await this.fetchTasksByDate()
-        this.bus.$emit('notifications-updated')
-
-      } catch (error) {
-        console.error('Error marking task as complete:', error)
-      }
-    },
     openAddTaskModal () {
       this.currentTask = null
       this.taskModalMode = 'add'
       this.showTaskModal = true
     },
-    // Helper function for OL markers
     getMarker(number, style) {
       if (style === 'lower-alpha') return String.fromCharCode(96 + number);
       if (style === 'lower-roman') return this.toRoman(number);
@@ -344,7 +326,6 @@ export default {
     },
     async downloadPDF() {
       try {
-        // --- PDF Setup ---
         const orientation = 'l';
         const pdf = new jsPDF(orientation, 'mm', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
@@ -354,11 +335,9 @@ export default {
         const usableWidth = pageWidth - marginX * 2;
         let position = marginY;
 
-        // --- Main Header ---
         pdf.setFontSize(12);
         pdf.setFont('Arial', 'bold');
 
-        // Main title
         const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
         const headerWidth = pdf.getTextWidth(headerText);
         pdf.setFillColor(255, 255, 0);
