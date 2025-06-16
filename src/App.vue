@@ -68,6 +68,29 @@ export default {
   margin: 0;
   padding: 0;
 }
+
+/* Global table styles to ensure tables are always displayed */
+table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  display: table !important;
+}
+
+thead {
+  display: table-header-group !important;
+}
+
+tbody {
+  display: table-row-group !important;
+}
+
+tr {
+  display: table-row !important;
+}
+
+th, td {
+  display: table-cell !important;
+}
 ul, ol {
   margin: 0.5em 0;
   padding-left: 20px;

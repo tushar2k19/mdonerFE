@@ -5,6 +5,8 @@ import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
 import CompletedTasks from '../components/CompletedTasks.vue'
 import Home from '../components/Home.vue'
+import NodeEditorTest from '../components/NodeEditorTest.vue'
+import EnhancedNodeEditorDemo from '../components/EnhancedNodeEditorDemo.vue'
 
 Vue.use(Router)
 
@@ -35,6 +37,16 @@ const router = new Router({
       path: '/completed',
       name: 'CompletedTasks',
       component: CompletedTasks
+    },
+    {
+      path: '/test-editor',
+      name: 'NodeEditorTest',
+      component: NodeEditorTest
+    },
+    {
+      path: '/enhanced-editor-demo',
+      name: 'EnhancedNodeEditorDemo',
+      component: EnhancedNodeEditorDemo
     },
     // {
     //   path: '/dashboard',

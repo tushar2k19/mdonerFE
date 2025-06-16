@@ -38,7 +38,7 @@
           <td>{{ index + 1 }}</td>
           <td>{{ task.sector_division }}</td>
           <td>{{ task.description }}</td>
-          <td v-html="processActionContent(task.action_to_be_taken)" style="align-content: center; !important;"></td>
+          <td v-html="processActionContent(task.action_to_be_taken)" class="action-content-cell"></td>
           <td>{{ formatDate(task.original_date) }}</td>
           <td>{{ task.responsibility }}</td>
           <td>{{ formatDate(task.review_date) }}</td>
@@ -247,13 +247,19 @@ export default {
               node.parentNode.replaceChild(span, node)
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            Array.from(node.childNodes).forEach(processNode)
+            // Preserve action-node structure and only process text content within node-content
+            if (node.classList.contains('node-content') || !node.classList.contains('action-node')) {
+              Array.from(node.childNodes).forEach(processNode)
+            }
           }
         }
+        
+        // Process all content while preserving structure
         Array.from(doc.body.childNodes).forEach(processNode)
         return doc.body.innerHTML
       } catch (error) {
         console.error('Error in processActionContent:', error)
+        // If processing fails, return original content to maintain hierarchical structure
         return content
       }
     },
@@ -942,16 +948,13 @@ export default {
 .table-row td:nth-child(4) { width: 67%; }
 
 .table-headers th:nth-child(5),
-.table-headers th:nth-child(6),
-.table-headers th:nth-child(7),
-.table-row td:nth-child(5),
-.table-row td:nth-child(6),
-.table-row td:nth-child(7) { width: 7%; }
-
+.table-row td:nth-child(5) { width: 7%; }
 
 .table-headers th:nth-child(6),
 .table-row td:nth-child(6) { width: 10%; }
 
+.table-headers th:nth-child(7),
+.table-row td:nth-child(7) { width: 7%; }
 
 .table-headers th:nth-child(8),
 .table-row td:nth-child(8) { width: 8%; }
@@ -1122,6 +1125,115 @@ export default {
 
 .table-row:hover {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Action Content Cell Styling */
+.action-content-cell {
+  text-align: left !important;
+  vertical-align: top !important;
+  line-height: 1.4 !important;
+}
+
+.action-content-cell * {
+  color: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Hierarchical Action Node Styling */
+.action-content-cell .action-node {
+  display: flex;
+  align-items: flex-start;
+  margin: 0.2em 0;
+  line-height: 1.4;
+}
+
+.action-content-cell .action-node .node-marker {
+  flex-shrink: 0;
+  margin-right: 0.5em;
+  font-weight: bold;
+  color: #374151;
+}
+
+.action-content-cell .action-node .node-content {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Level-based indentation */
+.action-content-cell .action-node.level-1 {
+  margin-left: 0;
+}
+
+.action-content-cell .action-node.level-2 {
+  margin-left: 1.5em;
+}
+
+.action-content-cell .action-node.level-3 {
+  margin-left: 3em;
+}
+
+.action-content-cell .action-node.level-4 {
+  margin-left: 4.5em;
+}
+
+.action-content-cell .action-node.level-5 {
+  margin-left: 6em;
+}
+
+/* List style formatting */
+.action-content-cell .action-node.style-decimal .node-marker {
+  color: #2563EB;
+  font-weight: bold;
+}
+
+.action-content-cell .action-node.style-lower-alpha .node-marker {
+  color: #059669;
+  font-weight: bold;
+}
+
+.action-content-cell .action-node.style-lower-roman .node-marker {
+  color: #7C3AED;
+  font-weight: bold;
+}
+
+.action-content-cell .action-node.style-bullet .node-marker {
+  color: #DC2626;
+  font-weight: bold;
+}
+
+/* Completed nodes styling */
+.action-content-cell .action-node.completed {
+  opacity: 0.7;
+}
+
+.action-content-cell .action-node.completed .node-content {
+  text-decoration: line-through;
+}
+
+.action-content-cell table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 0.5em 0 !important;
+}
+
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #ddd !important;
+  padding: 4px 8px !important;
+  font-size: 0.8em !important;
+}
+
+.action-content-cell table th {
+  background-color: #f2f2f2 !important;
+  font-weight: bold !important;
+}
+
+.action-content-cell p {
+  margin: 0.25em 0 !important;
+}
+
+.action-content-cell br {
+  line-height: 1.2 !important;
 }
 .download-pdf-btn {
   width: 173px;

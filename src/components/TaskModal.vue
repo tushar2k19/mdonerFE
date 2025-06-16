@@ -27,10 +27,15 @@
 
         <div class="form-group">
           <label>Action to be Taken</label>
-          <editor
+          <!-- <editor
             :api-key="apiKey"
             :init="editorConfig"
-            v-model="formData.action_to_be_taken"
+            v-model="formData.action_to_be_taken" -->
+
+          <EnhancedNodeEditor
+            :task-version-id="taskVersionId"
+            :initial-nodes="actionNodes"
+            @nodes-changed="onNodesChanged"
           />
         </div>
 
@@ -77,14 +82,14 @@
   </div>
 </template>
 <script>
-import Editor from '@tinymce/tinymce-vue'
+import EnhancedNodeEditor from './EnhancedNodeEditor.vue'
 import Datepicker from 'vuejs-datepicker'
 
 export default {
   name: 'TaskModal',
 
   components: {
-    Editor,
+    EnhancedNodeEditor,
     Datepicker
   },
 
@@ -109,8 +114,10 @@ export default {
         responsibility: '',
         review_date: null
       },
-      apiKey: 'dplkib2z908z9mmeu2yjsq7c95iqj1ez7prx8nzktlg70096',
-      editorConfig: {
+      actionNodes: [],
+      flatActionNodes: [],
+      taskVersionId: null,
+      oldEditorConfig: {
         height: 425,
         menubar: true,
         plugins: [
@@ -203,7 +210,7 @@ export default {
       }
     }
   },
-  created () {
+  async created () {
     // If editing existing task, populate form
     if (this.task) {
       this.formData = {
@@ -214,15 +221,56 @@ export default {
         responsibility: this.task.responsibility,
         review_date: this.task.review_date ? new Date(this.task.review_date) : null
       }
+      
+      // Load action nodes if task has a current version
+      if (this.task.current_version_id) {
+        this.taskVersionId = this.task.current_version_id
+        await this.loadActionNodes()
+      }
+    } else {
+      // For new tasks, initialize with empty array
+      this.actionNodes = []
+      this.taskVersionId = 1 // Temporary ID for new tasks
     }
   },
 
   methods: {
+    async loadActionNodes() {
+      try {
+        const response = await this.$http.secured.get(`/task_versions/${this.taskVersionId}/nodes`)
+        if (response.data.success) {
+          // Backend returns tree structure: [{ node: {...}, children: [...] }]
+          const treeData = response.data.data
+          
+          // Convert tree structure to flat array for EnhancedNodeEditor
+          this.actionNodes = this.flattenTreeStructure(treeData)
+          
+          // Also populate the action_to_be_taken field with formatted content
+          this.formData.action_to_be_taken = this.formatNodesForDisplay(treeData)
+        }
+      } catch (error) {
+        console.error('Error loading action nodes:', error)
+        this.$toast.error('Error loading action items')
+        // Fallback to empty array
+        this.actionNodes = []
+      }
+    },
+
+    onNodesChanged(nodesData) {
+      // NodeEditor emits flat array of nodes: [{ id, content, level, ... }]
+      // Store this for saving to backend
+      this.flatActionNodes = nodesData
+      
+      // Also update the action_to_be_taken field for display
+      if (nodesData && nodesData.length > 0) {
+        this.formData.action_to_be_taken = this.formatFlatNodesForDisplay(nodesData)
+      }
+    },
+
     validateForm() {
       const requiredFields = [
         { field: 'sector_division', label: 'Sector/Division' },
         { field: 'description', label: 'Description' },
-        { field: 'action_to_be_taken', label: 'Action to be Taken' },
         { field: 'original_date', label: 'Original Date' },
         { field: 'responsibility', label: 'Responsibility' },
         { field: 'review_date', label: 'Review Date' }
@@ -234,22 +282,46 @@ export default {
           return false
         }
       }
+
+      // Check if we have at least one action node with content
+      const hasContent = this.flatActionNodes && this.flatActionNodes.length > 0 && 
+                        this.flatActionNodes.some(node => node.content && node.content.trim())
+      
+      if (!hasContent) {
+        this.$toast.error('At least one action item is required')
+        return false
+      }
+
       return true
     },
 
     async saveTask() {
       if (!this.validateForm()) return
+      
       try {
         const taskData = {
-          ...this.formData,
-          original_date: this.formatDate(this.formData.original_date),
-          review_date: this.formatDate(this.formData.review_date)
+          task: {
+            ...this.formData,
+            original_date: this.formatDate(this.formData.original_date),
+            review_date: this.formatDate(this.formData.review_date)
+          },
+          // Send flat nodes array to backend
+          action_nodes: this.flatActionNodes ? 
+            this.flatActionNodes.filter(node => node.content && node.content.trim()) : 
+            []
         }
 
+        let response
         if (this.mode === 'edit' && this.task) {
-          await this.$http.secured.put(`/task/${this.task.id}`, taskData)
+          response = await this.$http.secured.put(`/task/${this.task.id}`, taskData)
         } else {
-          await this.$http.secured.post('/task', taskData)
+          response = await this.$http.secured.post('/task', taskData)
+        }
+
+        // Check for merge conflict
+        if (response.data.merge_conflict) {
+          this.handleMergeConflict(response.data)
+          return
         }
 
         this.$emit('save')
@@ -261,9 +333,96 @@ export default {
       }
     },
 
+    handleMergeConflict(conflictData) {
+      // Show merge interface
+      this.$toast.warning(conflictData.message)
+      
+      // Emit event to parent to show merge modal
+      this.$emit('merge-conflict', {
+        taskId: this.task.id,
+        userVersion: conflictData.user_version,
+        currentApproved: conflictData.current_approved,
+        diff: conflictData.diff
+      })
+    },
+
     formatDate(date) {
       if (!date) return null
       return date.toISOString().split('T')[0]
+    },
+
+    formatNodesForDisplay(nodes) {
+      if (!nodes || nodes.length === 0) return ''
+      
+      let formatted = ''
+      
+      const formatNodeTree = (nodeItems, indent = '') => {
+        nodeItems.forEach(item => {
+          const node = item.node
+          const counter = node.display_counter || '1'
+          const suffix = node.list_style === 'bullet' ? '' : '.'
+          
+          // Format the content based on node type
+          let content = node.content || ''
+          if (node.node_type === 'rich_text' || node.node_type === 'table') {
+            // For rich text, keep HTML formatting
+            formatted += `${indent}${counter}${suffix} ${content}\n`
+          } else {
+            // For plain text, just add the content
+            formatted += `${indent}${counter}${suffix} ${content}\n`
+          }
+          
+          // Process children with increased indentation
+          if (item.children && item.children.length > 0) {
+            formatNodeTree(item.children, indent + '  ')
+          }
+        })
+      }
+      
+      formatNodeTree(nodes)
+      return formatted.trim()
+    },
+
+    formatFlatNodesForDisplay(flatNodes) {
+      if (!flatNodes || flatNodes.length === 0) return ''
+      
+      let formatted = ''
+      
+      // Sort nodes by level and position
+      const sortedNodes = [...flatNodes].sort((a, b) => {
+        if (a.level !== b.level) return a.level - b.level
+        return (a.position || 0) - (b.position || 0)
+      })
+      
+      sortedNodes.forEach(node => {
+        const indent = '  '.repeat((node.level || 1) - 1)
+        const counter = node.display_counter || '1'
+        const suffix = node.list_style === 'bullet' ? '' : '.'
+        const content = node.content || ''
+        
+        formatted += `${indent}${counter}${suffix} ${content}\n`
+      })
+      
+      return formatted.trim()
+    },
+
+    flattenTreeStructure(treeData) {
+      const flatNodes = []
+      
+      const flattenRecursive = (nodeItems) => {
+        nodeItems.forEach(item => {
+          // Add the node itself
+          flatNodes.push(item.node)
+          
+          // Recursively add children
+          if (item.children && item.children.length > 0) {
+            flattenRecursive(item.children)
+          }
+        })
+      }
+      
+      flattenRecursive(treeData)
+      return flatNodes
     },
 
     closeModal() {
@@ -297,9 +456,10 @@ export default {
 .modal-content {
   background: white;
   border-radius: 16px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
+  width: 99%;
+  max-width: 2000px;
+  min-height: 85vh;
+  max-height: 95vh;
   overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   animation: slideIn 0.3s ease;
