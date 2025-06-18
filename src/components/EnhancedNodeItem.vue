@@ -1,5 +1,8 @@
 <template>
-  <div class="enhanced-node-item" :class="{ 'completed': node.completed }">
+  <div class="enhanced-node-item" :class="[
+    { 'completed': node.completed },
+    `diff-${node.diff_status}` // added, modified, deleted, unchanged
+  ]">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
       <!-- Counter/Marker -->
@@ -12,7 +15,7 @@
       <div class="node-editor-container">
         <!-- Rich Text Editor for all nodes (now default) -->
         <div class="rich-text-container">
-          <div v-if="!isEditing" @click="startEdit" class="rich-text-display" v-html="node.content"></div>
+          <div v-if="!isEditing" @click="startEdit" @contextmenu="handleTableContextMenu" class="rich-text-display" v-html="node.content"></div>
           <div v-else class="rich-text-editor">
             <!-- Rich Text Toolbar -->
             <div class="rich-toolbar">
@@ -27,7 +30,7 @@
                   <u>U</u>
                 </button>
               </div>
-              
+
               <div class="toolbar-group">
                 <select @change="execCommand('foreColor', $event.target.value)" class="color-picker">
                   <option value="">Text Color</option>
@@ -39,7 +42,7 @@
                   <option value="#ff00ff">Magenta</option>
                   <option value="#00ffff">Cyan</option>
                 </select>
-                
+
                 <select @change="execCommand('backColor', $event.target.value)" class="color-picker">
                   <option value="">Background</option>
                   <option value="#ffffff">White</option>
@@ -77,8 +80,57 @@
               @input="onContentChange"
               @paste="onContentChange"
               @keyup="onContentChange"
+              @contextmenu="handleTableContextMenu"
               class="rich-editor"
             ></div>
+
+            <!-- Table Context Menu -->
+            <div
+              v-if="showTableContextMenu"
+              class="table-context-menu"
+              :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
+              @click.stop
+            >
+              <div class="context-menu-group">
+                <button @click="addRowAbove" class="context-menu-item">
+                  ↑ Add Row Above
+                </button>
+                <button @click="addRowBelow" class="context-menu-item">
+                  ↓ Add Row Below
+                </button>
+              </div>
+
+              <div class="context-menu-group">
+                <button @click="addColumnLeft" class="context-menu-item">
+                  ← Add Column Left
+                </button>
+                <button @click="addColumnRight" class="context-menu-item">
+                  → Add Column Right
+                </button>
+              </div>
+
+              <div class="context-menu-divider"></div>
+
+              <div class="context-menu-group">
+                <button @click="deleteCurrentRow" class="context-menu-item delete-item">
+                  🗑 Delete Row
+                </button>
+                <button @click="deleteCurrentColumn" class="context-menu-item delete-item">
+                  🗑 Delete Column
+                </button>
+              </div>
+
+              <div class="context-menu-divider"></div>
+
+              <div class="context-menu-group">
+                <button @click="clearCell" class="context-menu-item">
+                  🧹 Clear Cell
+                </button>
+                <button @click="clearTable" class="context-menu-item delete-item">
+                  🧹 Clear Table
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -97,7 +149,7 @@
             class="date-input"
             ref="dateInput"
           />
-          <div 
+          <div
             v-else
             @click="startDateEdit"
             class="date-display"
@@ -113,7 +165,7 @@
             <button @click="toggleActionDropdown" class="action-btn dropdown-toggle">
               ⋮
             </button>
-            
+
             <div v-if="showActionDropdown" class="action-menu">
               <button @click="addPointSameLevel" class="action-item">
                 + Add Point (Same Level)
@@ -148,7 +200,6 @@
       </div>
     </div>
 
-    <!-- Child Nodes -->
     <div class="node-children" v-if="node.children && node.children.length > 0">
       <EnhancedNodeItem
         v-for="(child, childIndex) in node.children"
@@ -165,7 +216,6 @@
       />
     </div>
 
-    <!-- Table Creator Modal -->
     <div v-if="showTableModal" class="table-modal-overlay" @click="closeTableModal">
       <div class="table-modal" @click.stop>
         <h4>Add Table to Current Point</h4>
@@ -191,7 +241,7 @@
 <script>
 export default {
   name: 'EnhancedNodeItem',
-  
+
   props: {
     node: {
       type: Object,
@@ -219,7 +269,13 @@ export default {
       showTableModal: false,
       tableRows: 3,
       tableCols: 3,
-      updateTimer: null
+              updateTimer: null,
+        showTableContextMenu: false,
+        contextMenuY: 0,
+        contextMenuX: 0,
+        currentCell: null,
+        currentRow: null,
+        currentColumn: null
     }
   },
 
@@ -247,14 +303,14 @@ export default {
   created() {
     // Initialize editContent
     this.editContent = this.node.content || ''
-    
+
     // Auto-focus new empty nodes
     if (!this.node.content && this.node.isTemp) {
       this.$nextTick(() => {
         this.startEdit()
       })
     }
-    
+
     document.addEventListener('click', this.handleClickOutside)
   },
 
@@ -277,12 +333,12 @@ export default {
       this.isEditing = true
       this.editContent = this.node.content || '<p>Enter content...</p>'
       this.originalContent = this.node.content || ''
-      
+
       this.$nextTick(() => {
         if (this.$refs.richEditor) {
           this.$refs.richEditor.innerHTML = this.editContent
           this.$refs.richEditor.focus()
-          
+
           // Put cursor at the end
           const range = document.createRange()
           const sel = window.getSelection()
@@ -296,11 +352,11 @@ export default {
 
     saveContent() {
       if (this.editContent.trim() !== this.originalContent) {
-        const updateData = { 
+        const updateData = {
           content: this.editContent.trim(),
           node_type: this.node.node_type === 'table' ? 'table' : 'rich_text'
         }
-        
+
         this.$emit('update-node', this.node.id, updateData)
       }
       this.isEditing = false
@@ -315,7 +371,7 @@ export default {
       this.isEditingDate = true
       this.editDate = this.node.review_date || ''
       this.originalDate = this.node.review_date || ''
-      
+
       this.$nextTick(() => {
         if (this.$refs.dateInput) {
           this.$refs.dateInput.focus()
@@ -390,38 +446,22 @@ export default {
 
     createTableAtLevel() {
       const tableContent = this.generateTableHTML(this.tableRows, this.tableCols)
-      
-      console.log('🔥 Creating table with Vue 2 /deep/ CSS selectors')
-      console.log('Table HTML:', tableContent)
-      
-      // Add table to the current node's content (Solution 1: Mixed Content)
       const currentContent = this.node.content || ''
       const newContent = currentContent + (currentContent ? '<br/><br/>' : '') + tableContent
-      
-      console.log('Current content:', currentContent)
-      console.log('New content with table:', newContent)
-      
-      // Update the current node with table content and ensure it's rich_text type
-      this.$emit('update-node', this.node.id, { 
+      this.$emit('update-node', this.node.id, {
         content: newContent,
-        node_type: 'rich_text' // Allow mixed content in rich_text nodes
+        node_type: 'rich_text'
       })
-      
-      console.log('✅ Table creation completed with Vue 2 /deep/ selectors - change detection triggered')
       this.closeTableModal()
     },
 
     generateTableHTML(rows, cols) {
       let html = '<table style="width: 100%; border-collapse: collapse;">\n'
-      
-      // Create header row
       html += '  <thead>\n    <tr>\n'
       for (let c = 1; c <= cols; c++) {
         html += `      <th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">Header ${c}</th>\n`
       }
       html += '    </tr>\n  </thead>\n'
-      
-      // Create body rows (user wants 'rows' total, so 'rows - 1' body rows)
       html += '  <tbody>\n'
       for (let r = 1; r <= rows - 1; r++) {
         html += '    <tr>\n'
@@ -431,7 +471,6 @@ export default {
         html += '    </tr>\n'
       }
       html += '  </tbody>\n</table>'
-      
       return html
     },
 
@@ -444,12 +483,12 @@ export default {
     onContentChange() {
       if (this.$refs.richEditor) {
         const newContent = this.$refs.richEditor.innerHTML
-        
+
         // Only update and emit if content actually changed
         if (newContent !== this.editContent) {
           // Update the reactive data without triggering re-render
           this.editContent = newContent
-          
+
           // Emit change for auto-save/change detection (debounced)
           this.emitContentUpdate()
         }
@@ -461,11 +500,11 @@ export default {
       clearTimeout(this.updateTimer)
       this.updateTimer = setTimeout(() => {
         if (this.editContent.trim() !== this.originalContent) {
-          const updateData = { 
+          const updateData = {
             content: this.editContent.trim(),
             node_type: this.node.node_type === 'table' ? 'table' : 'rich_text'
           }
-          
+
           this.$emit('update-node', this.node.id, updateData)
           this.originalContent = this.editContent.trim() // Update the reference point
         }
@@ -477,14 +516,14 @@ export default {
       if (table) {
         const newRow = table.insertRow()
         const cellCount = table.rows[0].cells.length
-        
+
         for (let i = 0; i < cellCount; i++) {
           const cell = newRow.insertCell()
           cell.style.border = '1px solid #ddd'
           cell.style.padding = '8px'
           cell.textContent = `New Cell ${i + 1}`
         }
-        
+
         // Ensure change detection is triggered
         this.onContentChange()
         console.log('🔄 Table row added - change detection triggered')
@@ -498,14 +537,14 @@ export default {
           const cell = table.rows[i].insertCell()
           cell.style.border = '1px solid #ddd'
           cell.style.padding = '8px'
-          
+
           if (i === 0 && table.rows[i].cells[0].tagName === 'TH') {
             cell.outerHTML = '<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">New Header</th>'
           } else {
             cell.textContent = `New Cell`
           }
         }
-        
+
         // Ensure change detection is triggered
         this.onContentChange()
         console.log('🔄 Table column added - change detection triggered')
@@ -522,6 +561,258 @@ export default {
     formatDate(date) {
       if (!date) return null
       return new Date(date).toLocaleDateString()
+    },
+
+    handleTableContextMenu(event) {
+      // Only show context menu if we're right-clicking on a table cell
+      const target = event.target
+      const cell = target.closest('td, th')
+      const table = target.closest('table')
+
+      if (!cell || !table) {
+        return // Not in a table cell, let default context menu appear
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      // Store reference to clicked cell and calculate its position
+      this.currentCell = cell
+      this.currentRow = cell.parentNode.rowIndex
+      this.currentColumn = cell.cellIndex
+
+      // Position context menu
+      this.showTableContextMenu = true
+      this.contextMenuY = event.clientY
+      this.contextMenuX = event.clientX
+
+      // Hide context menu when clicking elsewhere
+      this.$nextTick(() => {
+        document.addEventListener('click', this.hideTableContextMenu, { once: true })
+      })
+    },
+
+    hideTableContextMenu() {
+      this.showTableContextMenu = false
+      this.currentCell = null
+      this.currentRow = null
+      this.currentColumn = null
+    },
+
+    addRowAbove() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentRow !== null) {
+        const newRow = table.insertRow(this.currentRow)
+        const cellCount = table.rows[0].cells.length
+
+        for (let i = 0; i < cellCount; i++) {
+          const cell = newRow.insertCell()
+          cell.style.border = '1px solid #ddd'
+          cell.style.padding = '8px'
+          cell.textContent = `New Cell`
+        }
+
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🔄 Table row added above - change detection triggered')
+      }
+    },
+
+    addRowBelow() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentRow !== null) {
+        const newRow = table.insertRow(this.currentRow + 1)
+        const cellCount = table.rows[0].cells.length
+
+        for (let i = 0; i < cellCount; i++) {
+          const cell = newRow.insertCell()
+          cell.style.border = '1px solid #ddd'
+          cell.style.padding = '8px'
+          cell.textContent = `New Cell`
+        }
+
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🔄 Table row added below - change detection triggered')
+      }
+    },
+
+    addColumnLeft() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentColumn !== null) {
+        for (let i = 0; i < table.rows.length; i++) {
+          const cell = table.rows[i].insertCell(this.currentColumn)
+          cell.style.border = '1px solid #ddd'
+          cell.style.padding = '8px'
+
+          if (i === 0 && table.rows[i].cells[0].tagName === 'TH') {
+            cell.outerHTML = '<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">New Header</th>'
+          } else {
+            cell.textContent = `New Cell`
+          }
+        }
+
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🔄 Table column added left - change detection triggered')
+      }
+    },
+
+    addColumnRight() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentColumn !== null) {
+        for (let i = 0; i < table.rows.length; i++) {
+          const cell = table.rows[i].insertCell(this.currentColumn + 1)
+          cell.style.border = '1px solid #ddd'
+          cell.style.padding = '8px'
+
+          if (i === 0 && table.rows[i].cells[0].tagName === 'TH') {
+            cell.outerHTML = '<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">New Header</th>'
+          } else {
+            cell.textContent = `New Cell`
+          }
+        }
+
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🔄 Table column added right - change detection triggered')
+      }
+    },
+
+    deleteCurrentRow() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentRow !== null) {
+        // Don't delete if it's the only row
+        if (table.rows.length <= 1) {
+          alert('Cannot delete the last row')
+          return
+        }
+
+        table.deleteRow(this.currentRow)
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🗑 Table row deleted - change detection triggered')
+      }
+    },
+
+    deleteCurrentColumn() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentColumn !== null) {
+        // Don't delete if it's the only column
+        if (table.rows[0].cells.length <= 1) {
+          alert('Cannot delete the last column')
+          return
+        }
+
+        // Delete the column from all rows
+        for (let i = 0; i < table.rows.length; i++) {
+          if (table.rows[i].cells[this.currentColumn]) {
+            table.rows[i].deleteCell(this.currentColumn)
+          }
+        }
+
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🗑 Table column deleted - change detection triggered')
+      }
+    },
+
+    clearCell() {
+      if (this.currentCell) {
+        this.currentCell.textContent = ''
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🧹 Current cell cleared - change detection triggered')
+      }
+    },
+
+    clearTable() {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table) {
+        // Clear all cell contents but keep table structure
+        for (let i = 0; i < table.rows.length; i++) {
+          for (let j = 0; j < table.rows[i].cells.length; j++) {
+            table.rows[i].cells[j].textContent = ''
+          }
+        }
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log('🧹 Table contents cleared - change detection triggered')
+      }
+    },
+
+    updateNodeContentFromDOM() {
+      // This method updates the node content when we modify a table in display mode
+      if (this.isEditing && this.$refs.richEditor) {
+        // In editing mode, use the existing onContentChange method
+        this.onContentChange()
+      } else {
+        // In display mode, extract the updated HTML and emit the change
+        const displayDiv = this.$el.querySelector('.rich-text-display')
+        if (displayDiv) {
+          const updatedContent = displayDiv.innerHTML
+          const updateData = {
+            content: updatedContent,
+            node_type: this.node.node_type === 'table' ? 'table' : 'rich_text'
+          }
+
+          this.$emit('update-node', this.node.id, updateData)
+          console.log('🔄 Node content updated from DOM manipulation')
+        }
+      }
     }
   }
 }
@@ -1011,4 +1302,60 @@ export default {
 .btn-secondary:hover {
   background: #e5e7eb;
 }
-</style> 
+
+/* Table Context Menu Styles */
+.table-context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  z-index: 1000;
+  min-width: 200px;
+}
+
+.context-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.context-menu-group:last-child {
+  margin-bottom: 0;
+}
+
+.context-menu-item {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-align: left;
+  width: 100%;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.context-menu-item:hover {
+  background-color: #f3f4f6;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 0.5rem 0;
+}
+
+.context-menu-item.delete-item {
+  color: #ef4444;
+}
+
+.context-menu-item.delete-item:hover {
+  background-color: #fef2f2;
+}
+</style>

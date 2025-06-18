@@ -2,11 +2,11 @@
 <script>
 import CryptoJS from 'crypto-js'
 import Cookies from 'js-cookie'
-import ParticleBackground from './ParticleBackground.vue'
+// import ParticleBackground from './ParticleBackground.vue'
 
 export default {
   name: 'Signin',
-  components: {ParticleBackground},
+  // components: {ParticleBackground},
   data () {
     return {
       email: '',

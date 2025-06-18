@@ -91,7 +91,7 @@ import TaskModal from '../components/TaskModal.vue'
 import ReviewModal from '../components/ReviewModal.vue'
 import CommentsModal from '../components/CommentsModal.vue'
 import Datepicker from 'vuejs-datepicker'
-import ParticleBackground from './ParticleBackground.vue'
+// import ParticleBackground from './ParticleBackground.vue'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -104,7 +104,7 @@ export default {
     ReviewModal,
     CommentsModal,
     Datepicker,
-    ParticleBackground,
+    // ParticleBackground,
   },
 
   data () {
@@ -253,7 +253,7 @@ export default {
             }
           }
         }
-        
+
         // Process all content while preserving structure
         Array.from(doc.body.childNodes).forEach(processNode)
         return doc.body.innerHTML
