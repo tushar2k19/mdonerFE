@@ -45,7 +45,7 @@ import NotificationService from '../services/NotificationService'
 export default {
   name: 'NotificationComponent',
 
-  data() {
+  data () {
     return {
       showNotifications: false,
       notifications: [],
@@ -55,18 +55,18 @@ export default {
   },
 
   computed: {
-    unreadCount() {
+    unreadCount () {
       return this.notifications.filter(n => !n.read).length
     }
   },
 
-  created() {
+  created () {
     this.notificationService = new NotificationService(this.$http.secured)
     this.initializeNotifications()
     this.bus.$on('notifications-updated', this.fetchNotifications)
   },
 
-  mounted() {
+  mounted () {
     this.refreshInterval = setInterval(() => this.fetchNotifications(), 30000)
   },
 
@@ -82,7 +82,7 @@ export default {
       await this.fetchNotifications()
     },
 
-    async fetchNotifications() {
+    async fetchNotifications () {
       try {
         this.notifications = await this.notificationService.fetchNotifications()
       } catch (error) {
@@ -90,28 +90,53 @@ export default {
       }
     },
 
-    async handleNotificationClick(notification) {
+    async handleNotificationClick (notification) {
       try {
+        let redirectInfo = null
+
         if (!notification.read) {
-          await this.notificationService.markAsRead(notification.id)
-          notification.read = true
+          const response = await this.$http.secured.put(`/notification/${notification.id}/mark_as_read`)
+          if (response.data.success) {
+            notification.read = true
+            redirectInfo = response.data.redirect
+          }
+        } else {
+          // For already read notifications, determine redirect based on type
+          redirectInfo = this.getRedirectInfo(notification)
         }
-        this.$router.push({
-          name: 'TentativeDashboard',
-          query: { highlightTaskId: notification.task_id }
-        })
-        setTimeout(() => {
-          this.$router.replace({
-            name: 'TentativeDashboard'
-          })
-        }, 3000)
+
+        // UNIFIED ROUTING: Always navigate to ReviewInterface
+        if (redirectInfo) {
+          if (redirectInfo.type === 'review') {
+            this.$router.push({
+              name: 'ReviewInterface',
+              params: { id: redirectInfo.id }
+            })
+          } else {
+            // Fallback: if no review_id, navigate to review dashboard to find the review
+            this.$router.push({
+              name: 'ReviewTasks'
+            })
+          }
+        }
+
         this.showNotifications = false
       } catch (error) {
         console.error('Error handling notification click:', error)
       }
     },
 
-    async handleMarkAllAsRead() {
+    getRedirectInfo (notification) {
+      // UNIFIED FALLBACK: Prioritize review routing for all notification types
+      if (notification.review_id) {
+        return { type: 'review', id: notification.review_id }
+      } else {
+        // If no review_id, fallback to task but this should rarely happen
+        return { type: 'task', id: notification.task_id }
+      }
+    },
+
+    async handleMarkAllAsRead () {
       try {
         const success = await this.notificationService.markAllAsRead()
         if (success) {
@@ -122,33 +147,33 @@ export default {
       }
     },
 
-    toggleNotifications() {
+    toggleNotifications () {
       this.showNotifications = !this.showNotifications
       if (this.showNotifications) {
         this.fetchNotifications()
       }
     },
 
-    closeNotifications() {
+    closeNotifications () {
       this.showNotifications = false
     },
 
-    formatDate(date) {
+    formatDate (date) {
       return new Date(date).toLocaleString()
     }
   },
 
   directives: {
     'click-outside': {
-      bind(el, binding) {
-        el.clickOutsideEvent = function(event) {
+      bind (el, binding) {
+        el.clickOutsideEvent = function (event) {
           if (!(el === event.target || el.contains(event.target))) {
             binding.value(event)
           }
         }
         document.addEventListener('click', el.clickOutsideEvent)
       },
-      unbind(el) {
+      unbind (el) {
         document.removeEventListener('click', el.clickOutsideEvent)
       }
     }

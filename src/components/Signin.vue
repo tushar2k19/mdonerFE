@@ -188,7 +188,6 @@ export default {
             </div>
           </div>
 
-
           <div class="preview-card">
             <div class="card-header"> </div>
             <div class="card-header"> </div><div class="card-header" style="margin-top: 5px"> </div>

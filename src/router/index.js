@@ -5,6 +5,9 @@ import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
 import CompletedTasks from '../components/CompletedTasks.vue'
 import Home from '../components/Home.vue'
+import ReviewInterface from '../components/ReviewInterface.vue'
+import ReviewDashboard from '../components/ReviewDashboard.vue'
+import UnderDevelopment from '../components/UnderDevelopment.vue'
 
 Vue.use(Router)
 
@@ -22,6 +25,22 @@ const router = new Router({
       component: Signin
     },
     {
+      path: '/daily-dashboard',
+      name: 'DailyDashboard',
+      component: UnderDevelopment,
+      props: {
+        pageTitle: 'Daily Dashboard',
+        progressPercentage: 15,
+        upcomingFeatures: [
+          'Real-time task status updates',
+          'Daily performance metrics',
+          'Interactive charts and graphs',
+          'Task completion trends',
+          'Priority-based task sorting'
+        ]
+      }
+    },
+    {
       path: '/tentative',
       name: 'TentativeDashboard',
       component: TentativeDashboard
@@ -32,10 +51,53 @@ const router = new Router({
       component: FinalDashboard
     },
     {
-      path: '/completed',
+      path: '/completed-tasks',
       name: 'CompletedTasks',
+      component: UnderDevelopment,
+      props: {
+        pageTitle: 'Completed Tasks',
+        progressPercentage: 40,
+        upcomingFeatures: [
+          'Historical task completion data',
+          'Performance analytics',
+          'Completion time tracking',
+          'Team productivity insights',
+          'Advanced filtering options'
+        ]
+      }
+    },
+    {
+      path: '/review-tasks',
+      name: 'ReviewTasks',
+      component: ReviewDashboard
+    },
+    {
+      path: '/system-logs',
+      name: 'SystemLogs',
+      component: UnderDevelopment,
+      props: {
+        pageTitle: 'System Logs',
+        progressPercentage: 20,
+        upcomingFeatures: [
+          'Real-time system monitoring',
+          'Error tracking and alerts',
+          'User activity logs',
+          'Performance metrics',
+          'Audit trail functionality'
+        ]
+      }
+    },
+    {
+      path: '/completed',
+      name: 'CompletedTasksOld',
       component: CompletedTasks
     },
+    {
+      path: '/review/:id',
+      name: 'ReviewInterface',
+      component: ReviewInterface,
+      props: route => ({ reviewId: route.params.id })
+    }
     
     // {
     //   path: '/dashboard',

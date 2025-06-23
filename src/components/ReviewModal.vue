@@ -55,19 +55,19 @@ export default {
     }
   },
 
-  data() {
+  data () {
     return {
       reviewers: [],
       selectedReviewer: ''
     }
   },
 
-  created() {
+  created () {
     this.fetchReviewers()
   },
 
   methods: {
-    async fetchReviewers() {
+    async fetchReviewers () {
       try {
         const response = await this.$http.secured.get('/users/reviewers')
         this.reviewers = response.data
@@ -77,7 +77,7 @@ export default {
       }
     },
 
-    sendForReview() {
+    sendForReview () {
       if (this.selectedReviewer) {
         this.$emit('send', this.selectedReviewer)
       }

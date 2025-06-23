@@ -2,133 +2,72 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="comments-modal">
       <div class="modal-header">
-        <h3>Comments</h3>
+        <h3>Comment Trails</h3>
         <button class="close-btn" @click="$emit('close')">×</button>
       </div>
 
-      <div ref="commentsContainer" class="comments-container">
-        <div v-if="comments.length === 0" class="no-comments">
-          No comments yet. Be the first to comment!
+      <div ref="trailsContainer" class="trails-container">
+        <div v-if="commentTrails.length === 0" class="no-trails">
+          No comment trails yet. Comments will appear here when reviews are conducted.
         </div>
 
         <div v-else>
           <div
-            v-for="comment in comments"
-            :key="comment.id"
-            class="comment-item"
-            :class="{
-              'own-comment': isCurrentUserComment(comment),
-              'being-edited': editingCommentId === comment.id
-            }"
+            v-for="trail in commentTrails"
+            :key="trail.id"
+            class="trail-item"
+            @click="navigateToReview(trail)"
           >
-            <div class="comment-header">
-              <div class="user-info">
-                <div class="user-avatar">{{ getUserInitials(comment.user_name) }}</div>
-                <span class="user-name">{{ comment.user_name }}</span>
-                <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
+            <div class="trail-header">
+              <div class="trail-info">
+                <div class="review-badge">Review #{{ trail.review.id }}</div>
+                <span class="trail-date">{{ formatDate(trail.created_at) }}</span>
               </div>
-
-              <div v-if="isCurrentUserComment(comment)" class="comment-actions">
-                <button
-                  v-if="editingCommentId !== comment.id"
-                  class="action-btn edit-btn"
-                  @click="startEditing(comment)"
-                >
-                  Edit
-                </button>
-                <button
-                  class="action-btn delete-btn"
-                  @click="deleteComment(comment.id)"
-                >
-                  Delete
-                </button>
+              <div class="trail-stats">
+                <span class="comment-count">{{ trail.comments.length }} comment{{ trail.comments.length !== 1 ? 's' : '' }}</span>
+                <span class="trail-status" :class="getTrailStatusClass(trail)">{{ getTrailStatus(trail) }}</span>
               </div>
             </div>
 
-            <div v-if="editingCommentId === comment.id" class="edit-comment-form">
-              <textarea
-                v-model="editedContent"
-                class="comment-input"
-                rows="3"
-              ></textarea>
-              <div class="edit-date-picker">
-                <div class="date-label">Review Date:</div>
-                <div class="date-input-wrapper">
-                  <Datepicker
-                    v-model="editedReviewDate"
-                    :format="'dd MMM yyyy'"
-                    :monday-first="true"
-                    input-class="date-input"
-                  >
-                    <template v-slot:beforeCalendarHeader>
-                      <div class="calendar-header">Select Review Date</div>
-                    </template>
-                  </Datepicker>
+            <div class="trail-preview">
+              <div class="reviewer-info">
+                <strong>Reviewer:</strong> {{ trail.review.reviewer_name || 'Unassigned' }}
+              </div>
+              <div class="review-summary" v-if="trail.review.summary">
+                <strong>Summary:</strong> {{ trail.review.summary }}
+              </div>
+              <div class="latest-comments" v-if="trail.comments.length > 0">
+                <div class="comment-preview" v-for="comment in trail.comments.slice(0, 2)" :key="comment.id">
+                  <span class="comment-author">{{ comment.user_name }}:</span>
+                  <span class="comment-text">{{ truncateText(comment.content, 80) }}</span>
+                </div>
+                <div v-if="trail.comments.length > 2" class="more-comments">
+                  +{{ trail.comments.length - 2 }} more comment{{ trail.comments.length - 2 !== 1 ? 's' : '' }}
                 </div>
               </div>
-              <div class="edit-actions">
-                <button class="action-btn cancel-btn" @click="cancelEditing">
-                  Cancel
-                </button>
-                <button class="action-btn save-btn" @click="updateComment(comment.id)">
-                  Save
-                </button>
-              </div>
             </div>
-            <div v-else>
-              <div class="comment-content">
-                {{ comment.content }}
-              </div>
-              <div class="review-date">
-                Review Date: {{ formatDate(comment.review_date, false) }}
-              </div>
+
+            <div class="trail-actions">
+              <button class="view-review-btn" @click.stop="navigateToReview(trail)">
+                <span>📄</span> View Review
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="comment-input-section">
-        <div class="input-row">
-          <div class="textarea-wrapper">
-        <textarea
-          v-model="newComment"
-          class="comment-input"
-          placeholder="Write a comment..."
-          rows="3"
-          @keydown.enter.exact.prevent="submitComment"
-        ></textarea>
-          </div>
-            <Datepicker
-              v-model="newCommentReviewDate"
-              :format="'dd MMM yyyy'"
-              :monday-first="true"
-              input-class="date-input"
-              ref="datepicker"
-            />
-          </div>
-        </div>
-
-        <button
-          class="submit-btn"
-          @click="submitComment"
-          :disabled="!newComment.trim() || !newCommentReviewDate"
-        >
-          Post Comment
-        </button>
+      <div class="modal-footer">
+        <p class="footer-note">
+          💡 Click on any trail to view the full review and add comments
+        </p>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import Datepicker from 'vuejs-datepicker';
-
 export default {
   name: 'CommentsModal',
-
-  components: {
-    Datepicker
-  },
 
   props: {
     task: {
@@ -137,159 +76,78 @@ export default {
     }
   },
 
-  data() {
+  data () {
     return {
-      comments: [],
-      newComment: '',
-      newCommentReviewDate: new Date(), // Added for new comments
-      editingCommentId: null,
-      editedContent: '',
-      editedReviewDate: null, // Added for editing comments
+      commentTrails: [],
       currentUser: null
     }
   },
 
-  async created() {
-    await this.fetchComments()
+  async created () {
+    await this.fetchCommentTrails()
     const userInfo = this.getCookie('user_info')
     this.currentUser = userInfo ? JSON.parse(userInfo) : null
   },
 
   methods: {
-    async fetchComments() {
+    async fetchCommentTrails () {
       try {
-        const response = await this.$http.secured.get(`/task/${this.task.id}/comments`)
-        // Sort comments by creation date
-        this.comments = response.data.sort((a, b) =>
-          new Date(a.created_at) - new Date(b.created_at)
-        )
+        const response = await this.$http.secured.get(`/task/${this.task.id}/comment_trails`)
+        this.commentTrails = response.data.trails || []
       } catch (error) {
-        console.error('Error fetching comments:', error)
-        this.$toast.error('Failed to load comments')
+        console.error('Error fetching comment trails:', error)
+        this.$toast.error('Failed to load comment trails')
       }
     },
 
-    async submitComment() {
-      // Validate both comment content and review date
-      if (!this.newComment.trim() || !this.newCommentReviewDate) return
+    navigateToReview (trail) {
+      // Navigate to the review page
+      this.$router.push(`/review/${trail.review.id}`)
+      this.$emit('close')
+    },
 
-      try {
-        const response = await this.$http.secured.post(`/task/${this.task.id}/comments`, {
-          comment: {
-            content: this.newComment.trim(),
-            review_date: this.newCommentReviewDate
-          }
-        })
-        this.comments.push(response.data)
-        // Reset form after successful submission
-        this.newComment = ''
-        this.newCommentReviewDate = new Date() // Reset to current date
-        this.$nextTick(() => {
-          this.scrollToBottom()
-        })
-      } catch (error) {
-        console.error('Error posting comment:', error)
-        this.$toast.error('Failed to post comment')
+    getTrailStatus (trail) {
+      if (trail.review.status === 'approved') return 'Approved'
+      if (trail.review.status === 'rejected') return 'Rejected'
+      if (trail.review.status === 'pending') return 'Pending'
+      return 'Unknown'
+    },
+
+    getTrailStatusClass (trail) {
+      const status = trail.review.status
+      return {
+        'status-approved': status === 'approved',
+        'status-rejected': status === 'rejected',
+        'status-pending': status === 'pending'
       }
     },
 
-    async updateComment(commentId) {
-      // Validate both content and review date for updates
-      if (!this.editedContent.trim() || !this.editedReviewDate) return
-
-      try {
-        await this.$http.secured.put(`/task/${this.task.id}/comments/${commentId}`, {
-          comment: {
-            content: this.editedContent.trim(),
-            review_date: this.editedReviewDate
-          }
-        })
-        // Update the comment in the local array
-        const index = this.comments.findIndex(c => c.id === commentId)
-        if (index !== -1) {
-          this.comments[index].content = this.editedContent
-          this.comments[index].review_date = this.editedReviewDate
-        }
-        this.cancelEditing()
-      } catch (error) {
-        console.error('Error updating comment:', error)
-        this.$toast.error('Failed to update comment')
-      }
+    truncateText (text, maxLength) {
+      if (text.length <= maxLength) return text
+      return text.substring(0, maxLength) + '...'
     },
 
-    async deleteComment(commentId) {
-      if (!confirm('Are you sure you want to delete this comment?')) return
-
-      try {
-        await this.$http.secured.delete(`/task/${this.task.id}/comments/${commentId}`)
-        this.comments = this.comments.filter(c => c.id !== commentId)
-      } catch (error) {
-        console.error('Error deleting comment:', error)
-        this.$toast.error('Failed to delete comment')
-      }
-    },
-
-    startEditing(comment) {
-      this.editingCommentId = comment.id
-      this.editedContent = comment.content
-      this.editedReviewDate = new Date(comment.review_date) // Set the current review date when starting edit
-    },
-
-    cancelEditing() {
-      this.editingCommentId = null
-      this.editedContent = ''
-      this.editedReviewDate = null
-    },
-
-    scrollToBottom() {
-      const container = this.$refs.commentsContainer
-      if (container) {
-        container.scrollTop = container.scrollHeight
-      }
-    },
-
-    // Updated to handle both date-only and datetime formats
-    formatDate(date, includeTime = true) {
-      if (!date) return '-'
-      const options = {
+    formatDate (date) {
+      return new Date(date).toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
-      }
-      if (includeTime) {
-        options.hour = '2-digit'
-        options.minute = '2-digit'
-      }
-      return new Date(date).toLocaleString('en-IN', options)
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     },
 
-    getUserInitials(name) {
-      return name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    },
-
-    isCurrentUserComment(comment) {
-      return this.currentUser['username'].toLowerCase() ===
-        comment.user_name.toLowerCase()
-    },
-
-    getCookie(name) {
+    getCookie (name) {
       const value = `; ${document.cookie}`
       const parts = value.split(`; ${name}=`)
-      if (parts.length === 2) {
-        return decodeURIComponent(parts.pop().split(';').shift())
-      }
+      if (parts.length === 2) return parts.pop().split(';').shift()
+      return null
     }
   }
 }
 </script>
 
 <style scoped>
-/* Base Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -299,8 +157,8 @@ export default {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 1000;
 }
 
@@ -308,296 +166,242 @@ export default {
   background: white;
   border-radius: 16px;
   width: 90%;
-  max-width: 600px;
-  height: 90vh;
+  max-width: 800px;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
-/* Modal Header */
 .modal-header {
-  background: rgba(0, 128, 128, 0.16);
-  padding: 1.25rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  border-radius: 16px 16px 0 0;
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 700;
-  color: #040548;
+  font-weight: 600;
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  color: black;
-  font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
   transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  background: black;
-  color: white;
+  background: rgba(255, 255, 255, 0.3);
   transform: rotate(90deg);
 }
 
-/* Comments Container */
-.comments-container {
+.trails-container {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem;
-  padding-bottom: 0;
-  scroll-behavior: smooth;
-}
-
-.no-comments {
-  text-align: center;
-  color: #6b7280;
-  padding: 2rem;
-}
-
-/* Comment Items */
-.comment-item {
-  background: rgba(0, 70, 128, 0.05);
-  border-radius: 12px;
   padding: 1rem;
+  max-height: 60vh;
+}
+
+.no-trails {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.trail-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   margin-bottom: 1rem;
-  border: 1px solid rgba(0, 70, 128, 0.1);
-  width: 95%;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.comment-item.own-comment {
-  background: rgba(1, 9, 16, 0.07);
-  border: 1px solid rgba(0, 70, 128, 0.2);
-  margin-left: auto;
+.trail-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-/* User Info and Header */
-.comment-header {
+.trail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
 }
 
-.user-info {
+.trail-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  background: #004680;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.review-badge {
+  background: #3b82f6;
   color: white;
-  font-size: 0.875rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
-.own-comment .user-avatar {
-  background: #003666;
+.trail-date {
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
-.user-name {
-  font-weight: 500;
+.trail-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.comment-count {
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.trail-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.status-approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-rejected {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.trail-preview {
+  margin-bottom: 1rem;
+}
+
+.reviewer-info {
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.review-summary {
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.latest-comments {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+.comment-preview {
+  font-size: 0.8125rem;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+
+.comment-author {
+  font-weight: 600;
   color: #374151;
 }
 
-.comment-date {
+.comment-text {
+  margin-left: 0.5rem;
+}
+
+.more-comments {
+  font-size: 0.75rem;
   color: #6b7280;
-  font-size: 0.875rem;
+  font-style: italic;
+  margin-top: 0.25rem;
 }
 
-/* Comment Content */
-.comment-content {
-  color: #1f2937;
-  line-height: 1.5;
+.trail-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.review-date {
-  margin-top: 0.75rem;
-  font-size: 0.85rem;
-  color: #4b5563;
-  background-color: rgba(0, 70, 128, 0.05);
+.view-review-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
   border-radius: 6px;
-  padding: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-.review-date::before {
-  content: "📅";  /* Calendar emoji as an icon */
-  font-size: 1rem;
-}
 
-.calendar-header {
-  padding: 0.5rem;
-  text-align: center;
-  font-weight: 500;
-  color: #374151;
-}
-
-/* Action Buttons */
-.comment-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.375rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: white;
-}
-
-.edit-btn {
-  background: #004680;
-}
-
-.edit-btn:hover {
-  background: #003666;
-}
-
-.delete-btn {
-  background: #dc3545;
-}
-
-.delete-btn:hover {
-  background: #bd2130;
-}
-
-.cancel-btn {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.cancel-btn:hover {
-  background: #e5e7eb;
-}
-
-.save-btn {
-  background: #004680;
-}
-
-.save-btn:hover {
-  background: #003666;
-}
-
-/* Input Section */
-.comment-input-section {
-  padding: 1.5rem;
-  background: white;
-  border-top: 1px solid #e5e7eb;
-  position: sticky;
-  bottom: 0;
-}
-
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.comment-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  resize: vertical;
-  min-height: 60px;
-  max-height: 150px;
-  margin-bottom: 0.5rem;
-  font-family: inherit;
-}
-
-.comment-input:focus {
-  outline: none;
-  border-color: #004680;
-  box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1);
-}
-
-.submit-btn {
-  background: #004680;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.submit-btn:hover {
-  background: #003666;
+.view-review-btn:hover {
+  background: #2563eb;
   transform: translateY(-1px);
 }
 
-.submit-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 0 0 16px 16px;
 }
 
-/* Edit Form */
-.edit-comment-form {
-  margin-top: 0.75rem;
+.footer-note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: center;
 }
 
-.edit-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 0.75rem;
+.trails-container::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* Responsive Styles */
-@media (max-width: 640px) {
-  .comments-modal {
-    width: 95%;
-    height: 95vh;
-  }
+.trails-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
 
-  .user-info {
-    flex-wrap: wrap;
-  }
+.trails-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
 
-  .comment-date {
-    width: 100%;
-    margin-left: 40px;
-  }
-
-  .review-date-picker {
-    position: relative;
-    display: flex;
-    align-items: center;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.5rem;
-    margin-top: 0.5rem;
-  }
-
-  .date-input {
-    width: 100%;
-  }
+.trails-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>

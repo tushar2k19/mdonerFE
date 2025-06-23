@@ -9,7 +9,7 @@
 
       <nav class="nav-center" v-if="isAuthenticated">
         <router-link
-          v-for="route in navigationRoutes"
+          v-for="route in filteredNavigationRoutes"
           :key="route.path"
           :to="route.path"
           class="nav-link"
@@ -52,26 +52,54 @@ export default {
   components: {
     NotificationComponent
   },
-  data() {
+  data () {
     return {
       navigationRoutes: [
         { path: '/', label: 'Home' },
-        { path: '/tentative', label: 'Illustrative Dashboard' },
-        // { path: '/final', label: 'Final Dashboard' },
+        { path: '/daily-dashboard', label: 'Daily Dashboard' },
+        { path: '/tentative', label: 'Illustrative Dashboard', requiresEditor: true },
+        { path: '/final', label: 'Full Dashboard' },
+        { path: '/completed-tasks', label: 'Completed Tasks', requiresEditor: true },
+        { path: '/review-tasks', label: 'Review Tasks' },
+        { path: '/system-logs', label: 'System Logs', requiresEditor: true }
       ]
     }
   },
   computed: {
-    isAuthenticated() {
+    isAuthenticated () {
       const hasUserInfo = document.cookie.split(';').some(cookie =>
         cookie.trim().startsWith('user_info=')
       )
       const isSignedIn = localStorage.getItem('signedIn') !== null
       return hasUserInfo && isSignedIn
+    },
+    
+    userRole () {
+      const userInfoCookie = document.cookie.split(';').find(cookie =>
+        cookie.trim().startsWith('user_info=')
+      )
+      if (userInfoCookie) {
+        try {
+          const userInfo = JSON.parse(decodeURIComponent(userInfoCookie.split('=')[1]))
+          return userInfo.role ? userInfo.role.toLowerCase() : null
+        } catch (error) {
+          return null
+        }
+      }
+      return null
+    },
+    
+    filteredNavigationRoutes () {
+      return this.navigationRoutes.filter(route => {
+        if (route.requiresEditor) {
+          return this.userRole === 'editor'
+        }
+        return true
+      })
     }
   },
   methods: {
-    async handleSignOut() {
+    async handleSignOut () {
       try {
         await this.$http.secured.delete('/signout')
         document.cookie = 'user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'

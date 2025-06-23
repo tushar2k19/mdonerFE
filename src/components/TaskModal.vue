@@ -73,7 +73,6 @@
         </div>
       </div>
 
-
       <div class="modal-footer">
         <button @click="$emit('close')" class="btn">Cancel</button>
         <button @click="saveTask" class="btn btn-primary">Save</button>
@@ -104,7 +103,7 @@ export default {
     }
   },
 
-  data() {
+  data () {
     return {
       formData: {
         sector_division: '',
@@ -206,7 +205,7 @@ export default {
         force_br_newlines: false,
         force_p_newlines: true,
         forced_root_block: 'p',
-        remove_trailing_brs: true,
+        remove_trailing_brs: true
       }
     }
   },
@@ -221,7 +220,7 @@ export default {
         responsibility: this.task.responsibility,
         review_date: this.task.review_date ? new Date(this.task.review_date) : null
       }
-      
+
       // Load action nodes if task has a current version
       if (this.task.current_version_id) {
         this.taskVersionId = this.task.current_version_id
@@ -235,16 +234,16 @@ export default {
   },
 
   methods: {
-    async loadActionNodes() {
+    async loadActionNodes () {
       try {
         const response = await this.$http.secured.get(`/task_versions/${this.taskVersionId}/nodes`)
         if (response.data.success) {
           // Backend returns tree structure: [{ node: {...}, children: [...] }]
           const treeData = response.data.data
-          
+
           // Convert tree structure to flat array for EnhancedNodeEditor
           this.actionNodes = this.flattenTreeStructure(treeData)
-          
+
           // Also populate the action_to_be_taken field with formatted content
           this.formData.action_to_be_taken = this.formatNodesForDisplay(treeData)
         }
@@ -256,18 +255,18 @@ export default {
       }
     },
 
-    onNodesChanged(nodesData) {
+    onNodesChanged (nodesData) {
       // NodeEditor emits flat array of nodes: [{ id, content, level, ... }]
       // Store this for saving to backend
       this.flatActionNodes = nodesData
-      
+
       // Also update the action_to_be_taken field for display
       if (nodesData && nodesData.length > 0) {
         this.formData.action_to_be_taken = this.formatFlatNodesForDisplay(nodesData)
       }
     },
 
-    validateForm() {
+    validateForm () {
       const requiredFields = [
         { field: 'sector_division', label: 'Sector/Division' },
         { field: 'description', label: 'Description' },
@@ -284,9 +283,9 @@ export default {
       }
 
       // Check if we have at least one action node with content
-      const hasContent = this.flatActionNodes && this.flatActionNodes.length > 0 && 
+      const hasContent = this.flatActionNodes && this.flatActionNodes.length > 0 &&
                         this.flatActionNodes.some(node => node.content && node.content.trim())
-      
+
       if (!hasContent) {
         this.$toast.error('At least one action item is required')
         return false
@@ -295,9 +294,9 @@ export default {
       return true
     },
 
-    async saveTask() {
+    async saveTask () {
       if (!this.validateForm()) return
-      
+
       try {
         const taskData = {
           task: {
@@ -306,9 +305,9 @@ export default {
             review_date: this.formatDate(this.formData.review_date)
           },
           // Send flat nodes array to backend
-          action_nodes: this.flatActionNodes ? 
-            this.flatActionNodes.filter(node => node.content && node.content.trim()) : 
-            []
+          action_nodes: this.flatActionNodes
+            ? this.flatActionNodes.filter(node => node.content && node.content.trim())
+            : []
         }
 
         let response
@@ -333,10 +332,10 @@ export default {
       }
     },
 
-    handleMergeConflict(conflictData) {
+    handleMergeConflict (conflictData) {
       // Show merge interface
       this.$toast.warning(conflictData.message)
-      
+
       // Emit event to parent to show merge modal
       this.$emit('merge-conflict', {
         taskId: this.task.id,
@@ -346,22 +345,22 @@ export default {
       })
     },
 
-    formatDate(date) {
+    formatDate (date) {
       if (!date) return null
       return date.toISOString().split('T')[0]
     },
 
-    formatNodesForDisplay(nodes) {
+    formatNodesForDisplay (nodes) {
       if (!nodes || nodes.length === 0) return ''
-      
+
       let formatted = ''
-      
+
       const formatNodeTree = (nodeItems, indent = '') => {
         nodeItems.forEach(item => {
           const node = item.node
           const counter = node.display_counter || '1'
           const suffix = node.list_style === 'bullet' ? '' : '.'
-          
+
           // Format the content based on node type
           let content = node.content || ''
           if (node.node_type === 'rich_text' || node.node_type === 'table') {
@@ -371,61 +370,61 @@ export default {
             // For plain text, just add the content
             formatted += `${indent}${counter}${suffix} ${content}\n`
           }
-          
+
           // Process children with increased indentation
           if (item.children && item.children.length > 0) {
             formatNodeTree(item.children, indent + '  ')
           }
         })
       }
-      
+
       formatNodeTree(nodes)
       return formatted.trim()
     },
 
-    formatFlatNodesForDisplay(flatNodes) {
+    formatFlatNodesForDisplay (flatNodes) {
       if (!flatNodes || flatNodes.length === 0) return ''
-      
+
       let formatted = ''
-      
+
       // Sort nodes by level and position
       const sortedNodes = [...flatNodes].sort((a, b) => {
         if (a.level !== b.level) return a.level - b.level
         return (a.position || 0) - (b.position || 0)
       })
-      
+
       sortedNodes.forEach(node => {
         const indent = '  '.repeat((node.level || 1) - 1)
         const counter = node.display_counter || '1'
         const suffix = node.list_style === 'bullet' ? '' : '.'
         const content = node.content || ''
-        
+
         formatted += `${indent}${counter}${suffix} ${content}\n`
       })
-      
+
       return formatted.trim()
     },
 
-    flattenTreeStructure(treeData) {
+    flattenTreeStructure (treeData) {
       const flatNodes = []
-      
+
       const flattenRecursive = (nodeItems) => {
         nodeItems.forEach(item => {
           // Add the node itself
           flatNodes.push(item.node)
-          
+
           // Recursively add children
           if (item.children && item.children.length > 0) {
             flattenRecursive(item.children)
           }
         })
       }
-      
+
       flattenRecursive(treeData)
       return flatNodes
     },
 
-    closeModal() {
+    closeModal () {
       this.$emit('close')
     }
   }

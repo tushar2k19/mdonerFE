@@ -35,20 +35,20 @@ export default {
     }
   },
   computed: {
-    layout() {
+    layout () {
       return this.isAuthenticated ? AuthenticatedLayout : UnauthenticatedLayout
     }
   },
   watch: {
     $route: {
       immediate: true,
-      handler() {
+      handler () {
         this.checkAuthStatus()
       }
     }
   },
   methods: {
-    checkAuthStatus() {
+    checkAuthStatus () {
       const newAuthStatus = !!localStorage.getItem('signedIn')
       if (this.isAuthenticated !== newAuthStatus) {
         this.isAuthenticated = newAuthStatus
@@ -57,7 +57,7 @@ export default {
           console.log('Forced re-render and attempted scroll')
         })
       }
-    },
+    }
   }
 }
 </script>
@@ -91,6 +91,57 @@ tr {
 th, td {
   display: table-cell !important;
 }
+
+/* Additional global table debug styles - should override any issues */
+.rich-text-display table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 0.5rem 0 !important;
+  display: table !important;
+  visibility: visible !important;
+  /* Debug styles to make tables super obvious */
+  border: 5px solid blue !important;
+  background-color: lime !important;
+}
+
+.rich-text-display table th,
+.rich-text-display table td {
+  border: 2px solid purple !important;
+  padding: 8px !important;
+  text-align: left !important;
+  display: table-cell !important;
+  visibility: visible !important;
+  background-color: white !important;
+}
+
+.rich-text-display table th {
+  background-color: orange !important;
+  font-weight: 600 !important;
+  color: black !important;
+}
+
+/* Global review date styling to ensure it works everywhere */
+.review-date {
+  font-size: 0.85em !important;
+  color: #333 !important;
+  font-weight: 500 !important;
+  margin-left: 8px !important;
+  background-color: #ffeb3b !important; /* Yellow highlight background */
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  border: none !important;
+  display: inline-block !important;
+  font-family: inherit !important;
+  line-height: 1.2 !important;
+}
+
+/* Global today's date styling */
+.review-date.today {
+  color: #d32f2f !important; /* Red text for today's date */
+  font-weight: 600 !important;
+  background-color: #ffeb3b !important; /* Ensure yellow background is maintained */
+}
+
 ul, ol {
   margin: 0.5em 0;
   padding-left: 20px;
@@ -99,7 +150,6 @@ ul, ol {
 li {
   margin: 0.3em 0;
 }
-
 
 #app {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -112,10 +162,8 @@ li {
 
 .content-wrapper {
   display: flex;
-  max-width: 1920px;/*
-  margin: 0 auto;
-  padding: 1.5rem;*/
-  gap: 2rem;
+  width: 100%;
+  min-height: calc(100vh - 60px);
 }
 
 .router-view-container {
@@ -152,4 +200,3 @@ li {
   margin-right: 4px !important;
 }
 </style>
-

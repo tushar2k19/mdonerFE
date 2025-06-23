@@ -251,42 +251,25 @@ export default {
         return
       }
 
-      console.log('🔍 Finding current node context to insert right after it...')
+      console.log('🔍 Finding correct insertion point for parent level...')
       
-      // Find the current node's context (where it sits in the tree)
-      const nodeContext = this.findNodeWithContext(childNode.id)
-      
-      if (!nodeContext || !nodeContext.siblings) {
-        console.error('❌ Could not find current node context')
-        return
-      }
-
-      const { node, siblings, index } = nodeContext
-      
-      console.log('✅ Found current node context:', {
-        currentNode: node.content,
-        currentLevel: node.level,
-        currentIndex: index,
-        siblingsCount: siblings.length
-      })
-
       // Calculate parent level (one level up from current node)
-      const parentLevel = node.level - 1
+      const parentLevel = childNode.level - 1
       const parentListStyle = this.getListStyleForLevel(parentLevel)
 
-      console.log('📊 Parent level details:', {
-        parentLevel,
-        parentListStyle,
-        currentLevel: node.level
+      console.log('📊 Target level details:', {
+        targetLevel: parentLevel,
+        targetListStyle: parentListStyle,
+        currentLevel: childNode.level
       })
 
-      // Create new node at parent level (one level up from current node)
+      // Create new node at parent level
       const newNode = this.createNode({
         content: '<p>New parent level point...</p>',
         level: parentLevel,
         list_style: parentListStyle,
         node_type: 'rich_text',
-        parent_id: node.parent_id, // Same parent_id as current node initially
+        parent_id: parentLevel === 1 ? null : childNode.parent_id,
         has_rich_formatting: true
       })
 
@@ -297,14 +280,56 @@ export default {
         parent_id: newNode.parent_id
       })
 
-      // CORE LOGIC: Insert the new node RIGHT AFTER the current node
-      const insertIndex = index + 1
-      console.log(`📍 Inserting at index ${insertIndex} (right after current node)`)
-      
-      siblings.splice(insertIndex, 0, newNode)
-      
-      console.log(`✅ Inserted! New siblings length: ${siblings.length}`)
-      
+      // CORRECTED LOGIC: Find the correct insertion point
+      if (parentLevel === 1) {
+        // Inserting at root level - find the root ancestor of current node
+        let ancestorNode = childNode
+        
+        // Traverse up to find the root ancestor
+        while (ancestorNode.parent_id) {
+          const parentNode = this.findNode(ancestorNode.parent_id)
+          if (!parentNode) break
+          ancestorNode = parentNode
+        }
+        
+        console.log('🔍 Found root ancestor:', ancestorNode.content)
+        
+        // Find the root ancestor's position in the root nodes
+        const rootIndex = this.nodes.findIndex(n => n.id === ancestorNode.id)
+        if (rootIndex !== -1) {
+          // Insert new node at root level AFTER the root ancestor
+          this.nodes.splice(rootIndex + 1, 0, newNode)
+          console.log(`📍 Inserted at root level, index ${rootIndex + 1}`)
+        } else {
+          console.error('❌ Could not find root ancestor in nodes array')
+          return
+        }
+      } else {
+        // Inserting at a child level - find the correct parent and insert
+        // Find the ancestor at the target level and insert after it
+        let currentNode = childNode
+        
+        // Traverse up to find the ancestor at target level + 1
+        while (currentNode.level > parentLevel + 1 && currentNode.parent_id) {
+          const parentNode = this.findNode(currentNode.parent_id)
+          if (!parentNode) break
+          currentNode = parentNode
+        }
+        
+        console.log('🔍 Found target level ancestor:', currentNode.content)
+        
+        // Find this ancestor's context and insert after it
+        const ancestorContext = this.findNodeWithContext(currentNode.id)
+        if (ancestorContext.siblings) {
+          const insertIndex = ancestorContext.index + 1
+          ancestorContext.siblings.splice(insertIndex, 0, newNode)
+          console.log(`📍 Inserted at level ${parentLevel}, index ${insertIndex}`)
+        } else {
+          console.error('❌ Could not find ancestor context')
+          return
+        }
+      }
+
       // Update counters for all affected levels
       this.updateAllCounters()
       this.hasChanges = true
@@ -313,7 +338,6 @@ export default {
       console.log('🎯 Successfully added parent level point:', {
         childLevel: childNode.level,
         newNodeLevel: newNode.level,
-        insertedAfterCurrentNode: true,
         newNodeId: newNode.id
       })
     },
@@ -470,33 +494,34 @@ export default {
     },
 
     updateAllCounters() {
-      this.updateCountersRecursive(this.nodes)
+      // FIXED: Work on flattened structure to properly handle cross-level insertions
+      const flatNodes = this.flattenNodes(this.nodes)
+      
+      // Group ALL nodes by level and list_style for proper counter sequence
+      const levelStyleGroups = {}
+      
+      flatNodes.forEach(node => {
+        const key = `${node.level}-${node.list_style}`
+        if (!levelStyleGroups[key]) {
+          levelStyleGroups[key] = []
+        }
+        levelStyleGroups[key].push(node)
+      })
+
+      // Update counters for each level-style group independently
+      Object.keys(levelStyleGroups).forEach(key => {
+        const group = levelStyleGroups[key]
+        group.forEach((node, groupIndex) => {
+          const position = groupIndex + 1
+          node.position = position
+          node.display_counter = this.generateDisplayCounter(node.list_style, position)
+        })
+      })
     },
 
     updateCountersRecursive(nodes) {
-      const styleGroups = {}
-      
-      nodes.forEach((node, index) => {
-        if (!styleGroups[node.list_style]) {
-          styleGroups[node.list_style] = []
-        }
-        styleGroups[node.list_style].push({ node, index })
-      })
-
-      Object.keys(styleGroups).forEach(listStyle => {
-        const group = styleGroups[listStyle]
-        group.forEach((item, groupIndex) => {
-          const position = groupIndex + 1
-          item.node.position = position
-          item.node.display_counter = this.generateDisplayCounter(listStyle, position)
-        })
-      })
-
-      nodes.forEach(node => {
-        if (node.children && node.children.length > 0) {
-          this.updateCountersRecursive(node.children)
-        }
-      })
+      // Legacy method - now just calls updateAllCounters for consistency
+      this.updateAllCounters()
     },
 
     updateCountersForLevel(nodes, level, listStyle) {
@@ -687,6 +712,10 @@ export default {
     emitChange() {
       this.$emit('nodes-changed', this.getNodesData())
     }
+
+
+
+
   }
 }
 </script>

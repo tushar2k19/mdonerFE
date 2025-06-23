@@ -1,7 +1,7 @@
 <template>
   <div class="enhanced-node-item" :class="[
     { 'completed': node.completed },
-    `diff-${node.diff_status}` // added, modified, deleted, unchanged
+    showDiff ? `diff-${node.diff_status || 'unchanged'}` : ''
   ]">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
@@ -173,6 +173,9 @@
               <button @click="addSubpoint" class="action-item">
                 → Add Subpoint
               </button>
+              <button v-if="node.level > 1" @click="addParentLevelPoint" class="action-item">
+                ← Add Parent Point
+              </button>
               <button @click="addTableAtLevel" class="action-item">
                 📊 Add Table Here
               </button>
@@ -207,9 +210,12 @@
         :node="child"
         :siblings="node.children"
         :index="childIndex"
+        :show-diff="showDiff"
+        :diff-data="diffData"
         @update-node="$emit('update-node', $event, arguments[1])"
         @delete-node="$emit('delete-node', $event)"
         @add-subpoint="$emit('add-subpoint', $event)"
+        @add-parent-level-point="$emit('add-parent-level-point', $event)"
         @add-point-same-level="$emit('add-point-same-level', $event, arguments[1], arguments[2])"
         @move-node="$emit('move-node', $event, arguments[1])"
         @duplicate-node="$emit('duplicate-node', $event, arguments[1], arguments[2])"
@@ -254,10 +260,18 @@ export default {
     index: {
       type: Number,
       required: true
+    },
+    showDiff: {
+      type: Boolean,
+      default: false
+    },
+    diffData: {
+      type: Object,
+      default: () => ({})
     }
   },
 
-  data() {
+  data () {
     return {
       isEditing: false,
       isEditingDate: false,
@@ -269,18 +283,18 @@ export default {
       showTableModal: false,
       tableRows: 3,
       tableCols: 3,
-              updateTimer: null,
-        showTableContextMenu: false,
-        contextMenuY: 0,
-        contextMenuX: 0,
-        currentCell: null,
-        currentRow: null,
-        currentColumn: null
+      updateTimer: null,
+      showTableContextMenu: false,
+      contextMenuY: 0,
+      contextMenuX: 0,
+      currentCell: null,
+      currentRow: null,
+      currentColumn: null
     }
   },
 
   computed: {
-    indentLevel() {
+    indentLevel () {
       return (this.node.level - 1) * 32 // 32px per level for better visibility
     }
   },
@@ -288,19 +302,46 @@ export default {
   watch: {
     // Watch for prop changes but only update if user is not currently editing
     'node.content': {
-      handler(newContent) {
+      handler (newContent, oldContent) {
+        console.log('🔧 EnhancedNodeItem: node.content changed', { 
+          nodeId: this.node.id,
+          from: oldContent, 
+          to: newContent,
+          isEditing: this.isEditing 
+        })
+        
         if (!this.isEditing && this.$refs.richEditor) {
           this.$refs.richEditor.innerHTML = newContent || '<p>Enter content...</p>'
         }
         if (!this.isEditing) {
           this.editContent = newContent || ''
         }
+        
+        // Force a DOM update
+        this.$nextTick(() => {
+          const displayDiv = this.$el.querySelector('.rich-text-display')
+          console.log('🔧 After nextTick - display div content:', 
+            displayDiv ? displayDiv.innerHTML : 'no display div found')
+        })
       },
       immediate: false
+    },
+    
+    // Watch the entire node object for deep changes
+    'node': {
+      handler(newNode, oldNode) {
+        console.log('🔧 EnhancedNodeItem: entire node changed', { 
+          nodeId: this.node.id,
+          newNode, 
+          oldNode,
+          contentChanged: (newNode && newNode.content) !== (oldNode && oldNode.content)
+        })
+      },
+      deep: true
     }
   },
 
-  created() {
+  created () {
     // Initialize editContent
     this.editContent = this.node.content || ''
 
@@ -314,14 +355,14 @@ export default {
     document.addEventListener('click', this.handleClickOutside)
   },
 
-  mounted() {
+  mounted () {
     // Set initial content in the DOM
     if (this.$refs.richEditor) {
       this.$refs.richEditor.innerHTML = this.node.content || '<p>Enter content...</p>'
     }
   },
 
-  beforeDestroy() {
+  beforeDestroy () {
     document.removeEventListener('click', this.handleClickOutside)
     if (this.updateTimer) {
       clearTimeout(this.updateTimer)
@@ -329,7 +370,7 @@ export default {
   },
 
   methods: {
-    startEdit() {
+    startEdit () {
       this.isEditing = true
       this.editContent = this.node.content || '<p>Enter content...</p>'
       this.originalContent = this.node.content || ''
@@ -350,7 +391,7 @@ export default {
       })
     },
 
-    saveContent() {
+    saveContent () {
       if (this.editContent.trim() !== this.originalContent) {
         const updateData = {
           content: this.editContent.trim(),
@@ -362,12 +403,12 @@ export default {
       this.isEditing = false
     },
 
-    cancelEdit() {
+    cancelEdit () {
       this.editContent = this.originalContent
       this.isEditing = false
     },
 
-    startDateEdit() {
+    startDateEdit () {
       this.isEditingDate = true
       this.editDate = this.node.review_date || ''
       this.originalDate = this.node.review_date || ''
@@ -379,83 +420,121 @@ export default {
       })
     },
 
-    saveDate() {
+    saveDate () {
       if (this.editDate !== this.originalDate) {
         this.$emit('update-node', this.node.id, { review_date: this.editDate })
       }
       this.isEditingDate = false
     },
 
-    cancelDateEdit() {
+    cancelDateEdit () {
       this.editDate = this.originalDate
       this.isEditingDate = false
     },
 
-    toggleCompletion() {
+    toggleCompletion () {
       this.$emit('update-node', this.node.id, { completed: !this.node.completed })
     },
 
-    toggleActionDropdown() {
+    toggleActionDropdown () {
       this.showActionDropdown = !this.showActionDropdown
     },
 
-    handleClickOutside(event) {
+    handleClickOutside (event) {
       if (this.$refs.actionDropdown && !this.$refs.actionDropdown.contains(event.target)) {
         this.showActionDropdown = false
       }
     },
 
-    addPointSameLevel() {
+    addPointSameLevel () {
       this.$emit('add-point-same-level', this.node, this.siblings, this.index)
       this.showActionDropdown = false
     },
 
-    addSubpoint() {
+    addSubpoint () {
       this.$emit('add-subpoint', this.node)
       this.showActionDropdown = false
     },
 
-    moveUp() {
+    addParentLevelPoint () {
+      this.$emit('add-parent-level-point', this.node)
+      this.showActionDropdown = false
+    },
+
+    moveUp () {
       this.$emit('move-node', this.node.id, 'up')
       this.showActionDropdown = false
     },
 
-    moveDown() {
+    moveDown () {
       this.$emit('move-node', this.node.id, 'down')
       this.showActionDropdown = false
     },
 
-    duplicateNode() {
+    duplicateNode () {
       this.$emit('duplicate-node', this.node, this.siblings, this.index)
       this.showActionDropdown = false
     },
 
-    deleteNode() {
+    deleteNode () {
       this.$emit('delete-node', this.node.id)
       this.showActionDropdown = false
     },
 
-    addTableAtLevel() {
+    addTableAtLevel () {
       this.showTableModal = true
       this.showActionDropdown = false
     },
 
-    closeTableModal() {
+    closeTableModal () {
       this.showTableModal = false
+      // Reset to defaults when cancelled too
+      this.tableRows = 3
+      this.tableCols = 3
     },
 
-    createTableAtLevel() {
+    createTableAtLevel () {
+      console.log('🔧 createTableAtLevel called', { rows: this.tableRows, cols: this.tableCols })
+      
       const tableContent = this.generateTableHTML(this.tableRows, this.tableCols)
+      console.log('🔧 Generated table HTML:', tableContent)
+      
       const currentContent = this.node.content || ''
+      console.log('🔧 Current node content:', currentContent)
+      
       const newContent = currentContent + (currentContent ? '<br/><br/>' : '') + tableContent
-      this.$emit('update-node', this.node.id, {
+      console.log('🔧 New combined content:', newContent)
+      
+      const updateData = {
         content: newContent,
         node_type: 'rich_text'
+      }
+      
+      console.log('🔧 Emitting update-node with:', updateData)
+      this.$emit('update-node', this.node.id, updateData)
+      
+      // Close the table creation modal and reset defaults
+      this.showTableCreation = false
+      this.tableRows = 3
+      this.tableCols = 3
+      
+      // Update the rich editor content immediately if we're in editing mode
+      if (this.isEditing && this.$refs.richEditor) {
+        console.log('🔧 Updating rich editor content with new table')
+        this.$refs.richEditor.innerHTML = newContent
+      }
+      
+      // Exit editing mode after a short delay so user can see the result
+      this.$nextTick(() => {
+        setTimeout(() => {
+          console.log('🔧 Exiting editing mode to show table result')
+          this.isEditing = false
+          this.editContent = newContent
+        }, 500)
       })
-      this.closeTableModal()
     },
 
-    generateTableHTML(rows, cols) {
+    generateTableHTML (rows, cols) {
       let html = '<table style="width: 100%; border-collapse: collapse;">\n'
       html += '  <thead>\n    <tr>\n'
       for (let c = 1; c <= cols; c++) {
@@ -475,12 +554,12 @@ export default {
     },
 
     // Rich text editor methods
-    execCommand(command, value = null) {
+    execCommand (command, value = null) {
       document.execCommand(command, false, value)
       this.$refs.richEditor.focus()
     },
 
-    onContentChange() {
+    onContentChange () {
       if (this.$refs.richEditor) {
         const newContent = this.$refs.richEditor.innerHTML
 
@@ -495,7 +574,7 @@ export default {
       }
     },
 
-    emitContentUpdate() {
+    emitContentUpdate () {
       // Debounce the update emission to avoid too many rapid updates
       clearTimeout(this.updateTimer)
       this.updateTimer = setTimeout(() => {
@@ -511,7 +590,7 @@ export default {
       }, 500) // 500ms debounce - longer to prevent interruption during typing
     },
 
-    insertTableRow() {
+    insertTableRow () {
       const table = this.$refs.richEditor.querySelector('table')
       if (table) {
         const newRow = table.insertRow()
@@ -530,7 +609,7 @@ export default {
       }
     },
 
-    insertTableColumn() {
+    insertTableColumn () {
       const table = this.$refs.richEditor.querySelector('table')
       if (table) {
         for (let i = 0; i < table.rows.length; i++) {
@@ -551,19 +630,19 @@ export default {
       }
     },
 
-    autoResize() {
+    autoResize () {
       if (this.$refs.simpleEditor) {
         this.$refs.simpleEditor.style.height = 'auto'
         this.$refs.simpleEditor.style.height = this.$refs.simpleEditor.scrollHeight + 'px'
       }
     },
 
-    formatDate(date) {
+    formatDate (date) {
       if (!date) return null
       return new Date(date).toLocaleDateString()
     },
 
-    handleTableContextMenu(event) {
+    handleTableContextMenu (event) {
       // Only show context menu if we're right-clicking on a table cell
       const target = event.target
       const cell = target.closest('td, th')
@@ -592,14 +671,14 @@ export default {
       })
     },
 
-    hideTableContextMenu() {
+    hideTableContextMenu () {
       this.showTableContextMenu = false
       this.currentCell = null
       this.currentRow = null
       this.currentColumn = null
     },
 
-    addRowAbove() {
+    addRowAbove () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -626,7 +705,7 @@ export default {
       }
     },
 
-    addRowBelow() {
+    addRowBelow () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -653,7 +732,7 @@ export default {
       }
     },
 
-    addColumnLeft() {
+    addColumnLeft () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -682,7 +761,7 @@ export default {
       }
     },
 
-    addColumnRight() {
+    addColumnRight () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -711,7 +790,7 @@ export default {
       }
     },
 
-    deleteCurrentRow() {
+    deleteCurrentRow () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -734,7 +813,7 @@ export default {
       }
     },
 
-    deleteCurrentColumn() {
+    deleteCurrentColumn () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -763,7 +842,7 @@ export default {
       }
     },
 
-    clearCell() {
+    clearCell () {
       if (this.currentCell) {
         this.currentCell.textContent = ''
         this.updateNodeContentFromDOM()
@@ -772,7 +851,7 @@ export default {
       }
     },
 
-    clearTable() {
+    clearTable () {
       // Find table either in editing mode (richEditor) or display mode (current cell's table)
       let table
       if (this.isEditing && this.$refs.richEditor) {
@@ -794,7 +873,7 @@ export default {
       }
     },
 
-    updateNodeContentFromDOM() {
+    updateNodeContentFromDOM () {
       // This method updates the node content when we modify a table in display mode
       if (this.isEditing && this.$refs.richEditor) {
         // In editing mode, use the existing onContentChange method
@@ -892,7 +971,9 @@ export default {
 }
 
 /* Table styles for display mode - using Vue 2 deep selectors for v-html content */
-.rich-text-display /deep/ table {
+/* Try both /deep/ and >>> syntax for maximum compatibility */
+.rich-text-display /deep/ table,
+.rich-text-display >>> table {
   width: 100% !important;
   border-collapse: collapse !important;
   margin: 0.5rem 0 !important;
@@ -904,7 +985,9 @@ export default {
 }
 
 .rich-text-display /deep/ table th,
-.rich-text-display /deep/ table td {
+.rich-text-display /deep/ table td,
+.rich-text-display >>> table th,
+.rich-text-display >>> table td {
   border: 2px solid #000 !important;
   padding: 8px !important;
   text-align: left !important;
@@ -913,21 +996,25 @@ export default {
   background-color: white !important;
 }
 
-.rich-text-display /deep/ table th {
+.rich-text-display /deep/ table th,
+.rich-text-display >>> table th {
   background-color: #ff0000 !important;
   font-weight: 600 !important;
   color: white !important;
 }
 
-.rich-text-display /deep/ table thead {
+.rich-text-display /deep/ table thead,
+.rich-text-display >>> table thead {
   display: table-header-group !important;
 }
 
-.rich-text-display /deep/ table tbody {
+.rich-text-display /deep/ table tbody,
+.rich-text-display >>> table tbody {
   display: table-row-group !important;
 }
 
-.rich-text-display /deep/ table tr {
+.rich-text-display /deep/ table tr,
+.rich-text-display >>> table tr {
   display: table-row !important;
 }
 
@@ -1161,7 +1248,7 @@ export default {
   position: absolute;
   top: 100%;
   right: 0;
-  z-index: 100;
+  z-index: 10030;
   min-width: 200px;
   background: white;
   border: 1px solid #e5e7eb;
@@ -1357,5 +1444,83 @@ export default {
 
 .context-menu-item.delete-item:hover {
   background-color: #fef2f2;
+}
+
+/* Diff Status Styling */
+.enhanced-node-item.diff-added {
+  background: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+}
+
+.enhanced-node-item.diff-added .node-content {
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.enhanced-node-item.diff-modified {
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 3px solid #f59e0b;
+}
+
+.enhanced-node-item.diff-modified .node-content {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.enhanced-node-item.diff-deleted {
+  background: rgba(239, 68, 68, 0.08);
+  border-left: 3px solid #ef4444;
+  opacity: 0.7;
+}
+
+.enhanced-node-item.diff-deleted .node-content {
+  border-color: rgba(239, 68, 68, 0.2);
+  text-decoration: line-through;
+}
+
+.enhanced-node-item.diff-deleted .rich-text-display,
+.enhanced-node-item.diff-deleted .rich-editor {
+  text-decoration: line-through;
+}
+
+.enhanced-node-item.diff-unchanged {
+  /* Default styling for unchanged content */
+}
+
+/* Reduced font sizes for better space utilization */
+.enhanced-node-item {
+  font-size: 13px; /* Reduced from default */
+}
+
+.node-content {
+  padding: 8px 10px; /* Reduced padding */
+}
+
+.node-marker {
+  font-size: 12px; /* Reduced marker size */
+  min-width: 28px; /* Slightly smaller */
+}
+
+.rich-text-display {
+  padding: 8px 10px; /* Reduced padding */
+  min-height: 2rem; /* Reduced min-height */
+  font-size: 13px; /* Consistent font size */
+}
+
+.rich-editor {
+  font-size: 13px; /* Consistent font size */
+}
+
+.toolbar-btn {
+  padding: 4px 6px; /* Reduced toolbar button padding */
+  font-size: 11px; /* Smaller toolbar font */
+}
+
+.date-display, .date-input {
+  font-size: 11px; /* Smaller date font */
+  padding: 4px 6px; /* Reduced date padding */
+}
+
+.action-btn {
+  padding: 6px 8px; /* Reduced action button padding */
+  font-size: 12px; /* Smaller action button font */
 }
 </style>

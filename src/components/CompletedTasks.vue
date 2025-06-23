@@ -61,32 +61,42 @@ export default {
     Datepicker
   },
 
-  data() {
+  data () {
     return {
       selectedDate: new Date(),
       completedTasks: []
     }
   },
 
-  created() {
+  created () {
     this.fetchCompletedTasks()
   },
 
   methods: {
-    async fetchCompletedTasks() {
+    async fetchCompletedTasks () {
       try {
         const response = await this.$http.secured.get('/tasks/completed', {
           params: {
             date: this.selectedDate.toISOString().split('T')[0]
           }
         })
-        this.completedTasks = response.data.tasks
+        
+        // Sort tasks by review_date (earliest first)
+        const sortTasksByReviewDate = (tasks) => {
+          return tasks.sort((a, b) => {
+            const dateA = new Date(a.review_date)
+            const dateB = new Date(b.review_date)
+            return dateA - dateB
+          })
+        }
+
+        this.completedTasks = sortTasksByReviewDate(response.data.tasks)
       } catch (error) {
         console.error('Error fetching completed tasks:', error)
       }
     },
 
-    async markAsIncomplete(task) {
+    async markAsIncomplete (task) {
       if (confirm('Are you sure you want to mark this task as incomplete? It will need to go through the review process again.')) {
         try {
           await this.$http.secured.post(`/task/${task.id}/mark_incomplete`)
@@ -97,7 +107,7 @@ export default {
       }
     },
 
-    formatDate(date) {
+    formatDate (date) {
       if (!date) return '-'
       return new Date(date).toLocaleString('en-IN', {
         year: 'numeric',
@@ -106,7 +116,7 @@ export default {
       })
     },
 
-    formatDateTime(date) {
+    formatDateTime (date) {
       if (!date) return '-'
       return new Date(date).toLocaleString('en-IN', {
         year: 'numeric',

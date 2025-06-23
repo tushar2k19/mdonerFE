@@ -38,36 +38,45 @@
           <td>{{ index + 1 }}</td>
           <td>{{ task.sector_division }}</td>
           <td>{{ task.description }}</td>
-          <td v-html="processActionContent(task.action_to_be_taken)" class="action-content-cell"></td>
+          <td v-html="task.action_to_be_taken" class="action-content-cell" 
+              @click="debugContent(task)"></td>
           <td>{{ formatDate(task.original_date) }}</td>
           <td>{{ task.responsibility }}</td>
           <td>{{ formatDate(task.review_date) }}</td>
-          <td><span :class="statusClass[task.status]">{{ formatStatus(task.status) }}</span></td>
-          <td>
+          <td><span :class="statusClass[task.status || 'unknown']">{{ formatStatus(task.status) }}</span></td>
+          <td class="actions-cell">
             <div class="action-menu-container">
               <button class="action-trigger"
-                      @mouseenter="showActionMenu(task.id)"
-                      @mouseleave="hideActionMenu(task.id)">
+                      :class="{ 'active': activeMenuId === task.id }"
+                      @mouseenter="showActionMenu(task.id, $event)"
+                      @mouseleave="hideActionMenu(task.id)"
+                      :data-task-id="task.id">
                 ⋮
-                <div class="action-menu" :class="{ 'show': activeMenuId === task.id }">
-                  <button @click="editTask(task)" class="menu-item">Edit</button>
-                  <button v-if="canDelete(task)"
-                          @click="deleteTask(task.id)"
-                          class="menu-item">Delete</button>
-                  <button v-if="canSendForReview(task)"
-                          @click="openReviewModal(task)"
-                          class="menu-item">Send for Review</button>
-                  <button @click="openCommentsModal(task)"
-                          class="menu-item">Comments</button>
-                  <button v-if="canApprove(task)"
-                          @click="approveTask(task)"
-                          class="menu-item">Approve</button>
-                </div>
               </button>
             </div>
           </td>
         </tr>
       </table>
+    </div>
+
+    <!-- Global Action Menu (outside table structure) -->
+    <div class="global-action-menu" 
+         :class="{ 'show': activeMenuId }"
+         :style="menuPosition"
+         @mouseenter="keepMenuOpen"
+         @mouseleave="hideActionMenu(activeMenuId)">
+      <button @click="editTask(getCurrentTask()); forceHideMenu()" class="menu-item">Edit</button>
+      <button v-if="canDelete(getCurrentTask())"
+              @click="deleteTask(activeMenuId); forceHideMenu()"
+              class="menu-item">Delete</button>
+      <button v-if="canSendForReview(getCurrentTask())"
+              @click="openReviewModal(getCurrentTask()); forceHideMenu()"
+              class="menu-item">Send for Review</button>
+      <button @click="openCommentsModal(getCurrentTask()); forceHideMenu()"
+              class="menu-item">Comments</button>
+      <button v-if="canApprove(getCurrentTask())"
+              @click="approveTask(getCurrentTask()); forceHideMenu()"
+              class="menu-item">Approve</button>
     </div>
 
     <!-- Modals remain unchanged -->
@@ -119,8 +128,10 @@ export default {
       taskModalMode: 'add',
       showCompletedTasks: false,
       activeMenuId: null,
+      menuPosition: { top: '0px', left: '0px' },
       pdfVisible: false,
-
+      resizeTimeout: null,
+      menuHideTimeout: null
     }
   },
   watch: {
@@ -131,15 +142,14 @@ export default {
           highlightedRow.classList.remove('highlighted-row', 'highlight-transition')
         }
       }
-    }
-  },
-  mounted() {
-    if (this.$route.query.highlightTaskId) {
-      const row = document.querySelector(`tr[data-task-id="${this.$route.query.highlightTaskId}"]`)
-      if (row) {
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        row.classList.add('highlight-transition')
-      }
+    },
+    activeTasks: {
+      handler() {
+        this.$nextTick(() => {
+          this.applyAutoScaling()
+        })
+      },
+      deep: true
     }
   },
   computed: {
@@ -155,7 +165,8 @@ export default {
         under_review: 'status-review',
         final_review: 'status-final-review',
         approved: 'status-approved',
-        completed: 'status-completed'
+        completed: 'status-completed',
+        unknown: 'status-unknown'
       }
     }
   },
@@ -165,7 +176,46 @@ export default {
     this.fetchTasksByDate()
   },
 
+  mounted() {
+    // Re-apply scaling on window resize
+    window.addEventListener('resize', this.handleResize)
+    
+    // Add click outside handler to close menu
+    document.addEventListener('click', this.handleClickOutside)
+    
+    if (this.$route.query.highlightTaskId) {
+      const row = document.querySelector(`tr[data-task-id="${this.$route.query.highlightTaskId}"]`)
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        row.classList.add('highlight-transition')
+      }
+    }
+  },
+
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize)
+    document.removeEventListener('click', this.handleClickOutside)
+    
+    // Clear any pending timeouts
+    if (this.menuHideTimeout) {
+      clearTimeout(this.menuHideTimeout)
+    }
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout)
+    }
+  },
+
   methods: {
+    handleResize() {
+      // Debounce resize events
+      if (this.resizeTimeout) {
+        clearTimeout(this.resizeTimeout)
+      }
+      this.resizeTimeout = setTimeout(() => {
+        this.applyAutoScaling()
+      }, 150)
+    },
+
     toggleExpand (taskId) {
       this.$set(this.expandedRows, taskId, !this.expandedRows[taskId])
       console.log(this.expandedRows)
@@ -186,135 +236,150 @@ export default {
           }
         })
 
-        const processedTasks = await Promise.all(response.data.active.map(async task => {
-          const nearestDate = this.findNearestDate(task.action_to_be_taken, task.review_date);
+        // Sort tasks by review_date (earliest first)
+        const sortTasksByReviewDate = (tasks) => {
+          return tasks.sort((a, b) => {
+            const dateA = new Date(a.review_date)
+            const dateB = new Date(b.review_date)
+            return dateA - dateB
+          })
+        }
 
-          if (nearestDate && nearestDate !== task.review_date) {
-            try {
-              await this.$http.secured.put(`/task/${task.id}`, {
-                task: {
-                  review_date: nearestDate
-                }
-              })
-            } catch (error) {
-              console.error('Error updating review date:', error)
-            }
+        this.activeTasks = sortTasksByReviewDate(response.data.active)
+        this.completedTasks = sortTasksByReviewDate(response.data.completed)
+        
+        // Debug: Check for tasks without status
+        this.activeTasks.forEach((task, index) => {
+          if (!task || !task.status) {
+            console.warn(`Task at index ${index} has no status:`, task);
           }
-
-          return {
-            ...task,
-            review_date: nearestDate || task.review_date
-          }
-        }))
-
-        this.activeTasks = processedTasks.sort((a, b) => {
-          const dateA = new Date(a.review_date)
-          const dateB = new Date(b.review_date)
-          return dateA - dateB
+        });
+        
+        // Apply auto-scaling after tasks are loaded
+        this.$nextTick(() => {
+          this.applyAutoScaling()
         })
-        this.completedTasks = response.data.completed
       } catch (error) {
         console.error('Error fetching tasks:', error)
       }
     },
-    processActionContent(content) {
-      if (!content) return ''
-      const today = new Date()
-      try {
-        const parser = new DOMParser()
-        const doc = parser.parseFromString(content, 'text/html');
 
-        const processNode = (node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const dateRegex = /(\d{1,2})\/(\d{1,2})/g
-            let newContent = node.textContent
-
-            newContent = newContent.replace(dateRegex, (match, day, month) => {
-              const dayNum = parseInt(day)
-              const monthNum = parseInt(month)
-              const paddedDay = dayNum.toString().padStart(2, '0')
-              const paddedMonth = monthNum.toString().padStart(2, '0')
-              const standardizedDate = `${paddedDay}/${paddedMonth}`
-              if (dayNum === today.getDate() && monthNum === (today.getMonth() + 1)) {
-                return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`
-              }
-              return `<span style="background-color: yellow">${standardizedDate}</span>`
-            });
-
-            if (newContent !== node.textContent) {
-              const span = doc.createElement('span')
-              span.innerHTML = newContent
-              node.parentNode.replaceChild(span, node)
+    applyAutoScaling() {
+      // Wait for DOM to be fully rendered
+      setTimeout(() => {
+        const actionCells = document.querySelectorAll('.action-content-cell')
+        
+        actionCells.forEach(cell => {
+          // Reset any previous scaling
+          cell.style.fontSize = ''
+          cell.style.lineHeight = ''
+          cell.classList.remove('scaled', 'auto-scaled-small', 'auto-scaled-tiny')
+          
+          // Reset table scaling
+          const tables = cell.querySelectorAll('table')
+          tables.forEach(table => {
+            table.style.fontSize = ''
+            table.style.transform = 'none'
+            table.classList.remove('scaled-table')
+          })
+          
+          // Check if content overflows
+          const isOverflowing = cell.scrollWidth > cell.clientWidth
+          
+          if (isOverflowing) {
+            // Calculate overflow amount
+            const overflowRatio = cell.scrollWidth / cell.clientWidth
+            
+            console.log(`Content overflow detected: ${overflowRatio.toFixed(2)}x`)
+            
+            // Apply tiered font-size reduction instead of transform scaling
+            if (overflowRatio > 1.8) {
+              // Severe overflow: smallest font size
+              cell.classList.add('auto-scaled-tiny')
+              console.log('Applied tiny scaling (severe overflow)')
+            } else if (overflowRatio > 1.3) {
+              // Moderate overflow: medium font size
+              cell.classList.add('auto-scaled-small')
+              console.log('Applied small scaling (moderate overflow)')
+            } else {
+              // Minor overflow: slight reduction
+              cell.style.fontSize = '0.85em'
+              cell.style.lineHeight = '1.3'
+              console.log('Applied minor font reduction')
             }
-          } else if (node.nodeType === Node.ELEMENT_NODE) {
-            // Preserve action-node structure and only process text content within node-content
-            if (node.classList.contains('node-content') || !node.classList.contains('action-node')) {
-              Array.from(node.childNodes).forEach(processNode)
-            }
+            
+            // Special handling for tables within action content
+            tables.forEach(table => {
+              // Check if table still overflows after cell font reduction
+              setTimeout(() => {
+                if (table.scrollWidth > cell.clientWidth * 0.95) {
+                  const tableOverflow = table.scrollWidth / (cell.clientWidth * 0.95)
+                  
+                  if (tableOverflow > 1.5) {
+                    table.style.fontSize = '0.65em'
+                    table.classList.add('scaled-table')
+                    console.log(`Applied table font reduction: 0.65em`)
+                  } else if (tableOverflow > 1.2) {
+                    table.style.fontSize = '0.75em'
+                    table.classList.add('scaled-table')
+                    console.log(`Applied table font reduction: 0.75em`)
+                  }
+                }
+              }, 50)
+            })
           }
-        }
-
-        // Process all content while preserving structure
-        Array.from(doc.body.childNodes).forEach(processNode)
-        return doc.body.innerHTML
-      } catch (error) {
-        console.error('Error in processActionContent:', error)
-        // If processing fails, return original content to maintain hierarchical structure
-        return content
-      }
+        })
+      }, 100)
     },
-    findNearestDate (content, currentReviewDate) {
-      if (!content) return currentReviewDate
-      const dateRegex = /(\d{2})\/(\d{2})/g
-      // Create today's date in Indian timezone
-      const today = new Date()
-      const indiaOffset = 330
-      const localOffset = today.getTimezoneOffset()
-      const totalOffset = indiaOffset + localOffset
-      const indiaToday = new Date(today.getTime() + totalOffset * 60000)
+    // TEMPORARILY COMMENTED OUT - Testing raw backend content
+    // processActionContent(content) {
+    //   if (!content) return ''
+    //   const today = new Date()
+    //   try {
+    //     const parser = new DOMParser()
+    //     const doc = parser.parseFromString(content, 'text/html');
 
-      let validDates = []
-      if (currentReviewDate) {
-        validDates.push(new Date(currentReviewDate))
-      }
+    //     const processNode = (node) => {
+    //       if (node.nodeType === Node.TEXT_NODE) {
+    //         const dateRegex = /(\d{1,2})\/(\d{1,2})/g
+    //         let newContent = node.textContent
 
-      let matches = content.matchAll(dateRegex)
-      for (const match of matches) {
-        const [, day, month] = match
-        let adjustedDay = parseInt(day) + 1
-        let adjustedMonth = parseInt(month)
-        let year = 2024
+    //         newContent = newContent.replace(dateRegex, (match, day, month) => {
+    //           const dayNum = parseInt(day)
+    //           const monthNum = parseInt(month)
+    //           const paddedDay = dayNum.toString().padStart(2, '0')
+    //           const paddedMonth = monthNum.toString().padStart(2, '0')
+    //           const standardizedDate = `${paddedDay}/${paddedMonth}`
+    //           if (dayNum === today.getDate() && monthNum === (today.getMonth() + 1)) {
+    //             return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`
+    //           }
+    //           return `<span style="background-color: yellow">${standardizedDate}</span>`
+    //         });
 
-        const daysInMonth = new Date(year, adjustedMonth, 0).getDate()
-        if (adjustedDay > daysInMonth) {
-          adjustedDay = 1
-          adjustedMonth++
-          if (adjustedMonth > 12) {
-            adjustedMonth = 1
-            year++
-          }
-        }
+    //         if (newContent !== node.textContent) {
+    //           const span = doc.createElement('span')
+    //           span.innerHTML = newContent
+    //           node.parentNode.replaceChild(span, node)
+    //         }
+    //       } else if (node.nodeType === Node.ELEMENT_NODE) {
+    //         // Preserve action-node structure and only process text content within node-content
+    //         if (node.classList.contains('node-content') || !node.classList.contains('action-node')) {
+    //           Array.from(node.childNodes).forEach(processNode)
+    //         }
+    //       }
+    //     }
 
-        let date = new Date(year, adjustedMonth - 1, adjustedDay);
-        date = new Date(date.getTime() + totalOffset * 60000);
+    //     // Process all content while preserving structure
+    //     Array.from(doc.body.childNodes).forEach(processNode)
+    //     return doc.body.innerHTML
+    //   } catch (error) {
+    //     console.error('Error in processActionContent:', error)
+    //     // If processing fails, return original content to maintain hierarchical structure
+    //     return content
+    //   }
+    // },
 
-        if (date < indiaToday) {
-          year = 2025;
-          date = new Date(year, adjustedMonth - 1, adjustedDay);
-          date = new Date(date.getTime() + totalOffset * 60000);
-        }
 
-        validDates.push(date);
-      }
-      const futureDates = validDates.filter(date => date > indiaToday);
-      if (futureDates.length > 0) {
-        const earliestDate = new Date(Math.min(...futureDates));
-
-        return earliestDate.toISOString().split('T')[0];
-      }
-
-      return currentReviewDate;
-    },
     openAddTaskModal () {
       this.currentTask = null
       this.taskModalMode = 'add'
@@ -664,6 +729,7 @@ export default {
       }
     },
     editTask (task) {
+      if (!task) return;
       this.currentTask = { ...task }
       this.taskModalMode = 'edit'
       this.showTaskModal = true
@@ -689,33 +755,68 @@ export default {
     },
 
     openReviewModal (task) {
+      if (!task) return;
       this.currentTask = task
       this.showReviewModal = true
     },
 
     async sendForReview (reviewerId) {
       try {
-        await this.$http.secured.post(`/task/${this.currentTask.id}/send_for_review`, {
+        const response = await this.$http.secured.post(`/task/${this.currentTask.id}/send_for_review`, {
           reviewer_id: reviewerId
         })
+        
+        if (response.data.success) {
+          this.$toast.success(response.data.message)
         this.closeReviewModal()
         await this.fetchTasksByDate()
+          
+          // Navigate to the review page
+          this.$router.push(`/review/${response.data.review_id}`)
+        }
       } catch (error) {
         console.error('Error sending for review:', error)
+        if (error.response && error.response.data && error.response.data.error) {
+          this.$toast.error(error.response.data.error)
+        } else {
+          this.$toast.error('Failed to send task for review')
+        }
       }
     },
 
     openCommentsModal (task) {
+      if (!task) return;
       this.currentTask = task
       this.showCommentsModal = true
     },
 
     async approveTask (task) {
+      if (!task) return;
       try {
+        // Find the active review for this task
+        const reviewsResponse = await this.$http.secured.get('/reviews')
+        const activeReview = reviewsResponse.data.find(review => 
+          review.task.id === task.id && review.status === 'pending'
+        )
+        
+        if (activeReview) {
+          const response = await this.$http.secured.post(`/review/${activeReview.id}/approve`)
+          if (response.data.success) {
+            this.$toast.success(response.data.message)
+            await this.fetchTasksByDate()
+          }
+        } else {
+          // Fallback to old approve method if no review found
         await this.$http.secured.post(`/task/${task.id}/approve`)
         await this.fetchTasksByDate()
+        }
       } catch (error) {
         console.error('Error approving task:', error)
+        if (error.response && error.response.data && error.response.data.error) {
+          this.$toast.error(error.response.data.error)
+        } else {
+          this.$toast.error('Failed to approve task')
+        }
       }
     },
 
@@ -733,15 +834,15 @@ export default {
     },
 
     canDelete (task) {
-      return this.userRole === 'editor' && task.status === 'draft'
+      return task && this.userRole === 'editor' && task.status === 'draft'
     },
 
     canSendForReview (task) {
-      return (this.userRole === 'editor' || this.userRole === 'reviewer') && task.status === 'draft'
+      return task && (this.userRole === 'editor' || this.userRole === 'reviewer') && task.status === 'draft'
     },
 
     canApprove (task) {
-      return (
+      return task && (
         (this.userRole === 'reviewer' && task.status === 'under_review') ||
         (this.userRole === 'final_reviewer' && task.status === 'final_review')
       )
@@ -756,6 +857,7 @@ export default {
       })
     },
     formatStatus(status) {
+      if (!status) return 'Unknown';
       const statusMap = {
         draft: 'Editor',
         under_review: 'Reviewer',
@@ -766,14 +868,89 @@ export default {
       return statusMap[status] || status;
     },
 
-    showActionMenu(taskId) {
+    showActionMenu(taskId, event) {
+      // Clear any pending hide timeout
+      if (this.menuHideTimeout) {
+        clearTimeout(this.menuHideTimeout);
+        this.menuHideTimeout = null;
+      }
+
+      // Calculate global position for the dropdown
+      const trigger = event ? event.target : document.querySelector(`[data-task-id="${taskId}"]`);
+      if (trigger) {
+        const rect = trigger.getBoundingClientRect();
+        const menuWidth = 180;
+        const menuHeight = 200; // Approximate menu height
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Calculate position with viewport boundary checks
+        // Position menu directly below the trigger with slight overlap to prevent gaps
+        let top = rect.bottom + 2; // Reduced gap
+        let left = rect.right - menuWidth;
+        
+        // Adjust if menu would go off-screen
+        if (left < 10) {
+          left = rect.left; // Align to left of trigger
+        }
+        if (top + menuHeight > viewportHeight) {
+          top = rect.top - menuHeight - 2; // Show above trigger with reduced gap
+        }
+        
+        this.menuPosition = {
+          position: 'fixed',
+          top: `${Math.max(10, top)}px`,
+          left: `${Math.max(10, Math.min(left, viewportWidth - menuWidth - 10))}px`,
+          zIndex: '99999'
+        };
+      }
       this.activeMenuId = taskId;
     },
 
     hideActionMenu(taskId) {
+      // Add a delay before hiding to allow mouse movement to menu
+      this.menuHideTimeout = setTimeout(() => {
       if (this.activeMenuId === taskId) {
         this.activeMenuId = null;
       }
+      }, 300); // 300ms delay
+    },
+
+    keepMenuOpen() {
+      // Clear the hide timeout when hovering over menu
+      if (this.menuHideTimeout) {
+        clearTimeout(this.menuHideTimeout);
+        this.menuHideTimeout = null;
+      }
+    },
+
+    forceHideMenu() {
+      // Immediately hide menu (for clicks, etc.)
+      if (this.menuHideTimeout) {
+        clearTimeout(this.menuHideTimeout);
+        this.menuHideTimeout = null;
+      }
+      this.activeMenuId = null;
+    },
+
+    handleClickOutside(event) {
+      // Close menu if clicking outside of menu or trigger
+      if (this.activeMenuId) {
+        const menu = document.querySelector('.global-action-menu.show');
+        const trigger = document.querySelector(`[data-task-id="${this.activeMenuId}"]`);
+        
+        if (menu && !menu.contains(event.target) && 
+            trigger && !trigger.contains(event.target)) {
+          this.forceHideMenu();
+        }
+      }
+    },
+
+    getCurrentTask() {
+      if (!this.activeMenuId || !this.activeTasks || !Array.isArray(this.activeTasks)) {
+        return null;
+      }
+      return this.activeTasks.find(task => task && task.id === this.activeMenuId) || null;
     },
 
   }
@@ -786,37 +963,37 @@ export default {
   min-height: calc(100vh - 4rem);
 }
 
-/* Top action buttons container */
+ /* Top action buttons container - Removed card styling */
 .dashboard-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
+   align-items: center;
+   gap: 0.75rem;
   margin-bottom: 1.5rem;
+   /* Removed card styling - no background, padding, shadow, border */
 }
 
-/* Create task button */
+ /* Create task button - compact styling like FinalDashboard */
 .create-task-btn {
-  width: 173px;
-  height: 39px;
-  padding: 10px 25px;
-  background: #009951;
+   padding: 0.5rem 1rem;
+   background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: white;
-  border-radius: 54px;
   border: none;
-  font-size: 0.875rem;
+   border-radius: 6px;
+   cursor: pointer;
+   font-weight: 500;
+   font-size: 0.8rem;
+   transition: all 0.2s ease;
+   box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-  position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  font-weight: bold;
-
 }
 
 .create-task-btn:hover {
-  background: #008544;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+   background: linear-gradient(135deg, #047857 0%, #059669 100%);
+   transform: translateY(-1px);
+   box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
 }
 
 .create-task-btn::before {
@@ -826,24 +1003,21 @@ export default {
 }
 
 
-/* Filter button */
+ /* Filter button - compact styling like FinalDashboard */
 .filter-btn {
-  width: 173px;
-  height: 39px;
-  padding: 10px 25px;
-  gap: 16px;
-  border-radius: 54px;
-  background: white;
-  color: #1F2937;
-  border: 1px solid #E2E8F0;
-  font-size: 0.875rem;
-  font-weight: bold;
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+   gap: 6px;
+   padding: 0.5rem 1rem;
+   background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+   color: white;
+   border: none;
+   border-radius: 6px;
+   cursor: pointer;
+   font-weight: 500;
+   font-size: 0.8rem;
+   transition: all 0.2s ease;
+   box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
 }
 .pdf-capture-mode {
   font-family: Arial !important;
@@ -869,7 +1043,9 @@ export default {
 
 
 .filter-btn:hover {
-  background: #F8FAFC;
+   background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+   transform: translateY(-1px);
+   box-shadow: 0 4px 8px rgba(30, 58, 138, 0.3);
 }
 
 
@@ -883,12 +1059,15 @@ export default {
   display: inline-block !important; /* Required for proper scaling */
 }
 
-/* Table headers section */
+ /* Compact Government Style Table Headers */
 .table-headers {
-  background: white;
+   background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
   margin-bottom: 0.5rem;
-  border-bottom: 3px solid #3B82F6;
-  padding: 0 1rem;
+   border-radius: 8px 8px 0 0;
+   width: 100%;
+   box-sizing: border-box;
+   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+   overflow: hidden;
 }
 
 .table-headers table {
@@ -896,65 +1075,115 @@ export default {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
+   margin: 0;
 }
 
 .table-headers th {
-  color: #374151;
-  font-size: 0.76rem;
-  font-weight: 700;
+   color: white;
+   font-size: 0.65rem;
+   font-weight: 600;
   text-align: left;
-  padding: 0.5rem 0.8rem;
+   padding: 0.75rem;
   white-space: normal;
-}
+   border-right: 1px solid rgba(255, 255, 255, 0.2);
+   background: transparent;
+   line-height: 1.3;
+ }
 
-/* Table rows */
+ .table-headers th:last-child {
+   border-right: none;
+ }
+
+ /* Compact Table rows */
 .table-row {
   background: white;
-  border-radius: 0.5rem;
-  margin: 0.75rem 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+   border-radius: 0;
+   margin: 0.5rem 0;
+   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   text-align: center;
+   width: 100%;
+   box-sizing: border-box;
+   border: 1px solid #e9ecef;
+   overflow: visible; /* Allow action menus to extend outside row */
+ }
+
+ .table-row:last-child {
+   border-radius: 0 0 8px 8px;
 }
 
 .table-row table {
-  width: calc(100% - 2rem);
-  margin: 0 1rem;
+   width: 100%;
+   margin: 0;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
 }
 
 .table-row td {
-  padding: 1rem 0.8rem;
-  color: #1F2937;
-  font-size: 0.85rem;
+   padding: 0.75rem;
+   color: #495057;
+   font-size: 0.8rem;
   vertical-align: middle;
-  line-height: 1.5;
+   line-height: 1.4;
   white-space: normal;
   word-break: break-word;
-}
+   border-right: 1px solid #f8f9fa;
+   background: white;
+   overflow: hidden;
+ }
 
-/* Column widths */
+
+
+ .table-row td:last-child {
+   border-right: none;
+ }
+
+ /* Optimized Column widths - Maximum space for Action column */
 .table-headers th:nth-child(1),
-.table-row td:nth-child(1) { width: 3%; }
+ .table-row td:nth-child(1) { 
+   width: 5%; 
+   min-width: 50px;
+ }
 
 .table-headers th:nth-child(2),
-.table-row td:nth-child(2) { width: 10%; }
+ .table-row td:nth-child(2) { 
+   width: 10%; 
+   min-width: 100px;
+ }
 
 .table-headers th:nth-child(3),
-.table-row td:nth-child(3) { width: 12%; }
+ .table-row td:nth-child(3) { 
+   width: 12%; 
+   min-width: 120px;
+ }
 
 .table-headers th:nth-child(4),
-.table-row td:nth-child(4) { width: 67%; }
+ .table-row td:nth-child(4) { 
+   width: 55%; 
+   min-width: 400px;
+   overflow: hidden !important;
+   word-wrap: break-word;
+   white-space: normal;
+   text-align: left !important;
+ }
 
 .table-headers th:nth-child(5),
-.table-row td:nth-child(5) { width: 7%; }
+ .table-row td:nth-child(5) { 
+   width: 6%; 
+   min-width: 70px;
+ }
 
 .table-headers th:nth-child(6),
-.table-row td:nth-child(6) { width: 10%; }
+ .table-row td:nth-child(6) { 
+   width: 8%; 
+   min-width: 90px;
+ }
 
 .table-headers th:nth-child(7),
-.table-row td:nth-child(7) { width: 7%; }
+ .table-row td:nth-child(7) { 
+   width: 4%; 
+   min-width: 50px;
+ }
 
 .table-headers th:nth-child(8),
 .table-row td:nth-child(8) { width: 8%; }
@@ -990,15 +1219,39 @@ export default {
   font-weight: bold;
 }
 
+.status-unknown {
+  color: #6B7280 !important;
+  background-color: #F3F4F6;
+  padding: 12px 8px;
+  border-radius: 24px;
+  font-size: 0.8rem;
+  font-weight: bolder;
+}
+
+
+/* Actions cell styling */
+.actions-cell {
+  padding: 1rem 0.8rem !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  overflow: visible !important;
+  position: static !important; /* Remove stacking context */
+}
 
 .table-row td:nth-child(8) {
   padding: 1rem 0.8rem !important;
   text-align: left !important;
   vertical-align: middle !important;
+  overflow: visible !important;
+  position: relative;
 }
 
 .action-menu-container {
-  position: relative;
+  position: static; /* Remove stacking context */
+  overflow: visible !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .action-trigger {
@@ -1018,28 +1271,45 @@ export default {
 
 .action-trigger:hover {
   background: #F3F4F6;
+  color: #374151;
+  transform: scale(1.1);
 }
 
-.action-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.5rem);
+/* Active state when menu is open */
+.action-trigger.active {
+  background: #EBF4FF;
+  color: #2563EB;
+  transform: scale(1.1);
+}
+
+/* Global Action Menu - Outside table structure */
+.global-action-menu {
+  position: fixed;
   background: white;
   border: 1px solid #E5E7EB;
   border-radius: 0.375rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   min-width: 180px;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
-  transition: all 0.2s;
-  z-index: 50;
+  transition: all 0.15s ease; /* Faster transition */
+  z-index: 99999 !important; /* Highest possible z-index */
+  pointer-events: none; /* Prevent interaction when hidden */
+  /* Add a small padding area to help with hover */
+  padding: 0.25rem 0;
 }
 
-.action-menu.show {
+.global-action-menu.show {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
+  pointer-events: auto; /* Enable interaction when visible */
+}
+
+/* Remove old action-menu styles since we're using global menu */
+.action-menu {
+  display: none !important;
 }
 
 .menu-item {
@@ -1127,134 +1397,284 @@ export default {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Action Content Cell Styling */
+ /* Action Content Styling - Compact with Auto-scaling */
 .action-content-cell {
   text-align: left !important;
   vertical-align: top !important;
-  line-height: 1.4 !important;
-}
+   padding: 0.75rem !important;
+   overflow: hidden !important;
+   word-wrap: break-word;
+   line-height: 1.4;
+   max-width: 100% !important;
+   position: relative;
+   box-sizing: border-box;
+   /* Smooth transition for scaling */
+   transition: transform 0.3s ease;
+ }
 
-.action-content-cell * {
-  color: inherit !important;
-  font-size: inherit !important;
-}
+ .action-content-cell ul, .action-content-cell ol {
+   margin: 6px 0;
+   padding-left: 0;
+   list-style: none;
+ }
 
-/* Hierarchical Action Node Styling */
-.action-content-cell .action-node {
+ .action-content-cell li {
+   margin: 3px 0;
+   list-style: none;
   display: flex;
   align-items: flex-start;
-  margin: 0.2em 0;
-  line-height: 1.4;
-}
+   line-height: 1.3;
+ }
 
-.action-content-cell .action-node .node-marker {
+ .action-content-cell .list-marker {
+   font-weight: 600;
+   margin-right: 6px;
+   min-width: 18px;
+   color: #1e40af;
   flex-shrink: 0;
-  margin-right: 0.5em;
-  font-weight: bold;
-  color: #374151;
-}
+ }
 
+ /* Compact table styling within action content */
+ .action-content-cell table {
+   width: 100% !important;
+   max-width: 100% !important;
+   border-collapse: collapse !important;
+   margin: 0.4rem 0 !important;
+   font-size: 0.75rem !important;
+   table-layout: auto !important;
+   overflow-wrap: break-word !important;
+   /* Smooth transition for table scaling */
+   transition: transform 0.3s ease;
+   transform-origin: top left;
+ }
+
+ .action-content-cell table th,
+ .action-content-cell table td {
+   border: 1px solid #d1d5db !important;
+   padding: 4px 6px !important;
+   text-align: left !important;
+   word-wrap: break-word !important;
+   overflow-wrap: break-word !important;
+   font-size: 0.7rem !important;
+ }
+
+ .action-content-cell table th {
+   background-color: #f3f4f6 !important;
+   font-weight: 600 !important;
+   font-size: 0.7rem !important;
+ }
+
+ .action-content-cell table td {
+   font-size: 0.7rem !important;
+ }
+
+ /* SIMPLIFIED: Basic hierarchical content styling */
+ .action-content-cell .action-node {
+   margin: 4px 0 !important;
+   padding: 4px !important;
+   display: flex !important;
+   align-items: flex-start !important;
+   line-height: 1.4 !important;
+ }
+
+ /* SIMPLIFIED: Node marker styling */
+ .action-content-cell .action-node .node-marker {
+   flex-shrink: 0 !important;
+   margin-right: 8px !important;
+   font-weight: bold !important;
+   min-width: 24px !important;
+   color: #000 !important;
+ }
+
+ /* SIMPLIFIED: Node content styling */
 .action-content-cell .action-node .node-content {
-  flex: 1;
-  word-break: break-word;
-}
+   flex: 1 !important;
+   word-break: break-word !important;
+   color: #000 !important;
+ }
 
-/* Level-based indentation */
-.action-content-cell .action-node.level-1 {
-  margin-left: 0;
-}
+ /* Review date styling - yellow highlight like in image */
+ .action-content-cell .action-node .node-content .review-date {
+   font-size: 0.85em !important;
+   color: #333 !important;
+   font-weight: 500 !important;
+   margin-left: 8px !important;
+   background-color: #ffeb3b !important; /* Yellow highlight background */
+   padding: 2px 6px !important;
+   border-radius: 4px !important;
+   border: none !important;
+   display: inline-block !important;
+   font-family: inherit !important;
+   line-height: 1.2 !important;
+ }
 
-.action-content-cell .action-node.level-2 {
-  margin-left: 1.5em;
-}
+ /* Today's date styling - red text on yellow background */
+ .action-content-cell .action-node .node-content .review-date.today {
+   color: #d32f2f !important; /* Red text for today's date */
+   font-weight: 600 !important;
+   background-color: #ffeb3b !important; /* Ensure yellow background is maintained */
+ }
 
-.action-content-cell .action-node.level-3 {
-  margin-left: 3em;
-}
+ /* SIMPLIFIED: Level-based indentation */
+ .action-content-cell .action-node.level-1 { margin-left: 0 !important; }
+ .action-content-cell .action-node.level-2 { margin-left: 20px !important; }
+ .action-content-cell .action-node.level-3 { margin-left: 40px !important; }
+ .action-content-cell .action-node.level-4 { margin-left: 60px !important; }
 
-.action-content-cell .action-node.level-4 {
-  margin-left: 4.5em;
-}
+ /* SIMPLIFIED: List style colors */
+ .action-content-cell .action-node.style-decimal .node-marker { color: #0000ff !important; }
+ .action-content-cell .action-node.style-lower-alpha .node-marker { color: #008000 !important; }
+ .action-content-cell .action-node.style-lower-roman .node-marker { color: #800080 !important; }
+ .action-content-cell .action-node.style-bullet .node-marker { color: #ff0000 !important; }
 
-.action-content-cell .action-node.level-5 {
-  margin-left: 6em;
-}
+ .action-content-cell .action-node .node-marker {
+   flex-shrink: 0 !important;
+   margin-right: 6px !important;
+   font-weight: bold !important;
+   min-width: 18px !important;
+ }
 
-/* List style formatting */
-.action-content-cell .action-node.style-decimal .node-marker {
-  color: #2563EB;
+ .action-content-cell .action-node .node-content {
+   flex: 1 !important;
+   word-break: break-word !important;
+ }
+
+ .action-content-cell .level-1 { margin-left: 0; }
+ .action-content-cell .level-2 { margin-left: 16px; }
+ .action-content-cell .level-3 { margin-left: 32px; }
+ .action-content-cell .level-4 { margin-left: 48px; }
+
+ /* Scaled content adjustments */
+ .action-content-cell.scaled {
+   overflow: visible !important;
+ }
+
+ .action-content-cell.scaled table {
+   margin-bottom: 0.2rem !important;
+ }
+
+ /* Ensure scaled tables don't interfere with layout */
+ .action-content-cell table.scaled-table {
+   display: block;
+   width: fit-content !important;
+   max-width: none !important;
+ }
+
+ /* Enhanced Hierarchical Node Styling - Integrated with Auto-scaling */
+ .action-content-cell .action-node {
+   display: flex;
+   align-items: flex-start;
+   margin: 3px 0;
+   line-height: 1.3;
+   padding: 2px 0;
+ }
+ 
+ .action-content-cell .action-node .node-marker {
+   flex-shrink: 0;
+   margin-right: 6px;
   font-weight: bold;
-}
-
-.action-content-cell .action-node.style-lower-alpha .node-marker {
-  color: #059669;
-  font-weight: bold;
-}
-
-.action-content-cell .action-node.style-lower-roman .node-marker {
-  color: #7C3AED;
-  font-weight: bold;
-}
-
-.action-content-cell .action-node.style-bullet .node-marker {
-  color: #DC2626;
-  font-weight: bold;
-}
+   color: #1e40af;
+   min-width: 18px;
+ }
+ 
+ .action-content-cell .action-node .node-content {
+   flex: 1;
+   word-break: break-word;
+ }
+ 
+ /* Level-based indentation - compact */
+ .action-content-cell .action-node.level-1 { margin-left: 0; }
+ .action-content-cell .action-node.level-2 { margin-left: 16px; }
+ .action-content-cell .action-node.level-3 { margin-left: 32px; }
+ .action-content-cell .action-node.level-4 { margin-left: 48px; }
+ .action-content-cell .action-node.level-5 { margin-left: 64px; }
+ 
+ /* List style formatting - consistent with compact design */
+ .action-content-cell .action-node.style-decimal .node-marker { color: #1e40af !important; font-weight: bold !important; }
+ .action-content-cell .action-node.style-lower-alpha .node-marker { color: #059669 !important; font-weight: bold !important; }
+ .action-content-cell .action-node.style-lower-roman .node-marker { color: #7C3AED !important; font-weight: bold !important; }
+ .action-content-cell .action-node.style-bullet .node-marker { color: #DC2626 !important; font-weight: bold !important; }
 
 /* Completed nodes styling */
-.action-content-cell .action-node.completed {
-  opacity: 0.7;
-}
+ .action-content-cell .action-node.completed { opacity: 0.7; }
+ .action-content-cell .action-node.completed .node-content { text-decoration: line-through; }
+ 
+ .action-content-cell p { margin: 0.25em 0 !important; }
+ .action-content-cell br { line-height: 1.2 !important; }
 
-.action-content-cell .action-node.completed .node-content {
-  text-decoration: line-through;
-}
+ /* ✅ NEW: Font-size based auto-scaling classes - NO MORE TRANSFORM SCALING */
+ /* Small font reduction for moderate overflow */
+ .action-content-cell.auto-scaled-small {
+   font-size: 0.8em !important;
+   line-height: 1.25 !important;
+ }
 
-.action-content-cell table {
-  width: 100% !important;
-  border-collapse: collapse !important;
-  margin: 0.5em 0 !important;
-}
+ /* Tiny font reduction for severe overflow */
+ .action-content-cell.auto-scaled-tiny {
+   font-size: 0.7em !important;
+   line-height: 1.2 !important;
+ }
 
-.action-content-cell table th,
-.action-content-cell table td {
-  border: 1px solid #ddd !important;
-  padding: 4px 8px !important;
-  font-size: 0.8em !important;
-}
+ /* Ensure auto-scaled content maintains proper spacing and structure */
+ .action-content-cell.auto-scaled-small /deep/ .action-node,
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node {
+   margin: 2px 0 !important;
+   padding: 1px 0 !important;
+   display: flex !important;
+   align-items: flex-start !important;
+ }
 
-.action-content-cell table th {
-  background-color: #f2f2f2 !important;
-  font-weight: bold !important;
-}
+ /* Preserve hierarchical indentation even when scaled */
+ .action-content-cell.auto-scaled-small /deep/ .action-node.level-1,
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-1 { margin-left: 0 !important; }
+ .action-content-cell.auto-scaled-small /deep/ .action-node.level-2,
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-2 { margin-left: 16px !important; }
+ .action-content-cell.auto-scaled-small /deep/ .action-node.level-3,
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-3 { margin-left: 32px !important; }
+ .action-content-cell.auto-scaled-small /deep/ .action-node.level-4,
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-4 { margin-left: 48px !important; }
 
-.action-content-cell p {
-  margin: 0.25em 0 !important;
-}
+ /* Auto-scaled table improvements */
+ .action-content-cell.auto-scaled-small /deep/ table,
+ .action-content-cell.auto-scaled-tiny /deep/ table {
+   margin: 0.2rem 0 !important;
+ }
 
-.action-content-cell br {
-  line-height: 1.2 !important;
-}
+ .action-content-cell.auto-scaled-small /deep/ table th,
+ .action-content-cell.auto-scaled-small /deep/ table td,
+ .action-content-cell.auto-scaled-tiny /deep/ table th,
+ .action-content-cell.auto-scaled-tiny /deep/ table td {
+   padding: 3px 4px !important;
+ }
+
+ /* Table-specific font scaling with deep selectors */
+ .action-content-cell /deep/ table.scaled-table {
+   transform: none !important; /* Remove any transform scaling */
+ }
+
+ /* Ensure minimum cell width is always maintained */
+ .table-row td:nth-child(4) {
+   min-width: 400px !important; /* Force minimum width for action column */
+   width: 55% !important;
+   max-width: none !important;
+ }
+
 .download-pdf-btn {
-  width: 173px;
-  height: 39px;
-  padding: 10px 25px;
-  background: #3B82F6;
+   padding: 0.5rem 1rem;
+   background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: white;
-  border-radius: 54px;
   border: none;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  font-weight: bold;
+   border-radius: 6px;
+   cursor: pointer;
+   font-weight: 500;
+   font-size: 0.8rem;
+   transition: all 0.2s ease;
+   box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
 }
 
 .download-pdf-btn:hover {
-  background: #2563EB;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+   background: linear-gradient(135deg, #047857 0%, #059669 100%);
+   transform: translateY(-1px);
+   box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
 }
 </style>

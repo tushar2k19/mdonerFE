@@ -1,10 +1,10 @@
 // src/services/NotificationService.js
 class NotificationService {
-  constructor(axiosInstance) {
+  constructor (axiosInstance) {
     this.http = axiosInstance
   }
 
-  async fetchNotifications() {
+  async fetchNotifications () {
     try {
       const response = await this.http.get('/notifications')
       return response.data
@@ -14,7 +14,7 @@ class NotificationService {
     }
   }
 
-  async markAsRead(notificationId) {
+  async markAsRead (notificationId) {
     try {
       await this.http.put(`/notification/${notificationId}/mark_as_read`)
       return true
@@ -24,7 +24,7 @@ class NotificationService {
     }
   }
 
-  async markAllAsRead() {
+  async markAllAsRead () {
     try {
       await this.http.put('/notifications/mark_all_as_read')
       return true
