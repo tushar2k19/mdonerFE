@@ -250,8 +250,6 @@ export default {
       return tempDiv.innerHTML
     },
 
-
-
     async downloadPDF() {
       this.pdfVisible = true
       
@@ -392,17 +390,14 @@ export default {
 </script>
 
 <style scoped>
-/* Government Website Inspired Styling - Fixed Width */
+/* Government Website Inspired Styling - Full Width like TentativeDashboard */
 .dashboard-container {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: #f8f9fa;
   min-height: 100vh;
   color: #212529;
-  width: 90vw; /* Reduced from 94vw to prevent horizontal scrolling */
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1rem;
-  box-sizing: border-box;
+  padding: 1.5rem;
+  min-height: calc(100vh - 4rem);
 }
 
 /* Compact Right-Aligned Actions */
@@ -650,19 +645,76 @@ export default {
   font-size: 0.7rem !important; /* Reduced font size */
 }
 
-/* Hierarchical content styling - more compact */
-.action-content-cell .action-node {
-  margin: 3px 0; /* Reduced margin */
-  padding: 2px 0; /* Reduced padding */
+/* 🎯 UNIFIED: Clean Action Node Hierarchical Styling with DEEP SELECTORS */
+.action-content-cell /deep/ .action-node {
+  display: flex !important;
+  align-items: flex-start !important;
+  margin: 3px 0 !important; /* Reduced margin */
+  padding: 2px 0 !important; /* Reduced padding */
+  line-height: 1.4 !important;
+  font-size: inherit !important;
 }
 
-.action-content-cell .level-1 { margin-left: 0; }
-.action-content-cell .level-2 { margin-left: 16px; } /* Reduced indentation */
-.action-content-cell .level-3 { margin-left: 32px; } /* Reduced indentation */
-.action-content-cell .level-4 { margin-left: 48px; } /* Reduced indentation */
+.action-content-cell /deep/ .action-node .node-marker {
+  flex-shrink: 0 !important;
+  margin-right: 8px !important;
+  font-weight: bold !important;
+  min-width: 24px !important;
+  text-align: left !important;
+}
 
-/* Review date styling - yellow highlight like in image */
-.action-content-cell .action-node .node-content .review-date {
+.action-content-cell /deep/ .action-node .node-content {
+  flex: 1 !important;
+  word-break: break-word !important;
+  color: #000 !important;
+}
+
+/* 📐 ENHANCED: Hierarchical indentation with deep selectors */
+.action-content-cell /deep/ .action-node.level-1 { 
+  margin-left: 0 !important; 
+  background-color: rgba(59, 130, 246, 0.02) !important;
+}
+.action-content-cell /deep/ .action-node.level-2 { 
+  margin-left: 40px !important; 
+  /* background-color: rgba(16, 185, 129, 0.02) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-3 { 
+  margin-left: 80px !important; 
+  /* background-color: rgba(139, 92, 246, 0.02) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-4 { 
+  margin-left: 120px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-5 { 
+  margin-left: 160px !important; 
+  /* background-color: rgba(239, 68, 68, 0.02) !important; */
+  padding-left: 8px !important;
+}
+
+/* 🎨 UNIFIED: List style colors with deep selectors */
+.action-content-cell /deep/ .action-node.style-decimal .node-marker { 
+  /* color: #1e40af !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-lower-alpha .node-marker { 
+  /* color: #059669 !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-lower-roman .node-marker { 
+  /* color: #7C3AED !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-bullet .node-marker { 
+  /* color: #DC2626 !important; */
+  font-weight: bold !important; 
+}
+
+/* 📅 Review date styling - yellow highlight with deep selectors */
+.action-content-cell /deep/ .action-node .node-content .review-date {
   font-size: 0.85em !important;
   color: #333 !important;
   font-weight: 500 !important;
@@ -675,9 +727,51 @@ export default {
 }
 
 /* Today's date styling - red text on yellow background */
-.action-content-cell .action-node .node-content .review-date.today {
+.action-content-cell /deep/ .action-node .node-content .review-date.today {
   color: #d32f2f !important; /* Red text for today's date */
   font-weight: 600 !important;
+}
+
+/* ✅ Completed nodes styling with DEEP SELECTORS - GREEN COLOR */
+.action-content-cell /deep/ .action-node.completed { 
+  /* background-color: rgba(16, 185, 129, 0.1) !important; */
+  /* border-left: 3px solid #10b981 !important; Green left border */
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+}
+.action-content-cell /deep/ .action-node.completed .node-content { 
+  color: #059669 !important; /* Green text color */
+  font-weight: 500 !important; /* Slightly bold */
+}
+.action-content-cell /deep/ .action-node.completed .node-marker { 
+  color: #10b981 !important; /* Green marker color */
+  font-weight: 600 !important;
+}
+
+/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility */
+.action-content-cell >>> .action-node.level-2 { 
+  margin-left: 40px !important; 
+  /* background-color: rgba(16, 185, 129, 0.02) !important; */
+  /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell >>> .action-node.level-3 { 
+  margin-left: 80px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell >>> .action-node.level-4 { 
+  margin-left: 120px !important; 
+  /* background-color: rgba(139, 92, 246, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell >>> .action-node.level-5 { 
+  margin-left: 160px !important; 
+  /* background-color: rgba(239, 68, 68, 0.02) !important; */
+  /* border-left: 2px solid rgba(239, 68, 68, 0.3) !important; */
+  padding-left: 8px !important;
 }
 
 /* Scaled content adjustments */
@@ -785,8 +879,7 @@ export default {
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
   .dashboard-container {
-    width: 95vw; /* Adjusted for mobile */
-    padding: 0.5rem;
+    padding: 1rem; /* Adjusted for mobile */
   }
   
   .dashboard-actions {

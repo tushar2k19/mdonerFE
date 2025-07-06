@@ -1,8 +1,9 @@
 <template>
   <div class="enhanced-node-item" :class="[
     { 'completed': node.completed },
-    showDiff ? `diff-${node.diff_status || 'unchanged'}` : ''
-  ]">
+    showDiff ? `diff-${node.diff_status || 'unchanged'}` : '',
+    { 'dragging': isDragging, 'drag-over': isDragOver }
+  ]" :draggable="!readonly" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
       <!-- Counter/Marker -->
@@ -32,6 +33,17 @@
               </div>
 
               <div class="toolbar-group">
+                <select @change="execCommand('fontSize', $event.target.value)" class="font-size-picker">
+                  <option value="">Font Size</option>
+                  <option value="1">8pt</option>
+                  <option value="2">10pt</option>
+                  <option value="3">12pt</option>
+                  <option value="4">14pt</option>
+                  <option value="5">16pt</option>
+                  <option value="6">18pt</option>
+                  <option value="7">24pt</option>
+                </select>
+
                 <select @change="execCommand('foreColor', $event.target.value)" class="color-picker">
                   <option value="">Text Color</option>
                   <option value="#000000">Black</option>
@@ -91,6 +103,25 @@
               :style="{ top: contextMenuY + 'px', left: contextMenuX + 'px' }"
               @click.stop
             >
+              <!-- Color Picker Section -->
+              <div class="context-menu-group">
+                <div class="color-picker-section">
+                  <div class="color-picker-label">Cell Background:</div>
+                  <div class="color-picker-grid">
+                    <button 
+                      v-for="color in cellColors" 
+                      :key="color.name"
+                      @click="setCellBackgroundColor(color.value)"
+                      class="color-picker-btn"
+                      :style="{ backgroundColor: color.value }"
+                      :title="color.name"
+                    ></button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="context-menu-divider"></div>
+
               <div class="context-menu-group">
                 <button @click="addRowAbove" class="context-menu-item">
                   ↑ Add Row Above
@@ -123,6 +154,9 @@
               <div class="context-menu-divider"></div>
 
               <div class="context-menu-group">
+                <button @click="increaseCellWidth" class="context-menu-item">
+                  ↔️ Increase Cell Width
+                </button>
                 <button @click="clearCell" class="context-menu-item">
                   🧹 Clear Cell
                 </button>
@@ -212,6 +246,7 @@
         :index="childIndex"
         :show-diff="showDiff"
         :diff-data="diffData"
+        :readonly="readonly"
         @update-node="$emit('update-node', $event, arguments[1])"
         @delete-node="$emit('delete-node', $event)"
         @add-subpoint="$emit('add-subpoint', $event)"
@@ -219,6 +254,7 @@
         @add-point-same-level="$emit('add-point-same-level', $event, arguments[1], arguments[2])"
         @move-node="$emit('move-node', $event, arguments[1])"
         @duplicate-node="$emit('duplicate-node', $event, arguments[1], arguments[2])"
+        @reorder-nodes="$emit('reorder-nodes', $event)"
       />
     </div>
 
@@ -268,6 +304,10 @@ export default {
     diffData: {
       type: Object,
       default: () => ({})
+    },
+    readonly: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -289,7 +329,21 @@ export default {
       contextMenuX: 0,
       currentCell: null,
       currentRow: null,
-      currentColumn: null
+      currentColumn: null,
+      isDragging: false,
+      isDragOver: false,
+      cellColors: [
+        { name: 'No Color', value: 'transparent' },
+        { name: 'Light Yellow', value: '#fff3cd' },
+        { name: 'Light Blue', value: '#d1ecf1' },
+        { name: 'Light Green', value: '#d4edda' },
+        { name: 'Light Pink', value: '#f8d7da' },
+        { name: 'Light Orange', value: '#ffeaa7' },
+        { name: 'Light Purple', value: '#e2d9f3' },
+        { name: 'Light Gray', value: '#f8f9fa' },
+        { name: 'Light Cyan', value: '#d1f2eb' },
+        { name: 'Light Salmon', value: '#ffcccb' }
+      ]
     }
   },
 
@@ -360,6 +414,9 @@ export default {
     if (this.$refs.richEditor) {
       this.$refs.richEditor.innerHTML = this.node.content || '<p>Enter content...</p>'
     }
+    
+    // Initialize table resizing for existing tables
+    this.initializeTableResizing()
   },
 
   beforeDestroy () {
@@ -514,7 +571,7 @@ export default {
       this.$emit('update-node', this.node.id, updateData)
       
       // Close the table creation modal and reset defaults
-      this.showTableCreation = false
+      this.showTableModal = false
       this.tableRows = 3
       this.tableCols = 3
       
@@ -522,6 +579,11 @@ export default {
       if (this.isEditing && this.$refs.richEditor) {
         console.log('🔧 Updating rich editor content with new table')
         this.$refs.richEditor.innerHTML = newContent
+        
+        // Initialize resizing for the new table
+        this.$nextTick(() => {
+          this.initializeTableResizing()
+        })
       }
       
       // Exit editing mode after a short delay so user can see the result
@@ -535,7 +597,7 @@ export default {
     },
 
     generateTableHTML (rows, cols) {
-      let html = '<table style="width: 100%; border-collapse: collapse;">\n'
+      let html = '<table class="resizable-table" style="width: 100%; border-collapse: collapse;">\n'
       html += '  <thead>\n    <tr>\n'
       for (let c = 1; c <= cols; c++) {
         html += `      <th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">Header ${c}</th>\n`
@@ -665,6 +727,9 @@ export default {
       this.contextMenuY = event.clientY
       this.contextMenuX = event.clientX
 
+      // Notify parent that context menu is open
+      this.$emit('context-menu-opened', true)
+
       // Hide context menu when clicking elsewhere
       this.$nextTick(() => {
         document.addEventListener('click', this.hideTableContextMenu, { once: true })
@@ -676,6 +741,15 @@ export default {
       this.currentCell = null
       this.currentRow = null
       this.currentColumn = null
+      
+      // Notify parent that context menu is closed
+      this.$emit('context-menu-opened', false)
+    },
+
+    // Table resizing functionality (context menu based)
+    initializeTableResizing () {
+      // No initialization needed for context menu approach
+      // Tables are resized via right-click context menu
     },
 
     addRowAbove () {
@@ -873,6 +947,51 @@ export default {
       }
     },
 
+    increaseCellWidth () {
+      // Find table either in editing mode (richEditor) or display mode (current cell's table)
+      let table
+      if (this.isEditing && this.$refs.richEditor) {
+        table = this.$refs.richEditor.querySelector('table')
+      } else if (this.currentCell) {
+        table = this.currentCell.closest('table')
+      }
+
+      if (table && this.currentColumn !== null) {
+        // Get the current column width
+        const currentCell = table.rows[0].cells[this.currentColumn]
+        const currentWidth = currentCell.offsetWidth
+        
+        // Calculate new width (increase by 50px, but don't exceed 300px max)
+        const newWidth = Math.min(300, currentWidth + 50)
+        
+        // Update all cells in this column
+        for (let i = 0; i < table.rows.length; i++) {
+          const cell = table.rows[i].cells[this.currentColumn]
+          if (cell) {
+            cell.style.width = newWidth + 'px'
+            cell.style.minWidth = newWidth + 'px'
+          }
+        }
+        
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log(`↔️ Column ${this.currentColumn} width increased from ${currentWidth}px to ${newWidth}px`)
+      }
+    },
+
+    setCellBackgroundColor (color) {
+      if (this.currentCell) {
+        // Set the background color of the clicked cell
+        this.currentCell.style.backgroundColor = color
+        
+        // Update content and trigger change detection
+        this.updateNodeContentFromDOM()
+        this.hideTableContextMenu()
+        console.log(`🎨 Cell background color set to: ${color}`)
+      }
+    },
+
     updateNodeContentFromDOM () {
       // This method updates the node content when we modify a table in display mode
       if (this.isEditing && this.$refs.richEditor) {
@@ -892,7 +1011,72 @@ export default {
           console.log('🔄 Node content updated from DOM manipulation')
         }
       }
-    }
+    },
+
+         handleDragStart (event) {
+       this.isDragging = true
+       // Store the dragged node data
+       event.dataTransfer.setData('text/plain', JSON.stringify({
+         nodeId: this.node.id,
+         level: this.node.level,
+         parentId: this.node.parent_id,
+         index: this.index
+       }))
+       event.dataTransfer.effectAllowed = 'move'
+     },
+
+    handleDragEnd (event) {
+      this.isDragging = false
+    },
+
+    handleDragOver (event) {
+      event.preventDefault()
+      this.isDragOver = true
+    },
+
+    handleDragLeave (event) {
+      this.isDragOver = false
+    },
+
+         handleDrop (event) {
+       event.preventDefault()
+       this.isDragOver = false
+       
+       try {
+         const dragData = JSON.parse(event.dataTransfer.getData('text/plain'))
+         const draggedNodeId = dragData.nodeId
+         const targetNodeId = this.node.id
+         
+         console.log('🎯 Drop event details:', {
+           draggedNodeId,
+           targetNodeId,
+           draggedLevel: dragData.level,
+           targetLevel: this.node.level,
+           draggedParentId: dragData.parentId,
+           targetParentId: this.node.parent_id,
+           draggedIndex: dragData.index,
+           targetIndex: this.index
+         })
+         
+         // Only allow same-level moves in Phase 1
+         if (dragData.level === this.node.level && dragData.parentId === this.node.parent_id) {
+           console.log('✅ Same-level drop validated, emitting reorder-nodes')
+           this.$emit('reorder-nodes', {
+             draggedNodeId,
+             targetNodeId,
+             draggedIndex: dragData.index,
+             targetIndex: this.index
+           })
+         } else {
+           console.log('❌ Cross-level drop rejected:', {
+             sameLevel: dragData.level === this.node.level,
+             sameParent: dragData.parentId === this.node.parent_id
+           })
+         }
+       } catch (error) {
+         console.error('Error processing drop:', error)
+       }
+     }
   }
 }
 </script>
@@ -904,11 +1088,20 @@ export default {
 }
 
 .enhanced-node-item.completed {
-  opacity: 0.7;
+  background-color: rgba(16, 185, 129, 0.1);
+  border-left: 3px solid #10b981;
+  border-radius: 4px;
+  padding: 4px 8px;
 }
 
 .enhanced-node-item.completed .node-content {
-  text-decoration: line-through;
+  color: #059669;
+  font-weight: 500;
+}
+
+.enhanced-node-item.completed .node-marker {
+  color: #10b981;
+  font-weight: 600;
 }
 
 .node-content {
@@ -1072,11 +1265,16 @@ export default {
   border-color: #ef4444;
 }
 
-.color-picker {
+.color-picker,
+.font-size-picker {
   padding: 0.25rem;
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 0.75rem;
+}
+
+.font-size-picker {
+  min-width: 80px;
 }
 
 .rich-editor {
@@ -1446,6 +1644,53 @@ export default {
   background-color: #fef2f2;
 }
 
+/* Color Picker Styles */
+.color-picker-section {
+  padding: 0.5rem 0;
+}
+
+.color-picker-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  padding: 0 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.25rem;
+  padding: 0 1rem;
+}
+
+.color-picker-btn {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.color-picker-btn:hover {
+  border-color: #3b82f6;
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.color-picker-btn[style*="transparent"] {
+  background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+                    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+                    linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+                    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+}
+
 /* Diff Status Styling */
 .enhanced-node-item.diff-added {
   background: rgba(34, 197, 94, 0.08);
@@ -1522,5 +1767,77 @@ export default {
 .action-btn {
   padding: 6px 8px; /* Reduced action button padding */
   font-size: 12px; /* Smaller action button font */
+}
+
+/* Drag and Drop Styling */
+.enhanced-node-item[draggable="true"] {
+  cursor: move;
+  position: relative;
+}
+
+.enhanced-node-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+  z-index: 1000;
+}
+
+.enhanced-node-item.drag-over {
+  border: 2px solid #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+.enhanced-node-item.drag-over::before {
+  content: '↓ Drop here to reorder';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3b82f6;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1001;
+}
+
+/* Table Styles */
+.resizable-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.resizable-table th,
+.resizable-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  min-width: 50px;
+  min-height: 30px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.resizable-table th {
+  background-color: #f2f2f2;
+  font-weight: 600;
+}
+
+/* Table hover effects to show resize handles */
+.resizable-table:hover .column-resize-handle {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.resizable-table:hover .row-resize-handle {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.enhanced-node-item[draggable="true"]:hover {
+  border-left: 3px solid #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
 }
 </style>

@@ -78,10 +78,20 @@
         <button @click="saveTask" class="btn btn-primary">Save</button>
       </div>
     </div>
+
+    <!-- Merge Interface Overlay -->
+    <MergeInterface 
+      v-if="showMergeInterface"
+      :conflict-data="mergeConflictData && mergeConflictData.conflictData"
+      :task-id="mergeConflictData && mergeConflictData.taskId"
+      @close="closeMergeInterface"
+      @merge-applied="onMergeApplied"
+    />
   </div>
 </template>
 <script>
 import EnhancedNodeEditor from './EnhancedNodeEditor.vue'
+import MergeInterface from './MergeInterface.vue'
 import Datepicker from 'vuejs-datepicker'
 
 export default {
@@ -89,6 +99,7 @@ export default {
 
   components: {
     EnhancedNodeEditor,
+    MergeInterface,
     Datepicker
   },
 
@@ -116,6 +127,8 @@ export default {
       actionNodes: [],
       flatActionNodes: [],
       taskVersionId: null,
+      showMergeInterface: false,
+      mergeConflictData: null,
       oldEditorConfig: {
         height: 425,
         menubar: true,
@@ -333,16 +346,14 @@ export default {
     },
 
     handleMergeConflict (conflictData) {
-      // Show merge interface
-      this.$toast.warning(conflictData.message)
-
-      // Emit event to parent to show merge modal
-      this.$emit('merge-conflict', {
+      // Show merge interface directly in TaskModal
+      this.showMergeInterface = true
+      this.mergeConflictData = {
         taskId: this.task.id,
-        userVersion: conflictData.user_version,
-        currentApproved: conflictData.current_approved,
-        diff: conflictData.diff
-      })
+        conflictData: conflictData
+      }
+      
+      this.$toast.warning(conflictData.message)
     },
 
     formatDate (date) {
@@ -426,6 +437,22 @@ export default {
 
     closeModal () {
       this.$emit('close')
+    },
+
+    closeMergeInterface () {
+      this.showMergeInterface = false
+      this.mergeConflictData = null
+    },
+
+    onMergeApplied (mergeResult) {
+      // Merge was successfully applied
+      this.showMergeInterface = false
+      this.mergeConflictData = null
+      
+      // Refresh the task data and close modal
+      this.$emit('save')
+      this.$emit('close')
+      this.$toast.success('Task updated with merged changes!')
     }
   }
 }
@@ -455,30 +482,35 @@ export default {
 .modal-content {
   background: white;
   border-radius: 16px;
-  width: 99%;
-  max-width: 2000px;
-  min-height: 85vh;
-  max-height: 95vh;
-  overflow-y: auto;
+  width: 92%;
+  max-width: 1650px;
+  height: 90vh;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   animation: slideIn 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-header {
   background: rgba(0, 128, 128, 0.16);
-  padding: 1.25rem;
+  padding: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: #040548;
   font-weight: 700;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.35rem;
+  font-weight: 800;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
@@ -489,15 +521,18 @@ export default {
     rgba(0, 70, 128, 0.05),
     rgba(0, 54, 102, 0.02)
   );
+  flex: 1;
+  overflow-y: auto;
 }
 
 .modal-footer {
-  padding: 1.25rem;
+  padding: 1rem;
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
   background: white;
+  flex-shrink: 0;
 }
 
 .form-group {
@@ -588,16 +623,16 @@ export default {
   border-radius: 8px;
 }
 
-.modal-content::-webkit-scrollbar {
+.modal-body::-webkit-scrollbar {
   width: 6px;
 }
 
-.modal-content::-webkit-scrollbar-track {
+.modal-body::-webkit-scrollbar-track {
   background: rgba(0, 70, 128, 0.05);
   border-radius: 3px;
 }
 
-.modal-content::-webkit-scrollbar-thumb {
+.modal-body::-webkit-scrollbar-thumb {
   background: #004680;
   border-radius: 3px;
 }

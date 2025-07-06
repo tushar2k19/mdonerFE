@@ -71,7 +71,7 @@
               class="menu-item">Delete</button>
       <button v-if="canSendForReview(getCurrentTask())"
               @click="openReviewModal(getCurrentTask()); forceHideMenu()"
-              class="menu-item">Send for Review</button>
+              class="menu-item">{{ getReviewButtonText(getCurrentTask()) }}</button>
       <button @click="openCommentsModal(getCurrentTask()); forceHideMenu()"
               class="menu-item">Comments</button>
       <button v-if="canApprove(getCurrentTask())"
@@ -265,7 +265,11 @@ export default {
     },
 
     applyAutoScaling() {
-      // Wait for DOM to be fully rendered
+      // ⚠️ TEMPORARILY DISABLED - Testing if auto-scaling interferes with hierarchical display
+      console.log('Auto-scaling temporarily disabled for testing')
+      
+      // Wait for DOM to be fully rendered (unreachable code commented out)
+      /*
       setTimeout(() => {
         const actionCells = document.querySelectorAll('.action-content-cell')
         
@@ -330,55 +334,30 @@ export default {
           }
         })
       }, 100)
+      */
     },
-    // TEMPORARILY COMMENTED OUT - Testing raw backend content
-    // processActionContent(content) {
-    //   if (!content) return ''
-    //   const today = new Date()
-    //   try {
-    //     const parser = new DOMParser()
-    //     const doc = parser.parseFromString(content, 'text/html');
 
-    //     const processNode = (node) => {
-    //       if (node.nodeType === Node.TEXT_NODE) {
-    //         const dateRegex = /(\d{1,2})\/(\d{1,2})/g
-    //         let newContent = node.textContent
-
-    //         newContent = newContent.replace(dateRegex, (match, day, month) => {
-    //           const dayNum = parseInt(day)
-    //           const monthNum = parseInt(month)
-    //           const paddedDay = dayNum.toString().padStart(2, '0')
-    //           const paddedMonth = monthNum.toString().padStart(2, '0')
-    //           const standardizedDate = `${paddedDay}/${paddedMonth}`
-    //           if (dayNum === today.getDate() && monthNum === (today.getMonth() + 1)) {
-    //             return `<span style="color: red; background-color: yellow">${standardizedDate}</span>`
-    //           }
-    //           return `<span style="background-color: yellow">${standardizedDate}</span>`
-    //         });
-
-    //         if (newContent !== node.textContent) {
-    //           const span = doc.createElement('span')
-    //           span.innerHTML = newContent
-    //           node.parentNode.replaceChild(span, node)
-    //         }
-    //       } else if (node.nodeType === Node.ELEMENT_NODE) {
-    //         // Preserve action-node structure and only process text content within node-content
-    //         if (node.classList.contains('node-content') || !node.classList.contains('action-node')) {
-    //           Array.from(node.childNodes).forEach(processNode)
-    //         }
-    //       }
-    //     }
-
-    //     // Process all content while preserving structure
-    //     Array.from(doc.body.childNodes).forEach(processNode)
-    //     return doc.body.innerHTML
-    //   } catch (error) {
-    //     console.error('Error in processActionContent:', error)
-    //     // If processing fails, return original content to maintain hierarchical structure
-    //     return content
-    //   }
-    // },
-
+    debugContent(task) {
+      console.log('🔍 Debug Content for Task:', task.id)
+      console.log('Raw HTML:', task.action_to_be_taken)
+      
+      // Parse the HTML to analyze structure
+      if (task.action_to_be_taken) {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(task.action_to_be_taken, 'text/html')
+        const actionNodes = doc.querySelectorAll('.action-node')
+        
+        console.log(`Found ${actionNodes.length} action nodes:`)
+        actionNodes.forEach((node, index) => {
+          const markerEl = node.querySelector('.node-marker')
+          const contentEl = node.querySelector('.node-content')
+          const marker = markerEl ? markerEl.textContent : 'No marker'
+          const content = contentEl ? contentEl.textContent : 'No content'
+          const classes = node.className
+          console.log(`  ${index + 1}. Marker: "${marker}", Content: "${content}", Classes: "${classes}"`)
+        })
+      }
+    },
 
     openAddTaskModal () {
       this.currentTask = null
@@ -838,7 +817,27 @@ export default {
     },
 
     canSendForReview (task) {
-      return task && (this.userRole === 'editor' || this.userRole === 'reviewer') && task.status === 'draft'
+      // Allow editors to send for review when task is 'draft' OR when it's 'under_review' (for re-review)
+      // Allow reviewers to send for review when task is 'draft' only
+      if (!task) return false;
+      
+      if (this.userRole === 'editor') {
+        return task.status === 'draft' || task.status === 'under_review'
+      } else if (this.userRole === 'reviewer') {
+        return task.status === 'draft'
+      }
+      
+      return false
+    },
+
+    getReviewButtonText (task) {
+      if (!task) return 'Send for Review';
+      
+      if (task.status === 'under_review') {
+        return 'Send for Re-review';
+      } else {
+        return 'Send for Review';
+      }
     },
 
     canApprove (task) {
@@ -1468,136 +1467,174 @@ export default {
    font-size: 0.7rem !important;
  }
 
- /* SIMPLIFIED: Basic hierarchical content styling */
- .action-content-cell .action-node {
-   margin: 4px 0 !important;
-   padding: 4px !important;
+/* 🎯 UNIFIED: Clean Action Node Hierarchical Styling with DEEP SELECTORS */
+.action-content-cell /deep/ .action-node {
    display: flex !important;
    align-items: flex-start !important;
+  margin: 4px 0 !important;
+  padding: 2px 0 !important;
    line-height: 1.4 !important;
+  font-size: inherit !important; /* Prevent auto-scaling interference */
  }
 
- /* SIMPLIFIED: Node marker styling */
- .action-content-cell .action-node .node-marker {
+.action-content-cell /deep/ .action-node .node-marker {
    flex-shrink: 0 !important;
    margin-right: 8px !important;
    font-weight: bold !important;
    min-width: 24px !important;
-   color: #000 !important;
+  text-align: left !important;
  }
 
- /* SIMPLIFIED: Node content styling */
-.action-content-cell .action-node .node-content {
+.action-content-cell /deep/ .action-node .node-content {
    flex: 1 !important;
    word-break: break-word !important;
    color: #000 !important;
  }
 
- /* Review date styling - yellow highlight like in image */
- .action-content-cell .action-node .node-content .review-date {
+/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS - FIXED! */
+.action-content-cell /deep/ .action-node.level-1 { 
+  margin-left: 0px !important; 
+  /* background-color: rgba(59, 130, 246, 0.02) !important; */
+}
+.action-content-cell /deep/ .action-node.level-2 { 
+  margin-left: 40px !important; 
+  /* background-color: rgba(16, 185, 129, 0.02) !important; */
+  /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-3 { 
+  margin-left: 80px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  /* border-left: 2px solid rgba(139, 92, 246, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-4 { 
+  margin-left: 120px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell /deep/ .action-node.level-5 { 
+  margin-left: 160px !important; 
+  /* background-color: rgba(239, 68, 68, 0.02) !important; */
+  /* border-left: 2px solid rgba(239, 68, 68, 0.3) !important; */
+  padding-left: 8px !important;
+}
+
+/* 🔧 ADDITIONAL: Multiple selector approaches for maximum compatibility */
+table .action-content-cell /deep/ .action-node.level-2,
+td .action-content-cell /deep/ .action-node.level-2 {
+  margin-left: 40px !important;
+  padding-left: 8px !important;
+  /* background-color: rgba(16, 185, 129, 0.05) !important; */
+  /* border-left: 3px solid rgba(16, 185, 129, 0.4) !important; */
+}
+table .action-content-cell /deep/ .action-node.level-3,
+td .action-content-cell /deep/ .action-node.level-3 {
+  margin-left: 80px !important;
+  padding-left: 8px !important;
+  /* background-color: rgba(245, 158, 11, 0.05) !important; */
+  /* border-left: 3px solid rgba(139, 92, 246, 0.4) !important; */
+}
+table .action-content-cell /deep/ .action-node.level-4,
+td .action-content-cell /deep/ .action-node.level-4 {
+  margin-left: 120px !important;
+  padding-left: 8px !important;
+  /* background-color: rgba(139, 92, 246, 0.05) !important; */
+  /* border-left: 3px solid rgba(245, 158, 11, 0.4) !important; */
+}
+
+/* 🎨 UNIFIED: List style colors with DEEP SELECTORS (clear visual hierarchy) */
+.action-content-cell /deep/ .action-node.style-decimal .node-marker { 
+  /* color: #1e40af !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-lower-alpha .node-marker { 
+  /* color: #059669 !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-lower-roman .node-marker { 
+  /* color: #7C3AED !important; */
+  font-weight: bold !important; 
+}
+.action-content-cell /deep/ .action-node.style-bullet .node-marker { 
+  /* color: #DC2626 !important; */
+  font-weight: bold !important; 
+}
+
+/* 📅 Review date styling with DEEP SELECTORS - yellow highlight */
+.action-content-cell /deep/ .action-node .node-content .review-date {
    font-size: 0.85em !important;
    color: #333 !important;
    font-weight: 500 !important;
    margin-left: 8px !important;
-   background-color: #ffeb3b !important; /* Yellow highlight background */
+  /* background-color: #ffeb3b !important; */
    padding: 2px 6px !important;
    border-radius: 4px !important;
-   border: none !important;
    display: inline-block !important;
-   font-family: inherit !important;
    line-height: 1.2 !important;
  }
 
- /* Today's date styling - red text on yellow background */
- .action-content-cell .action-node .node-content .review-date.today {
-   color: #d32f2f !important; /* Red text for today's date */
+.action-content-cell /deep/ .action-node .node-content .review-date.today {
+  color: #d32f2f !important; /* Red text for today */
    font-weight: 600 !important;
-   background-color: #ffeb3b !important; /* Ensure yellow background is maintained */
+}
+
+/* ✅ Completed nodes styling with DEEP SELECTORS - GREEN COLOR */
+.action-content-cell /deep/ .action-node.completed { 
+  /* background-color: rgba(16, 185, 129, 0.1) !important; */
+  /* border-left: 3px solid #10b981 !important; Green left border */
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+}
+.action-content-cell /deep/ .action-node.completed .node-content { 
+  /* color: #059669 !important; */
+  font-weight: 500 !important; /* Slightly bold */
+}
+.action-content-cell /deep/ .action-node.completed .node-marker { 
+  /* color: #10b981 !important; */
+  font-weight: 600 !important;
+}
+
+/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility */
+.action-content-cell >>> .action-node.level-2 { 
+  margin-left: 40px !important; 
+  /* background-color: rgba(16, 185, 129, 0.02) !important; */
+  /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell >>> .action-node.level-3 { 
+  margin-left: 80px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
+}
+.action-content-cell >>> .action-node.level-4 { 
+  margin-left: 120px !important; 
+  /* background-color: rgba(139, 92, 246, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
  }
 
- /* SIMPLIFIED: Level-based indentation */
- .action-content-cell .action-node.level-1 { margin-left: 0 !important; }
- .action-content-cell .action-node.level-2 { margin-left: 20px !important; }
- .action-content-cell .action-node.level-3 { margin-left: 40px !important; }
- .action-content-cell .action-node.level-4 { margin-left: 60px !important; }
-
- /* SIMPLIFIED: List style colors */
- .action-content-cell .action-node.style-decimal .node-marker { color: #0000ff !important; }
- .action-content-cell .action-node.style-lower-alpha .node-marker { color: #008000 !important; }
- .action-content-cell .action-node.style-lower-roman .node-marker { color: #800080 !important; }
- .action-content-cell .action-node.style-bullet .node-marker { color: #ff0000 !important; }
-
- .action-content-cell .action-node .node-marker {
-   flex-shrink: 0 !important;
-   margin-right: 6px !important;
-   font-weight: bold !important;
-   min-width: 18px !important;
- }
-
- .action-content-cell .action-node .node-content {
-   flex: 1 !important;
-   word-break: break-word !important;
- }
-
- .action-content-cell .level-1 { margin-left: 0; }
- .action-content-cell .level-2 { margin-left: 16px; }
- .action-content-cell .level-3 { margin-left: 32px; }
- .action-content-cell .level-4 { margin-left: 48px; }
-
- /* Scaled content adjustments */
- .action-content-cell.scaled {
-   overflow: visible !important;
- }
-
- .action-content-cell.scaled table {
-   margin-bottom: 0.2rem !important;
- }
-
- /* Ensure scaled tables don't interfere with layout */
- .action-content-cell table.scaled-table {
-   display: block;
-   width: fit-content !important;
-   max-width: none !important;
- }
-
- /* Enhanced Hierarchical Node Styling - Integrated with Auto-scaling */
- .action-content-cell .action-node {
-   display: flex;
-   align-items: flex-start;
-   margin: 3px 0;
-   line-height: 1.3;
-   padding: 2px 0;
- }
- 
- .action-content-cell .action-node .node-marker {
-   flex-shrink: 0;
-   margin-right: 6px;
-  font-weight: bold;
-   color: #1e40af;
-   min-width: 18px;
- }
- 
- .action-content-cell .action-node .node-content {
-   flex: 1;
-   word-break: break-word;
- }
- 
- /* Level-based indentation - compact */
- .action-content-cell .action-node.level-1 { margin-left: 0; }
- .action-content-cell .action-node.level-2 { margin-left: 16px; }
- .action-content-cell .action-node.level-3 { margin-left: 32px; }
- .action-content-cell .action-node.level-4 { margin-left: 48px; }
- .action-content-cell .action-node.level-5 { margin-left: 64px; }
- 
- /* List style formatting - consistent with compact design */
- .action-content-cell .action-node.style-decimal .node-marker { color: #1e40af !important; font-weight: bold !important; }
- .action-content-cell .action-node.style-lower-alpha .node-marker { color: #059669 !important; font-weight: bold !important; }
- .action-content-cell .action-node.style-lower-roman .node-marker { color: #7C3AED !important; font-weight: bold !important; }
- .action-content-cell .action-node.style-bullet .node-marker { color: #DC2626 !important; font-weight: bold !important; }
-
-/* Completed nodes styling */
- .action-content-cell .action-node.completed { opacity: 0.7; }
- .action-content-cell .action-node.completed .node-content { text-decoration: line-through; }
+/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely */
+td.action-content-cell .action-node.level-2 { 
+  margin-left: 40px !important; 
+  /* background-color: rgba(16, 185, 129, 0.02) !important; */
+  /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
+  padding-left: 8px !important;
+}
+td.action-content-cell .action-node.level-3 { 
+  margin-left: 80px !important; 
+  /* background-color: rgba(245, 158, 11, 0.02) !important; */
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 8px !important;
+}
+td.action-content-cell .action-node.level-4 { 
+  margin-left: 120px !important; 
+  /* background-color: rgba(139, 92, 246, 0.02) !important; */
+  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
+  padding-left: 8px !important;
+}
  
  .action-content-cell p { margin: 0.25em 0 !important; }
  .action-content-cell br { line-height: 1.2 !important; }

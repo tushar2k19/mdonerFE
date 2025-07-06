@@ -207,12 +207,33 @@
                     <input type="checkbox" v-model="commentForSpecificNode">
                     <span>Comment on specific action item</span>
                   </label>
-                  <select v-if="commentForSpecificNode" v-model="selectedNodeId" class="node-select">
-                    <option value="">Select action item...</option>
-                    <option v-for="node in reviewNodes" :key="node.id" :value="node.id">
-                      {{ node.display_counter || node.id }}. {{ (node.content || '').substring(0, 50) }}...
-                    </option>
-                  </select>
+                  <!-- Compact Node Dropdown -->
+                  <div v-if="commentForSpecificNode" class="compact-node-dropdown-wrapper" ref="nodeDropdownWrapper">
+                    <div class="compact-node-dropdown-selected" @click="toggleNodeDropdown">
+                      <span v-if="selectedNodeId">
+                        <span class="node-counter">{{ getNodeDisplayCounter(selectedNodeId) }}</span>
+                        <span class="node-preview">{{ getNodeFirstLine(selectedNodeId) }}</span>
+                      </span>
+                      <span v-else class="placeholder">Select action item...</span>
+                      <i class="fas fa-chevron-down dropdown-arrow"></i>
+                    </div>
+                    <div v-if="showNodeDropdown" class="compact-node-dropdown-list">
+                      <div
+                        v-for="node in reviewNodes"
+                        :key="node.id"
+                        :class="['compact-node-dropdown-item', { selected: selectedNodeId === node.id }]"
+                        @click="selectNodeId(node.id)"
+                      >
+                        <div class="node-item-content">
+                          <span class="node-counter">{{ node.display_counter || node.id }}.</span>
+                          <span class="node-preview">{{ getNodeFirstLine(node.id) }}</span>
+                        </div>
+                        <div class="node-item-indicator">
+                          <i v-if="selectedNodeId === node.id" class="fas fa-check"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div class="comment-buttons">
                   <button @click="clearComment" class="btn btn-secondary">Cancel</button>
@@ -335,7 +356,8 @@ export default {
       // Forward review data
       showForwardModal: false,
       selectedForwardReviewer: '',
-      availableReviewers: []
+      availableReviewers: [],
+      showNodeDropdown: false,
     }
   },
 
@@ -873,7 +895,39 @@ export default {
         month: 'short',
         day: 'numeric'
       })
-    }
+    },
+
+    toggleNodeDropdown() {
+      this.showNodeDropdown = !this.showNodeDropdown
+      if (this.showNodeDropdown) {
+        this.$nextTick(() => {
+          document.addEventListener('click', this.handleNodeDropdownClickOutside)
+        })
+      }
+    },
+    handleNodeDropdownClickOutside(e) {
+      if (!this.$refs.nodeDropdownWrapper || this.$refs.nodeDropdownWrapper.contains(e.target)) return
+      this.showNodeDropdown = false
+      document.removeEventListener('click', this.handleNodeDropdownClickOutside)
+    },
+    selectNodeId(id) {
+      this.selectedNodeId = id
+      this.showNodeDropdown = false
+      document.removeEventListener('click', this.handleNodeDropdownClickOutside)
+    },
+    getNodeDisplayCounter(id) {
+      const node = this.reviewNodes.find(n => n.id === id)
+      return node ? (node.display_counter || node.id) + '. ' : ''
+    },
+    getNodeFirstLine(id) {
+      const node = this.reviewNodes.find(n => n.id === id)
+      if (!node) return ''
+      
+      // Strip HTML tags and get first line only
+      const textContent = node.content.replace(/<[^>]*>/g, '').trim()
+      const firstLine = textContent.split('\n')[0] || textContent
+      return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine
+    },
   }
 }
 </script>
@@ -1842,5 +1896,228 @@ export default {
     opacity: 1; 
     transform: translateY(0) scale(1); 
   }
+}
+
+/* Compact Node Dropdown Styles - Modern Design */
+.compact-node-dropdown-wrapper {
+  position: relative;
+  margin-top: 0.75rem;
+}
+
+.compact-node-dropdown-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.875rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.compact-node-dropdown-selected:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+
+.compact-node-dropdown-selected .placeholder {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.compact-node-dropdown-selected .node-counter {
+  font-weight: 700;
+  color: #1e40af;
+  margin-right: 0.75rem;
+  font-size: 0.9rem;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.compact-node-dropdown-selected .node-preview {
+  flex: 1;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.compact-node-dropdown-selected .dropdown-arrow {
+  color: #6b7280;
+  font-size: 0.75rem;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compact-node-dropdown-wrapper:has(.compact-node-dropdown-list:not([style*="display: none"])) .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.compact-node-dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  animation: dropdownSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.compact-node-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid #f3f4f6;
+  position: relative;
+  overflow: hidden;
+}
+
+.compact-node-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.compact-node-dropdown-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: -1;
+}
+
+.compact-node-dropdown-item:hover {
+  background-color: #f8fafc;
+  transform: translateX(4px);
+}
+
+.compact-node-dropdown-item:hover::before {
+  opacity: 0.05;
+}
+
+.compact-node-dropdown-item.selected {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-left: 4px solid #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.compact-node-dropdown-item.selected::before {
+  opacity: 0.1;
+}
+
+.node-item-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.compact-node-dropdown-item .node-counter {
+  font-weight: 700;
+  color: #1e40af;
+  margin-right: 0.75rem;
+  font-size: 0.9rem;
+  min-width: 24px;
+  text-align: center;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.compact-node-dropdown-item .node-preview {
+  color: #374151;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.node-item-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 0.75rem;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.compact-node-dropdown-item.selected .node-item-indicator {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.node-item-indicator i {
+  color: #10b981;
+  font-size: 0.875rem;
+  animation: checkmarkPop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes checkmarkPop {
+  0% {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Scrollbar styling for dropdown */
+.compact-node-dropdown-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.compact-node-dropdown-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.compact-node-dropdown-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #cbd5e1, #94a3b8);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.compact-node-dropdown-list::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #94a3b8, #64748b);
 }
 </style> 

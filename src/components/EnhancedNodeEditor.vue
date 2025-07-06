@@ -6,7 +6,7 @@
         <h4>Action Items</h4>
       </div>
       
-      <div class="toolbar-section">
+      <div class="toolbar-section" v-if="!readonly">
         <!-- Add Node Dropdown -->
         <div class="dropdown" ref="addDropdown">
           <button @click="toggleAddDropdown" class="btn btn-primary dropdown-toggle">
@@ -40,7 +40,9 @@
     </div>
 
     <!-- Nodes Container -->
-    <div class="nodes-container" v-if="nodes.length > 0">
+    <div class="nodes-container" 
+         :class="{ 'context-menu-open': contextMenuOpen }"
+         v-if="nodes.length > 0">
       <EnhancedNodeItem
         v-for="(node, index) in nodes"
         :key="node.id"
@@ -49,6 +51,7 @@
         :index="index"
         :show-diff="showDiff"
         :diff-data="diffData"
+        :readonly="readonly"
         @update-node="updateNode"
         @delete-node="deleteNode"
         @add-subpoint="addSubpoint"
@@ -56,6 +59,8 @@
         @add-point-same-level="addPointSameLevel"
         @move-node="moveNode"
         @duplicate-node="duplicateNode"
+        @reorder-nodes="handleReorderNodes"
+        @context-menu-opened="handleContextMenuToggle"
       />
     </div>
 
@@ -64,11 +69,12 @@
         <i class="fas fa-list"></i>
       </div>
       <h5>No action items yet</h5>
-      <p>Click "Add Item" to create your first action point</p>
+      <p v-if="!readonly">Click "Add Item" to create your first action point</p>
+      <p v-else>No action items to display</p>
     </div>
 
     <!-- Changes Indicator -->
-    <div class="editor-footer" v-if="hasChanges">
+    <div class="editor-footer" v-if="hasChanges && !readonly">
       <div class="changes-indicator">
         <i class="fas fa-exclamation-triangle"></i>
         You have unsaved changes
@@ -117,7 +123,8 @@ export default {
       nodes: [],
       hasChanges: false,
       nextTempId: -1,
-      showAddDropdown: false
+      showAddDropdown: false,
+      contextMenuOpen: false
     }
   },
 
@@ -684,8 +691,153 @@ export default {
       return result
     },
 
+    handleReorderNodes(reorderData) {
+      const { draggedNodeId, targetNodeId } = reorderData
+      
+      console.log('🔄 handleReorderNodes called with:', reorderData)
+      
+      // Find the container (nodes array) that contains both nodes
+      const draggedContext = this.findNodeWithContext(draggedNodeId)
+      const targetContext = this.findNodeWithContext(targetNodeId)
+      
+      console.log('🔍 Node contexts found:', {
+        draggedContext: {
+          found: !!draggedContext.node,
+          nodeId: draggedContext.node && draggedContext.node.id,
+          actualIndex: draggedContext.index,
+          siblingsLength: draggedContext.siblings && draggedContext.siblings.length
+        },
+        targetContext: {
+          found: !!targetContext.node,
+          nodeId: targetContext.node && targetContext.node.id,
+          actualIndex: targetContext.index,
+          siblingsLength: targetContext.siblings && targetContext.siblings.length
+        },
+        sameContainer: draggedContext.siblings === targetContext.siblings
+      })
+      
+      if (!draggedContext.node || !targetContext.node) {
+        console.error('❌ Could not find nodes for reordering')
+        return
+      }
+      
+      // Ensure both nodes are in the same container (same level siblings)
+      if (draggedContext.siblings !== targetContext.siblings) {
+        console.error('❌ Cannot reorder nodes from different levels')
+        return
+      }
+      
+      const siblings = draggedContext.siblings
+      const draggedNode = draggedContext.node
+      const targetNode = targetContext.node
+      
+      // Use the actual indices from findNodeWithContext
+      const actualDraggedIndex = draggedContext.index
+      const actualTargetIndex = targetContext.index
+      
+      // Skip if trying to drop on itself
+      if (draggedNodeId === targetNodeId) {
+        console.log('⚠️ Dropped on itself, skipping')
+        return
+      }
+      
+      console.log('📊 Reordering details:', {
+        actualIndices: { actualDraggedIndex, actualTargetIndex },
+        siblingsLength: siblings.length,
+        draggedNode: draggedNode.content.substring(0, 30) + '...',
+        targetNode: targetNode.content.substring(0, 30) + '...'
+      })
+      
+      // Create a new array with the reordered items
+      const newSiblings = [...siblings]
+      
+      // Remove the dragged node from its current position
+      newSiblings.splice(actualDraggedIndex, 1)
+      
+      // Calculate the new target index (accounting for removal)
+      // When dragging down (to higher index), insert after the target
+      // When dragging up (to lower index), insert before the target
+      let newTargetIndex
+      if (actualDraggedIndex < actualTargetIndex) {
+        // Dragging down: insert after the target (target position stays same after removal)
+        newTargetIndex = actualTargetIndex
+      } else {
+        // Dragging up: insert before the target
+        newTargetIndex = actualTargetIndex
+      }
+      
+      console.log('📍 Final positioning:', {
+        removedFromIndex: actualDraggedIndex,
+        insertingAtIndex: newTargetIndex,
+        newArrayLength: newSiblings.length,
+        direction: actualDraggedIndex < actualTargetIndex ? 'down' : 'up'
+      })
+      
+      // Insert the dragged node at the new position
+      newSiblings.splice(newTargetIndex, 0, draggedNode)
+      
+      // Replace the siblings array with the new reordered array
+      if (siblings === this.nodes) {
+        // Root level nodes - use Vue.set for better reactivity
+        this.$set(this, 'nodes', newSiblings)
+        console.log('🔄 Updated root nodes array with Vue.set')
+      } else {
+        // Child nodes - find parent and update with Vue.set
+        const parentNode = this.findParentOfSiblings(siblings)
+        if (parentNode) {
+          this.$set(parentNode, 'children', newSiblings)
+          console.log('🔄 Updated parent children array with Vue.set')
+        }
+      }
+      
+      // Update counters for the affected level and list style
+      this.updateCountersForLevel(newSiblings, draggedNode.level, draggedNode.list_style)
+      
+      // Force Vue reactivity with nextTick
+      this.$nextTick(() => {
+        this.$forceUpdate()
+        console.log('🔄 Force update completed')
+      })
+      
+      this.hasChanges = true
+      this.emitChange()
+      
+      console.log('✅ Nodes reordered successfully:', {
+        draggedNodeId,
+        targetNodeId,
+        oldIndex: actualDraggedIndex,
+        newIndex: newTargetIndex,
+        finalLength: newSiblings.length
+      })
+    },
+
+    findParentOfSiblings(siblings) {
+      // Helper method to find which node has this siblings array as its children
+      return this.findParentRecursive(siblings, this.nodes)
+    },
+
+    findParentRecursive(targetSiblings, nodes) {
+      for (const node of nodes) {
+        if (node.children === targetSiblings) {
+          return node
+        }
+        if (node.children && node.children.length > 0) {
+          const found = this.findParentRecursive(targetSiblings, node.children)
+          if (found) return found
+        }
+      }
+      return null
+    },
+
     emitChange() {
-      this.$emit('nodes-changed', this.getNodesData())
+      if (!this.readonly) {
+        this.$emit('nodes-changed', this.getNodesData())
+      }
+    },
+
+    handleContextMenuToggle(isOpen) {
+      this.contextMenuOpen = isOpen
+      console.log('🎯 Context menu state changed:', isOpen ? 'opened' : 'closed')
     }
   }
 }
@@ -827,6 +979,12 @@ export default {
   padding: 1.5rem;
   max-height: 600px;
   overflow-y: auto;
+  transition: max-height 0.3s ease;
+}
+
+/* Dynamic height adjustment when context menu is open */
+.nodes-container.context-menu-open {
+  max-height: 800px;
 }
 
 .empty-state {
