@@ -1,5 +1,5 @@
 <template>
-  <div class="enhanced-node-item" :class="[
+  <div class="enhanced-node-item" :id="'action-node-' + node.id" :class="[
     { 'completed': node.completed },
     showDiff ? `diff-${node.diff_status || 'unchanged'}` : '',
     { 'dragging': isDragging, 'drag-over': isDragOver }
@@ -154,9 +154,6 @@
               <div class="context-menu-divider"></div>
 
               <div class="context-menu-group">
-                <button @click="increaseCellWidth" class="context-menu-item">
-                  ↔️ Increase Cell Width
-                </button>
                 <button @click="clearCell" class="context-menu-item">
                   🧹 Clear Cell
                 </button>
@@ -947,39 +944,6 @@ export default {
       }
     },
 
-    increaseCellWidth () {
-      // Find table either in editing mode (richEditor) or display mode (current cell's table)
-      let table
-      if (this.isEditing && this.$refs.richEditor) {
-        table = this.$refs.richEditor.querySelector('table')
-      } else if (this.currentCell) {
-        table = this.currentCell.closest('table')
-      }
-
-      if (table && this.currentColumn !== null) {
-        // Get the current column width
-        const currentCell = table.rows[0].cells[this.currentColumn]
-        const currentWidth = currentCell.offsetWidth
-        
-        // Calculate new width (increase by 50px, but don't exceed 300px max)
-        const newWidth = Math.min(300, currentWidth + 50)
-        
-        // Update all cells in this column
-        for (let i = 0; i < table.rows.length; i++) {
-          const cell = table.rows[i].cells[this.currentColumn]
-          if (cell) {
-            cell.style.width = newWidth + 'px'
-            cell.style.minWidth = newWidth + 'px'
-          }
-        }
-        
-        // Update content and trigger change detection
-        this.updateNodeContentFromDOM()
-        this.hideTableContextMenu()
-        console.log(`↔️ Column ${this.currentColumn} width increased from ${currentWidth}px to ${newWidth}px`)
-      }
-    },
-
     setCellBackgroundColor (color) {
       if (this.currentCell) {
         // Set the background color of the clicked cell
@@ -1013,17 +977,17 @@ export default {
       }
     },
 
-         handleDragStart (event) {
-       this.isDragging = true
-       // Store the dragged node data
-       event.dataTransfer.setData('text/plain', JSON.stringify({
-         nodeId: this.node.id,
-         level: this.node.level,
-         parentId: this.node.parent_id,
-         index: this.index
-       }))
-       event.dataTransfer.effectAllowed = 'move'
-     },
+    handleDragStart (event) {
+      this.isDragging = true
+      // Store the dragged node data
+      event.dataTransfer.setData('text/plain', JSON.stringify({
+        nodeId: this.node.id,
+        level: this.node.level,
+        parentId: this.node.parent_id,
+        index: this.index
+      }))
+      event.dataTransfer.effectAllowed = 'move'
+    },
 
     handleDragEnd (event) {
       this.isDragging = false
@@ -1038,45 +1002,45 @@ export default {
       this.isDragOver = false
     },
 
-         handleDrop (event) {
-       event.preventDefault()
-       this.isDragOver = false
-       
-       try {
-         const dragData = JSON.parse(event.dataTransfer.getData('text/plain'))
-         const draggedNodeId = dragData.nodeId
-         const targetNodeId = this.node.id
-         
-         console.log('🎯 Drop event details:', {
-           draggedNodeId,
-           targetNodeId,
-           draggedLevel: dragData.level,
-           targetLevel: this.node.level,
-           draggedParentId: dragData.parentId,
-           targetParentId: this.node.parent_id,
-           draggedIndex: dragData.index,
-           targetIndex: this.index
-         })
-         
-         // Only allow same-level moves in Phase 1
-         if (dragData.level === this.node.level && dragData.parentId === this.node.parent_id) {
-           console.log('✅ Same-level drop validated, emitting reorder-nodes')
-           this.$emit('reorder-nodes', {
-             draggedNodeId,
-             targetNodeId,
-             draggedIndex: dragData.index,
-             targetIndex: this.index
-           })
-         } else {
-           console.log('❌ Cross-level drop rejected:', {
-             sameLevel: dragData.level === this.node.level,
-             sameParent: dragData.parentId === this.node.parent_id
-           })
-         }
-       } catch (error) {
-         console.error('Error processing drop:', error)
-       }
-     }
+    handleDrop (event) {
+      event.preventDefault()
+      this.isDragOver = false
+      
+      try {
+        const dragData = JSON.parse(event.dataTransfer.getData('text/plain'))
+        const draggedNodeId = dragData.nodeId
+        const targetNodeId = this.node.id
+        
+        console.log('🎯 Drop event details:', {
+          draggedNodeId,
+          targetNodeId,
+          draggedLevel: dragData.level,
+          targetLevel: this.node.level,
+          draggedParentId: dragData.parentId,
+          targetParentId: this.node.parent_id,
+          draggedIndex: dragData.index,
+          targetIndex: this.index
+        })
+        
+        // Only allow same-level moves in Phase 1
+        if (dragData.level === this.node.level && dragData.parentId === this.node.parent_id) {
+          console.log('✅ Same-level drop validated, emitting reorder-nodes')
+          this.$emit('reorder-nodes', {
+            draggedNodeId,
+            targetNodeId,
+            draggedIndex: dragData.index,
+            targetIndex: this.index
+          })
+        } else {
+          console.log('❌ Cross-level drop rejected:', {
+            sameLevel: dragData.level === this.node.level,
+            sameParent: dragData.parentId === this.node.parent_id
+          })
+        }
+      } catch (error) {
+        console.error('Error processing drop:', error)
+      }
+    }
   }
 }
 </script>

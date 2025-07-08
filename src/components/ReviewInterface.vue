@@ -44,25 +44,25 @@
         </div>
 
         <div class="controls-section">
-          <button @click="toggleEdit" class="btn btn-secondary">
+          <button @click="toggleEdit" class="btn btn-secondary" v-if="!isReviewApproved">
             {{ editEnabled ? '🔒 Disable Edit' : '🔓 Enable Edit' }}
           </button>
           <button @click="toggleDiff" class="btn btn-secondary">
             {{ showDiff ? '👁️ Hide Diff' : '👁️ Show Diff' }}
           </button>
           <!-- Forward Review button moved here -->
-          <button @click="forwardReview" class="btn btn-primary" v-if="canForward">
+          <button @click="forwardReview" class="btn btn-primary" v-if="canForward && !isReviewApproved">
             📤 Forward Review
           </button>
           <!-- Manual save button -->
-          <button @click="saveChanges" class="btn btn-success" v-if="hasChanges">
+          <button @click="saveChanges" class="btn btn-success" v-if="hasChanges && !isReviewApproved">
             💾 Save Changes
           </button>
         </div>
       </div>
 
       <!-- Content Area with Single Scrolling -->
-      <div class="review-content">
+      <div class="review-content" :class="{ 'card-locked': isReviewApproved || !editEnabled }">
         <div class="content-header">
           <h3>Action Items to be Taken</h3>
           <p v-if="showDiff && review.base_version" class="diff-description">
@@ -73,11 +73,18 @@
           </p>
         </div>
 
+        <!-- Locked overlay if approved or edit is disabled -->
+        <div v-if="isReviewApproved || !editEnabled" class="locked-overlay">
+          <i class="fas fa-lock"></i>
+          <span v-if="isReviewApproved">This review is approved and cannot be edited.</span>
+          <span v-else>Editing is disabled for this review.</span>
+        </div>
+
         <!-- Enhanced Node Editor - Single Scrollable Area -->
         <div class="editor-container">
           <EnhancedNodeEditor
             :initial-nodes="reviewNodes"
-            :readonly="!editEnabled"
+            :readonly="!editEnabled || isReviewApproved"
             :show-diff="showDiff"
             :diff-data="diffData"
             :task-version-id="review.task_version.id"
@@ -118,7 +125,7 @@
                   <strong class="comment-user-name">{{ comment.user_name }}</strong>
                   <span class="comment-date">{{ formatDate(comment.created_at) }}</span>
                 </div>
-                <div class="comment-actions">
+                <div class="comment-actions" v-if="!isReviewApproved">
                   <!-- Resolve button - shown to reviewers and editors -->
                   <button 
                     v-if="canResolveComments"
@@ -159,14 +166,23 @@
                     <span v-if="comment.referenced_node.counter" class="reference-counter">
                       {{ comment.referenced_node.counter }}{{ comment.referenced_node.counter !== '•' ? '.' : '' }}
                     </span>
-                    <span class="reference-text" :class="{ 'reference-deleted': !comment.referenced_node.exists }">
-                      {{ comment.referenced_node.exists ? comment.referenced_node.content : 'This action item has been deleted' }}
+                    <span
+                      class="reference-text clickable-node-ref"
+                      :class="{ 'reference-deleted': !comment.referenced_node.exists }"
+                      v-if="comment.referenced_node.exists"
+                      @click="scrollToActionNode(comment.action_node_id)"
+                      title="Scroll to this action item above"
+                    >
+                      {{ comment.referenced_node.content }}
+                    </span>
+                    <span v-else class="reference-text reference-deleted">
+                      This action item has been deleted
                     </span>
                   </div>
                 </div>
                 
                 <!-- Actual Comment Content -->
-              <div v-if="editingCommentId === comment.id" class="edit-comment-form">
+              <div v-if="editingCommentId === comment.id && !isReviewApproved" class="edit-comment-form">
                 <textarea
                   v-model="editingContent"
                   class="edit-comment-input"
@@ -181,6 +197,23 @@
               </div>
                 <div v-else class="comment-text" :class="{ 'resolved-comment': comment.resolved }">
                 {{ comment.content }}
+                <!-- <span
+                  v-if="comment.references_node && comment.referenced_node && comment.referenced_node.exists"
+                  class="comment-node-ref"
+                  @click="scrollToAndHighlightNode(comment.action_node_id)"
+                  title="Scroll to this action item above"
+                >
+                  <i class="fas fa-link"></i>
+                  <span class="ref-content">{{ comment.referenced_node.content }}</span>
+                </span>
+                <span
+                  v-else-if="comment.references_node && comment.referenced_node && !comment.referenced_node.exists"
+                  class="comment-node-ref reference-deleted"
+                  title="This action item has been deleted"
+                >
+                  <i class="fas fa-unlink"></i>
+                  <span class="ref-content">(Action item deleted)</span>
+                </span> -->
               </div>
               </div>
             </div>
@@ -192,7 +225,7 @@
           </div>
           
           <!-- Add New Comment -->
-          <div class="add-comment-section">
+          <div class="add-comment-section" v-if="!isReviewApproved">
             <div class="comment-form">
               <textarea
                 v-model="newComment"
@@ -248,7 +281,7 @@
       </div>
 
       <!-- Simplified Review Actions - Only show approve button for reviewers after comments -->
-      <div v-if="canApprove" class="approve-section">
+      <div v-if="canApprove && !isReviewApproved" class="approve-section">
         <button @click="approveReview" class="btn btn-success btn-large">
           ✅ Approve Review
           </button>
@@ -341,7 +374,7 @@ export default {
       diffData: null,
       commentTrails: [],
       comments: [],
-      editEnabled: false,
+      editEnabled: true,
       showDiff: true, // Show diff by default
       showComments: false, // Hide comments by default
       loading: true,
@@ -358,6 +391,8 @@ export default {
       selectedForwardReviewer: '',
       availableReviewers: [],
       showNodeDropdown: false,
+      highlightedNodeId: null,
+      highlightTimeout: null,
     }
   },
 
@@ -460,6 +495,10 @@ export default {
         })
         return this.currentUserId && this.currentUserId === commentUserId
       }
+    },
+    // Freeze all editing if review is approved
+    isReviewApproved() {
+      return this.review && this.review.status === 'approved'
     }
   },
 
@@ -928,27 +967,390 @@ export default {
       const firstLine = textContent.split('\n')[0] || textContent
       return firstLine.length > 60 ? firstLine.substring(0, 60) + '...' : firstLine
     },
+    scrollToActionNode(nodeId) {
+      this.$nextTick(() => {
+        const editorContainer = this.$el.querySelector('.editor-container');
+        let nodeEl = editorContainer.querySelector(`#action-node-${nodeId}`);
+        if (!nodeEl) nodeEl = editorContainer.querySelector(`[data-node-id="${nodeId}"]`);
+        if (nodeEl) {
+          nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          // Highlight the .node-content inside the node
+          const contentEl = nodeEl.querySelector('.node-content');
+          if (contentEl) {
+            contentEl.classList.add('node-content-highlight');
+            setTimeout(() => contentEl.classList.remove('node-content-highlight'), 2000);
+          }
+        } else {
+          const mainNodeEl = document.getElementById(`action-node-${nodeId}`);
+          if (mainNodeEl) {
+            mainNodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            const contentEl = mainNodeEl.querySelector('.node-content');
+            if (contentEl) {
+              contentEl.classList.add('node-content-highlight');
+              setTimeout(() => contentEl.classList.remove('node-content-highlight'), 2000);
+            }
+          }
+        }
+      });
+    },
+    scrollToAndHighlightNode(nodeId) {
+      // Same as scrollToActionNode, but also for legacy support
+      this.scrollToActionNode(nodeId);
+    },
+    highlightNode(nodeId) {
+      // Remove highlight from previous node
+      if (this.highlightedNodeId) {
+        const prevEl = document.getElementById('action-node-' + this.highlightedNodeId)
+        if (prevEl) prevEl.classList.remove('node-highlight-flash')
+      }
+      // Add highlight to new node
+      const nodeEl = document.getElementById('action-node-' + nodeId)
+      if (nodeEl) {
+        nodeEl.classList.add('node-highlight-flash')
+        this.highlightedNodeId = nodeId
+        // Remove highlight after 2 seconds
+        if (this.highlightTimeout) clearTimeout(this.highlightTimeout)
+        this.highlightTimeout = setTimeout(() => {
+          nodeEl.classList.remove('node-highlight-flash')
+          this.highlightedNodeId = null
+        }, 2000)
+      }
+    },
   }
 }
 </script>
 
 <style scoped>
-/* Government Website Inspired Styling - Fixed Width */
+/* --- NORTH EAST GOVT THEME: Modern, Official, Beautiful --- */
+:root {
+  --govt-blue: #1e3a8a;
+  --govt-green: #059669;
+  --govt-saffron: #ffb300;
+  --govt-yellow: #ffe066;
+  --govt-bg: #f4f8fb;
+  --govt-card-bg: #fff;
+  --govt-border: #e0e7ef;
+  --govt-shadow: 0 4px 24px 0 rgba(30,64,175,0.08), 0 1.5px 6px 0 rgba(30,64,175,0.04);
+  --govt-gradient: linear-gradient(90deg, #e0e7ff 0%, #f0fdf4 100%);
+  --govt-gradient-header: linear-gradient(90deg, #1e3a8a 0%, #059669 100%);
+  --govt-gradient-action: linear-gradient(90deg, #e0e7ff 0%, #ffe066 100%);
+  --govt-gradient-comments: linear-gradient(90deg, #f0fdf4 0%, #e0e7ff 100%);
+}
+
 .review-container {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: #f8f9fa;
+  font-family: 'Inter', 'Noto Sans', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--govt-bg);
   min-height: 100vh;
-  color: #212529;
-  width: 90vw; /* Reduced from 95vw to prevent horizontal scrolling */
-  max-width: 1400px; /* Add max-width for very large screens */
+  color: #1a202c;
+  width: 99vw;
+  max-width: 1920px;
   margin: 0 auto;
-  padding: 1rem;
-  box-sizing: border-box; /* Ensure padding is included in width */
+  padding: 0.5rem 0.5vw;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .review-main {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2.2rem;
+}
+
+/* --- CARD STYLES --- */
+.review-header,
+.review-content,
+.comment-section {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 18px;
+  background: var(--govt-card-bg);
+  box-shadow: var(--govt-shadow);
+  border: 2.5px solid var(--govt-border);
+  margin-bottom: 0;
+  position: relative;
+  overflow: visible;
+}
+
+.review-header {
+  background: var(--govt-gradient-header);
+  color: #fff;
+  padding: 2.5rem 2.8rem 2rem 2.8rem;
+  border-bottom: 4px solid var(--govt-saffron);
+  box-shadow: 0 6px 32px 0 rgba(30,64,175,0.10);
+}
+.review-title h2 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(30,58,138,0.08);
+}
+.version-info {
+  gap: 1.25rem;
+}
+.status-badge, .version-badge {
+  font-size: 1.05rem;
+  padding: 0.7rem 1.3rem;
+  border-radius: 8px;
+  font-weight: 700;
+  background: var(--govt-yellow);
+  color: #1e3a8a;
+  border: 1.5px solid #ffd700;
+  box-shadow: 0 1px 4px #ffe06644;
+}
+.status-badge.status-pending {
+  background: #fff3cd;
+  color: #856404;
+  border: 1.5px solid #ffe066;
+}
+.status-badge.status-approved {
+  background: #d1e7dd;
+  color: #0f5132;
+  border: 1.5px solid #a3cfbb;
+}
+
+/* Task Meta */
+.task-meta {
+  margin-bottom: 0.5rem;
+  background: rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem;
+  box-shadow: 0 1px 6px #1e3a8a11;
+}
+.meta-row {
+  gap: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+.meta-label {
+  color: #ffe066;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #1e3a8a33;
+}
+.meta-value {
+  color: #fff;
+  font-size: 1.13rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.controls-section {
+  gap: 1.25rem;
+}
+
+/* --- ACTION NODES CARD --- */
+.review-content {
+  background: var(--govt-gradient-action);
+  border: 2.5px solid #ffe066;
+  box-shadow: 0 6px 32px 0 rgba(255,183,0,0.08);
+  padding: 2.2rem 2.8rem 2.5rem 2.8rem;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+.content-header {
+  padding: 0 0 1.5rem 0;
+  background: none;
+}
+.content-header h3 {
+  font-size: 1.55rem;
+  color: #1e3a8a;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 4px #ffe06644;
+}
+
+/* Editor container - remove scaling, use full width */
+.editor-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 0;
+  transform: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.editor-container /deep/ .enhanced-node-editor {
+  max-width: 100%;
+  margin: 0;
+}
+
+/* --- COMMENTS CARD --- */
+.comment-section {
+  background: var(--govt-gradient-comments);
+  border: 2.5px solid #1e3a8a;
+  box-shadow: 0 6px 32px 0 rgba(30,64,175,0.10);
+  padding: 2.2rem 2.8rem 2.5rem 2.8rem;
+}
+.comment-header {
+  padding: 0 0 1.5rem 0;
+  background: none;
+}
+.comment-header h3 {
+  font-size: 1.35rem;
+  color: #059669;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 4px #1e3a8a22;
+}
+
+/* --- COMMENT NODE DROPDOWN --- */
+.compact-node-dropdown-wrapper {
+  position: relative;
+  margin-top: 0.75rem;
+  max-width: 520px;
+}
+.compact-node-dropdown-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.2rem;
+  background: #f8fafc;
+  border: 2.5px solid #1e3a8a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 1rem;
+  box-shadow: 0 1px 6px #1e3a8a11;
+  max-width: 100%;
+}
+.compact-node-dropdown-selected .node-counter {
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-right: 0.75rem;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, #1e3a8a, #059669);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.compact-node-dropdown-selected .node-preview {
+  flex: 1;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  max-width: 320px;
+}
+.compact-node-dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 2.5px solid #1e3a8a;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px #1e3a8a22, 0 10px 10px -5px #05966911;
+  max-height: 320px;
+  max-width: 520px;
+  overflow-y: auto;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  animation: dropdownSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.compact-node-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid #e0e7ef;
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+}
+.compact-node-dropdown-item .node-counter {
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-right: 0.75rem;
+  font-size: 1.05rem;
+  min-width: 24px;
+  text-align: center;
+  background: linear-gradient(135deg, #1e3a8a, #059669);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.compact-node-dropdown-item .node-preview {
+  color: #374151;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  max-width: 320px;
+}
+
+/* --- APPROVE SECTION --- */
+.approve-section {
+  background: linear-gradient(90deg, #ffe066 0%, #f0fdf4 100%);
+  border: 2.5px solid #059669;
+  border-radius: 18px;
+  box-shadow: 0 2px 12px #05966922;
+  padding: 2rem 2.5rem;
+  text-align: center;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+.btn-large {
+  padding: 1.1rem 2.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  border-radius: 8px;
+  background: var(--govt-green);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px #05966922;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.btn-large:hover {
+  background: #047857;
+  box-shadow: 0 4px 16px #05966933;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 1200px) {
+  .review-container {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 0.5rem 0.5vw;
+  }
+  .review-header, .review-content, .comment-section, .approve-section {
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
+  }
+}
+@media (max-width: 700px) {
+  .review-container {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 0.25rem 0.25vw;
+  }
+  .review-header, .review-content, .comment-section, .approve-section {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    border-radius: 10px;
+  }
+  .review-title h2 {
+    font-size: 1.2rem;
+  }
+  .content-header h3 {
+    font-size: 1.05rem;
+  }
+  .compact-node-dropdown-wrapper, .compact-node-dropdown-list {
+    max-width: 98vw;
+  }
 }
 
 /* Loading State */
@@ -1041,7 +1443,7 @@ export default {
 .status-pending {
   background: #fff3cd;
   color: #856404;
-  border: 1px solid #ffeaa7;
+  border: 1px solid #ffe066;
 }
 
 .status-approved {
@@ -1703,23 +2105,6 @@ export default {
   gap: 0.5rem;
 }
 
-/* Approve Section - Simplified for reviewers only */
-.approve-section {
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  text-align: center;
-  margin-top: 1.5rem;
-}
-
-.btn-large {
-  padding: 1rem 2rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
 /* Forward Review Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -1931,10 +2316,10 @@ export default {
 
 .compact-node-dropdown-selected .node-counter {
   font-weight: 700;
-  color: #1e40af;
+  color: #1e3a8a;
   margin-right: 0.75rem;
   font-size: 0.9rem;
-  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  background: linear-gradient(135deg, #1e3a8a, #059669);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1964,7 +2349,7 @@ export default {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: white;
+  background: #fff;
   border: 2px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -1990,10 +2375,10 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 1.2rem;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #e0e7ef;
   position: relative;
   overflow: hidden;
 }
@@ -2043,12 +2428,12 @@ export default {
 
 .compact-node-dropdown-item .node-counter {
   font-weight: 700;
-  color: #1e40af;
+  color: #1e3a8a;
   margin-right: 0.75rem;
   font-size: 0.9rem;
   min-width: 24px;
   text-align: center;
-  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  background: linear-gradient(135deg, #1e3a8a, #059669);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -2062,6 +2447,7 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  max-width: 320px;
 }
 
 .node-item-indicator {
@@ -2119,5 +2505,204 @@ export default {
 
 .compact-node-dropdown-list::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #94a3b8, #64748b);
+}
+
+.card-locked {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.85;
+  filter: grayscale(0.08) brightness(0.98);
+}
+.locked-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  background: rgba(255,255,255,0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: #1e3a8a;
+  font-weight: 700;
+  border-radius: 18px;
+  pointer-events: all;
+  gap: 0.7rem;
+}
+.locked-overlay i {
+  font-size: 2.2rem;
+  color: #1e3a8a;
+  margin-bottom: 0.2rem;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.2rem 2.5rem;
+  margin-bottom: 0.7rem;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f8fafc 60%, #e0e7ff 100%);
+  box-shadow: 0 1px 4px #1e3a8a0a;
+  margin-bottom: 0.2rem;
+}
+.meta-label {
+  font-size: 1.01rem;
+  font-weight: 800;
+  color: #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, #ffe066 0%, #fffbe6 100%);
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem 0.1rem 0.2rem;
+  margin-bottom: 0.1rem;
+  box-shadow: 0 1px 2px #ffe06633;
+  display: inline-block;
+}
+.meta-value {
+  font-size: 1.13rem;
+  color: #059669;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px #1e3a8a22;
+  background: #fff;
+  border-radius: 3px;
+  padding: 0.08rem 0.4rem;
+  display: inline-block;
+}
+@media (max-width: 700px) {
+  .meta-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .meta-item {
+    padding: 0.4rem 0.5rem;
+  }
+  .meta-label {
+    font-size: 0.95rem;
+    padding: 0.08rem 0.3rem 0.08rem 0.1rem;
+  }
+  .meta-value {
+    font-size: 1rem;
+    padding: 0.06rem 0.2rem;
+  }
+}
+
+.clickable-node-ref {
+  color: #1e40af;
+  text-decoration: underline dotted;
+  cursor: pointer;
+  font-weight: 600;
+  background: linear-gradient(90deg, #e0e7ff 0%, #f0fdf4 100%);
+  border-radius: 4px;
+  padding: 0.05em 0.25em;
+  transition: background 0.2s, color 0.2s;
+}
+.clickable-node-ref:hover {
+  background: #ffe066;
+  color: #b45309;
+}
+
+/* Highlight effect for action node in card 2 */
+.action-node-highlight {
+  animation: nodeHighlightFlash 2s cubic-bezier(0.4,0,0.2,1);
+  background: #fffbe6 !important;
+  box-shadow: 0 0 0 4px #ffe06699, 0 2px 12px #1e3a8a22;
+  border-radius: 8px !important;
+  transition: background 0.3s, box-shadow 0.3s;
+  z-index: 2;
+  position: relative;
+}
+@keyframes nodeHighlightFlash {
+  0% { background: #fffbe6; box-shadow: 0 0 0 8px #ffe066cc, 0 2px 12px #1e3a8a22; }
+  60% { background: #fffbe6; box-shadow: 0 0 0 4px #ffe06699, 0 2px 12px #1e3a8a22; }
+  100% { background: inherit; box-shadow: none; }
+}
+
+.node-highlight-flash {
+  animation: nodeFlash 2s cubic-bezier(0.4,0,0.2,1);
+  background: #fffde7 !important;
+  box-shadow: 0 0 0 4px #ffb30055, 0 2px 8px #ffb30033;
+  border: 2px solid #ffb300 !important;
+  z-index: 2;
+}
+@keyframes nodeFlash {
+  0% { background: #fffde7; box-shadow: 0 0 0 8px #ffb30088; border-color: #ffb300; }
+  60% { background: #fffde7; box-shadow: 0 0 0 4px #ffb30055; border-color: #ffb300; }
+  100% { background: transparent; box-shadow: none; border-color: transparent; }
+}
+
+.comment-node-ref {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e3f2fd;
+  color: #1e3a8a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  text-decoration: none;
+  font-size: 0.97em;
+  gap: 0.4em;
+}
+.comment-node-ref:hover {
+  background: #ffb300;
+  color: #fff;
+  text-decoration: underline wavy;
+}
+.comment-node-ref.reference-deleted {
+  background: #f8d7da;
+  color: #b71c1c;
+  cursor: not-allowed;
+  font-style: italic;
+}
+.comment-node-ref .ref-content {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.node-content-highlight {
+  background: #fffbe6 !important;
+  box-shadow: 0 0 0 4px #ffe06699, 0 2px 12px #1e3a8a22;
+  border-radius: 8px !important;
+  transition: background 0.3s, box-shadow 0.3s;
+  z-index: 2;
+  position: relative;
+  animation: nodeContentHighlightFlash 2s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes nodeContentHighlightFlash {
+  0% { background: #fffbe6; box-shadow: 0 0 0 8px #ffe066cc, 0 2px 12px #1e3a8a22; }
+  60% { background: #fffbe6; box-shadow: 0 0 0 4px #ffe06699, 0 2px 12px #1e3a8a22; }
+  100% { background: inherit; box-shadow: none; }
+}
+</style>
+
+<style>
+/* GLOBAL: Ensure node-content-highlight always wins, even with scoped/deep selectors */
+.node-content.node-content-highlight,
+.enhanced-node-item .node-content.node-content-highlight {
+  background: #fffbe6 !important;
+  box-shadow: 0 0 0 4px #ffe066cc, 0 2px 12px #1e3a8a22 !important;
+  border-radius: 8px !important;
+  z-index: 10 !important;
+  position: relative !important;
+  animation: nodeContentHighlightFlash 2s cubic-bezier(0.4,0,0.2,1) !important;
+  transition: background 0.3s, box-shadow 0.3s !important;
+}
+@keyframes nodeContentHighlightFlash {
+  0% { background: #fffbe6; box-shadow: 0 0 0 8px #ffe066cc, 0 2px 12px #1e3a8a22; }
+  60% { background: #fffbe6; box-shadow: 0 0 0 4px #ffe06699, 0 2px 12px #1e3a8a22; }
+  100% { background: inherit; box-shadow: none; }
 }
 </style> 

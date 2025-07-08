@@ -1,13 +1,203 @@
 <template>
   <div class="dashboard-container">
-    <!-- Top Actions -->
-    <div class="dashboard-actions">
-      <button class="filter-btn">
-        Filter
-        <img src="../assets/img/filter1.png" alt="Filter" style="height: 20px;width: 18px;" />
+    <!-- Advanced Search Bar + Actions Row -->
+    <div class="search-actions-row">
+      <div class="search-wrapper">
+        <div class="search-input-group">
+          <div class="search-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 21L16.514 16.506L21 21ZM19 10.5C19 15.194 15.194 19 10.5 19C5.806 19 2 15.194 2 10.5C2 5.806 5.806 2 10.5 2C15.194 2 19 5.806 19 10.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input 
+            v-model="searchQuery" 
+            @input="handleSearchInput"
+            @focus="showSearchSuggestions = true"
+            @blur="handleSearchBlur"
+            type="text" 
+            placeholder="Search tasks by description, sector, or action items..."
+            class="search-input"
+            :class="{ 'has-results': filteredTasks.length > 0 && searchQuery.length > 0 }"
+          />
+          <button 
+            v-if="searchQuery.length > 0" 
+            @click="clearSearch" 
+            class="clear-search-btn"
+            title="Clear search"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
       </button>
+        </div>
+        
+        <!-- Search Results Counter -->
+        <div v-if="searchQuery.length > 0" class="search-results-info">
+          <span class="results-count">{{ filteredTasks.length }} of {{ activeTasks.length }} tasks</span>
+          <span v-if="searchStats" class="search-stats">
+            • {{ searchStats.descriptionMatches }} in descriptions
+            • {{ searchStats.sectorMatches }} in sectors
+            • {{ searchStats.actionMatches }} in actions
+          </span>
+        </div>
+      </div>
+      <!-- Action Buttons -->
+      <div class="dashboard-actions-inline">
+        <div class="filter-container" ref="filterContainer">
+          <button 
+            class="filter-btn"
+            @click="toggleFilterDropdown"
+            :class="{ 'active': showFilterDropdown }"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6.58579C21 6.851 20.8946 7.10536 20.7071 7.29289L14.2929 13.7071C14.1054 13.8946 14 14.149 14 14.4142V17L10 21V14.4142C10 14.149 9.89464 13.8946 9.70711 13.7071L3.29289 7.29289C3.10536 7.10536 3 6.851 3 6.58579V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Filter</span>
+            <svg 
+              width="12" 
+              height="12" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+              class="dropdown-arrow"
+              :class="{ 'rotated': showFilterDropdown }"
+            >
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div v-if="activeFiltersCount > 0" class="filter-badge">{{ activeFiltersCount }}</div>
+          </button>
+          
+          <!-- Filter Dropdown -->
+          <div v-if="showFilterDropdown" class="filter-dropdown" @click.stop>
+            <div class="filter-header">
+              <h4>Filter Tasks</h4>
+              <button @click="clearAllFilters" class="clear-filters-btn">
+                Clear All
+              </button>
+            </div>
+            
+            <!-- Status Filter -->
+            <div class="filter-section">
+              <div class="filter-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Status</span>
+              </div>
+              <div class="filter-options">
+                <label 
+                  v-for="status in statusOptions" 
+                  :key="status.value"
+                  class="filter-option"
+                  :class="{ 'selected': selectedStatus === status.value }"
+                >
+                  <input 
+                    type="radio" 
+                    :value="status.value" 
+                    v-model="selectedStatus"
+                    @change="applyFilters"
+                    class="filter-radio"
+                  />
+                  <span class="filter-option-text">{{ status.label }}</span>
+                  <span class="filter-count">({{ getStatusCount(status.value) }})</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Review Date Filter -->
+            <div class="filter-section">
+              <div class="filter-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 2V5M16 2V5M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Review Date</span>
+              </div>
+              <div class="filter-options">
+                <label 
+                  v-for="dateOption in dateOptions" 
+                  :key="dateOption.value"
+                  class="filter-option"
+                  :class="{ 'selected': selectedDateFilter === dateOption.value }"
+                >
+                  <input 
+                    type="radio" 
+                    :value="dateOption.value" 
+                    v-model="selectedDateFilter"
+                    @change="applyFilters"
+                    class="filter-radio"
+                  />
+                  <span class="filter-option-text">{{ dateOption.label }}</span>
+                  <span class="filter-count">({{ getDateFilterCount(dateOption.value) }})</span>
+                </label>
+                
+                <!-- Custom Date Picker -->
+                <div v-if="selectedDateFilter === 'custom'" class="custom-date-section">
+                  <div class="date-picker-wrapper">
+                    <input 
+                      type="date" 
+                      v-model="customDate"
+                      @change="applyFilters"
+                      class="custom-date-input"
+                      :max="maxDate"
+                    />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M8 2V5M16 2V5M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Active Filters Summary -->
+            <div v-if="activeFiltersCount > 0" class="active-filters-summary">
+              <div class="summary-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6.58579C21 6.851 20.8946 7.10536 20.7071 7.29289L14.2929 13.7071C14.1054 13.8946 14 14.149 14 14.4142V17L10 21V14.4142C10 14.149 9.89464 13.8946 9.70711 13.7071L3.29289 7.29289C3.10536 7.10536 3 6.851 3 6.58579V4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Active Filters</span>
+              </div>
+              <div class="active-filters-list">
+                <span v-if="selectedStatus !== 'all'" class="active-filter-tag">
+                  {{ getStatusLabel(selectedStatus) }}
+                  <button @click="clearStatusFilter" class="remove-filter-btn">×</button>
+                </span>
+                <span v-if="selectedDateFilter !== 'all'" class="active-filter-tag">
+                  {{ getDateFilterLabel(selectedDateFilter) }}
+                  <button @click="clearDateFilter" class="remove-filter-btn">×</button>
+                </span>
+              </div>
+            </div>
+            
+            <!-- Results Summary -->
+            <div class="filter-results-summary">
+              <span class="results-text">
+                Showing {{ filteredTasks.length }} of {{ activeTasks.length }} tasks
+              </span>
+            </div>
+          </div>
+        </div>
       <button @click="openAddTaskModal" class="create-task-btn">Create task</button>
       <button @click="downloadPDF" class="download-pdf-btn">Download PDF</button>
+      </div>
+      <!-- Search Suggestions -->
+      <div v-if="showSearchSuggestions && searchSuggestions.length > 0" class="search-suggestions">
+        <div 
+          v-for="suggestion in searchSuggestions" 
+          :key="suggestion.id"
+          @click="selectSuggestion(suggestion)"
+          class="suggestion-item"
+        >
+          <div class="suggestion-content">
+            <div class="suggestion-title">{{ suggestion.text }}</div>
+            <div class="suggestion-meta">{{ suggestion.type }} • {{ suggestion.context }}</div>
+          </div>
+          <div class="suggestion-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Table Headers -->
@@ -28,21 +218,30 @@
     </div>
 
     <!-- Table Rows -->
-    <div v-for="(task, index) in activeTasks"
+    <div v-for="(task, index) in displayTasks"
          :key="task.id"
          :data-task-id="task.id"
          class="table-row"
-         :class="{ 'highlighted-row': String(task.id) === String($route.query.highlightTaskId) }">
+         :class="{ 
+           'highlighted-row': String(task.id) === String($route.query.highlightTaskId),
+           'search-highlight': searchQuery.length > 0 && isTaskInSearchResults(task.id)
+         }">
       <table>
         <tr>
-          <td>{{ index + 1 }}</td>
-          <td>{{ task.sector_division }}</td>
-          <td>{{ task.description }}</td>
+          <td><strong>{{ getDisplayIndex(index) }}</strong></td>
+          <td><strong>{{ task.sector_division }}</strong></td>
+          <td><strong>{{ task.description }}</strong></td>
           <td v-html="task.action_to_be_taken" class="action-content-cell" 
               @click="debugContent(task)"></td>
-          <td>{{ formatDate(task.original_date) }}</td>
-          <td>{{ task.responsibility }}</td>
-          <td>{{ formatDate(task.review_date) }}</td>
+          <td class="original-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.original_date) }}</span>
+          </td>
+          <td class="responsibility-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ task.responsibility }}</span>
+          </td>
+          <td class="review-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.review_date) }}</span>
+          </td>
           <td><span :class="statusClass[task.status || 'unknown']">{{ formatStatus(task.status) }}</span></td>
           <td class="actions-cell">
             <div class="action-menu-container">
@@ -131,7 +330,37 @@ export default {
       menuPosition: { top: '0px', left: '0px' },
       pdfVisible: false,
       resizeTimeout: null,
-      menuHideTimeout: null
+      menuHideTimeout: null,
+      searchQuery: '',
+      showSearchSuggestions: false,
+      searchSuggestions: [],
+      searchStats: null,
+      filteredTasks: [],
+      searchDebounceTimeout: null,
+      searchIndex: null, // For fast search indexing
+      
+      // Filter system data
+      showFilterDropdown: false,
+      selectedStatus: 'all',
+      selectedDateFilter: 'all',
+      customDate: '',
+      maxDate: new Date().toISOString().split('T')[0], // Today's date for max constraint
+      
+      // Filter options
+      statusOptions: [
+        { value: 'all', label: 'All Statuses' },
+        { value: 'draft', label: 'Draft' },
+        { value: 'under_review', label: 'Under Review' },
+        { value: 'approved', label: 'Approved' },
+        { value: 'completed', label: 'Completed' }
+      ],
+      dateOptions: [
+        { value: 'all', label: 'All Dates' },
+        { value: 'today', label: 'Today' },
+        { value: 'yesterday', label: 'Yesterday' },
+        { value: 'tomorrow', label: 'Tomorrow' },
+        { value: 'custom', label: 'Custom Date' }
+      ]
     }
   },
   watch: {
@@ -168,6 +397,98 @@ export default {
         completed: 'status-completed',
         unknown: 'status-unknown'
       }
+    },
+    displayTasks() {
+      // Apply both search and filter
+      let tasks = this.activeTasks
+      
+      // Apply status filter
+      if (this.selectedStatus !== 'all') {
+        tasks = tasks.filter(task => task.status === this.selectedStatus)
+      }
+      
+      // Apply date filter
+      if (this.selectedDateFilter !== 'all') {
+        tasks = this.filterTasksByDate(tasks)
+      }
+      
+      // Apply search filter
+      if (this.searchQuery.length > 0) {
+        tasks = this.filteredTasks.filter(task => {
+          // Check if task passes status filter
+          if (this.selectedStatus !== 'all' && task.status !== this.selectedStatus) {
+            return false
+          }
+          // Check if task passes date filter
+          if (this.selectedDateFilter !== 'all' && !this.taskMatchesDateFilter(task)) {
+            return false
+          }
+          return true
+        })
+      }
+      
+      return tasks
+    },
+    
+    activeFiltersCount() {
+      let count = 0
+      if (this.selectedStatus !== 'all') count++
+      if (this.selectedDateFilter !== 'all') count++
+      return count
+    },
+    searchSuggestions() {
+      if (!this.searchQuery || this.searchQuery.length < 2) return []
+      
+      const query = this.searchQuery.toLowerCase()
+      const suggestions = []
+      
+      // Search in descriptions
+      this.activeTasks.forEach(task => {
+        if (task.description.toLowerCase().includes(query)) {
+          suggestions.push({
+            id: `desc-${task.id}`,
+            text: task.description,
+            type: 'Description',
+            context: task.sector_division,
+            taskId: task.id
+          })
+        }
+      })
+      
+      // Search in sectors
+      this.activeTasks.forEach(task => {
+        if (task.sector_division.toLowerCase().includes(query)) {
+          suggestions.push({
+            id: `sector-${task.id}`,
+            text: task.sector_division,
+            type: 'Sector',
+            context: task.description.substring(0, 50) + '...',
+            taskId: task.id
+          })
+        }
+      })
+      
+      // Search in action content (strip HTML for better matching)
+      this.activeTasks.forEach(task => {
+        const actionText = this.stripHtmlTags(task.action_to_be_taken)
+        if (actionText.toLowerCase().includes(query)) {
+          const matchedText = this.extractMatchedText(actionText, query)
+          suggestions.push({
+            id: `action-${task.id}`,
+            text: matchedText,
+            type: 'Action',
+            context: task.description,
+            taskId: task.id
+          })
+        }
+      })
+      
+      // Remove duplicates and limit to 8 suggestions
+      const uniqueSuggestions = suggestions.filter((suggestion, index, self) => 
+        index === self.findIndex(s => s.taskId === suggestion.taskId && s.type === suggestion.type)
+      )
+      
+      return uniqueSuggestions.slice(0, 8)
     }
   },
 
@@ -247,6 +568,9 @@ export default {
 
         this.activeTasks = sortTasksByReviewDate(response.data.active)
         this.completedTasks = sortTasksByReviewDate(response.data.completed)
+        
+        // Build search index for fast searching
+        this.buildSearchIndex()
         
         // Debug: Check for tasks without status
         this.activeTasks.forEach((task, index) => {
@@ -374,6 +698,141 @@ export default {
       const roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
       return roman[num - 1] || num;
     },
+    
+    // ========================================
+    // FILTER SYSTEM METHODS
+    // ========================================
+    
+    toggleFilterDropdown() {
+      this.showFilterDropdown = !this.showFilterDropdown
+      if (this.showFilterDropdown) {
+        // Close dropdown when clicking outside
+        this.$nextTick(() => {
+          document.addEventListener('click', this.handleFilterClickOutside)
+        })
+      } else {
+        document.removeEventListener('click', this.handleFilterClickOutside)
+      }
+    },
+    
+    handleFilterClickOutside(event) {
+      if (this.$refs.filterContainer && !this.$refs.filterContainer.contains(event.target)) {
+        this.showFilterDropdown = false
+        document.removeEventListener('click', this.handleFilterClickOutside)
+      }
+    },
+    
+    applyFilters() {
+      // This method is called when filter options change
+      // The actual filtering is handled in the computed displayTasks property
+      console.log('Filters applied:', {
+        status: this.selectedStatus,
+        dateFilter: this.selectedDateFilter,
+        customDate: this.customDate
+      })
+    },
+    
+    clearAllFilters() {
+      this.selectedStatus = 'all'
+      this.selectedDateFilter = 'all'
+      this.customDate = ''
+    },
+    
+    clearStatusFilter() {
+      this.selectedStatus = 'all'
+    },
+    
+    clearDateFilter() {
+      this.selectedDateFilter = 'all'
+      this.customDate = ''
+    },
+    
+    filterTasksByDate(tasks) {
+      if (this.selectedDateFilter === 'all') return tasks
+      
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      return tasks.filter(task => {
+        if (!task.review_date) return false
+        
+        const taskDate = new Date(task.review_date)
+        taskDate.setHours(0, 0, 0, 0)
+        
+        switch (this.selectedDateFilter) {
+          case 'today':
+            return taskDate.getTime() === today.getTime()
+          case 'yesterday':
+            const yesterday = new Date(today)
+            yesterday.setDate(yesterday.getDate() - 1)
+            return taskDate.getTime() === yesterday.getTime()
+          case 'tomorrow':
+            const tomorrow = new Date(today)
+            tomorrow.setDate(tomorrow.getDate() + 1)
+            return taskDate.getTime() === tomorrow.getTime()
+          case 'custom':
+            if (!this.customDate) return false
+            const customDate = new Date(this.customDate)
+            customDate.setHours(0, 0, 0, 0)
+            return taskDate.getTime() === customDate.getTime()
+          default:
+            return true
+        }
+      })
+    },
+    
+    taskMatchesDateFilter(task) {
+      if (this.selectedDateFilter === 'all') return true
+      if (!task.review_date) return false
+      
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const taskDate = new Date(task.review_date)
+      taskDate.setHours(0, 0, 0, 0)
+      
+      switch (this.selectedDateFilter) {
+        case 'today':
+          return taskDate.getTime() === today.getTime()
+        case 'yesterday':
+          const yesterday = new Date(today)
+          yesterday.setDate(yesterday.getDate() - 1)
+          return taskDate.getTime() === yesterday.getTime()
+        case 'tomorrow':
+          const tomorrow = new Date(today)
+          tomorrow.setDate(tomorrow.getDate() + 1)
+          return taskDate.getTime() === tomorrow.getTime()
+        case 'custom':
+          if (!this.customDate) return false
+          const customDate = new Date(this.customDate)
+          customDate.setHours(0, 0, 0, 0)
+          return taskDate.getTime() === customDate.getTime()
+        default:
+          return true
+      }
+    },
+    
+    getStatusCount(status) {
+      if (status === 'all') return this.activeTasks.length
+      return this.activeTasks.filter(task => task.status === status).length
+    },
+    
+    getDateFilterCount(dateFilter) {
+      if (dateFilter === 'all') return this.activeTasks.length
+      return this.filterTasksByDate(this.activeTasks).length
+    },
+    
+    getStatusLabel(status) {
+      const option = this.statusOptions.find(opt => opt.value === status)
+      return option ? option.label : status
+    },
+    
+    getDateFilterLabel(dateFilter) {
+      if (dateFilter === 'custom' && this.customDate) {
+        return `Custom: ${new Date(this.customDate).toLocaleDateString()}`
+      }
+      const option = this.dateOptions.find(opt => opt.value === dateFilter)
+      return option ? option.label : dateFilter
+    },
     async downloadPDF() {
       try {
         const orientation = 'l';
@@ -404,11 +863,11 @@ export default {
         pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
         pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
 
-        // position += 18;
         position += 1;
 
         // --- Custom Table Headers ---
-        const columnWidths = [2.5, 6.5, 8, 65, 7.2, 5.8, 5] // Percentage widths
+        // Use precise manual placement for each header
+        const columnWidths = [4, 9, 9, 135, 8, 9, 8]; // in mm
         const headers = [
           'S No.',
           'Sector/Division',
@@ -418,64 +877,30 @@ export default {
           'Responsibility',
           'Review Date'
         ];
-
-        // Convert percentages to mm based on usable width
-        const mmWidths = columnWidths.map(w => (usableWidth * w) / 100);
-        // In the tableBorderStyle section replace with:
-        const tableBorderStyle = `
-  .pdf-capture-mode table {
-    border-collapse: collapse !important;
-    border: 1px solid #ddd !important;
-  }
-  .pdf-capture-mode th,
-  .pdf-capture-mode td:not(:nth-child(4)) {
-    border: 1px solid #ddd !important;
-    padding: 1.5px 2px !important;
-  }
-  /* Explicitly reset styles for column 4 and its nested elements */
-  .pdf-capture-mode td:nth-child(4),
-  .pdf-capture-mode td:nth-child(4) * {
-    border: none !important;
-    background: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-  }
-  .pdf-capture-mode td:nth-child(4) table {
-    border: none !important;
-    background: transparent !important;
-  }
-  .pdf-capture-mode td:nth-child(4) td {
-    border: none !important;
-    padding: 2px 0 !important;
-  }
-`;
+        const sumWidths = columnWidths.reduce((a, b) => a + b, 0);
+        const scalingFactor = usableWidth / sumWidths;
+        const scaledColumnWidths = columnWidths.map(w => w * scalingFactor);
+        const headerOffsets = [0, 7.5, 17.5, -5, -27.5, -16.5, -7.5]; // mm, tweak as needed
         let xPosition = marginX;
-
         pdf.setFontSize(7.5);
         pdf.setFont('Arial', 'bold');
-
-        headers.forEach((header, index) => {
-          const cellWidth = mmWidths[index];
-          const textWidth = pdf.getTextWidth(header);
-
-          // Add 5px (1.75mm) margin on both sides
-          const paddedWidth = cellWidth + 1.5;
-          const xStart = xPosition - 0.25;
-
+        // First loop: draw all header rectangles
+        for (let i = 0; i < headers.length; i++) {
+          const cellWidth = scaledColumnWidths[i];
           pdf.setFillColor(59, 130, 246);
-          pdf.rect(xStart, position, paddedWidth, 8, 'F');
-          pdf.text(
-            header,
-            xPosition + (cellWidth - textWidth) / 2,
-            position + 5.5
-          );
-
+          pdf.rect(xPosition, position, cellWidth, 8, 'F');
           xPosition += cellWidth;
-        });
-
+        }
+        // Second loop: draw all header texts (after rectangles)
+        xPosition = marginX;
+        for (let i = 0; i < headers.length; i++) {
+          const cellWidth = scaledColumnWidths[i];
+          const textX = xPosition + cellWidth / 2 + (headerOffsets[i] || 0);
+          pdf.setTextColor(0, 0, 0);
+          pdf.text(headers[i], textX + 3, position + 5.5, { align: 'center' });
+          xPosition += cellWidth;
+        }
         position += 8;
-
 
         // --- Process Rows ---
         const rows = document.querySelectorAll('.table-row');
@@ -483,154 +908,100 @@ export default {
 
         for (let i = 0; i < rows.length; i++) {
           const rowClone = rows[i].cloneNode(true);
-          const style = document.createElement('style');
-          style.textContent = tableBorderStyle;
-          rowClone.appendChild(style);
-
+          // Remove Status and Actions columns (8, 9) ONLY from the main row, not nested tables
           const tableInRow = rowClone.querySelector('table');
-
-          rowClone.style.margin = '0';
-          rowClone.style.padding = '0';
-          tableInRow.style.margin = '0';
-          tableInRow.style.padding = '0';
-
-          [9].forEach(n => {
-            const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
-            if (cell) cell.remove()
-          });
-          [8].forEach(n => {
-            const cell = tableInRow.querySelector(`tr td:nth-child(${n})`);
-            if (cell) cell.remove()
-          });
-
-          [5, 6, 7].forEach(colIndex => {
-            const tds = tableInRow.querySelectorAll(`tr > td:nth-child(${colIndex}):not(table table td)`);
-            tds.forEach(td => {
-              // Wrap content in styled span
-              td.innerHTML = `<span style="
-              background-color: yellow !important;
-              font-weight: bold !important;
-              padding: 1px 3px !important;
-              border-radius: 2px !important;
-              display: inline-block !important;
-              color: red;
-            ">${td.textContent}</span>`;
-
-              // Clear cell background
-              td.style.background = 'transparent !important';
-              td.style.padding = '4px 2px !important';
-            });
-          });
-
-          // Inside the row processing loop, add this after cloning:
-          const actionColumn = rowClone.querySelector('td:nth-child(4)');
-          if (actionColumn) {
-            actionColumn.style.transform = 'scale(0.95)';
-            actionColumn.style.transformOrigin = 'top left';
-            actionColumn.style.width = `${actionColumn.offsetWidth / 0.97}px`; // Compensate width
-            actionColumn.style.height = `${actionColumn.offsetHeight / 0.97}px`; // Compensate height
+          const mainRow = tableInRow && tableInRow.rows[0];
+          if (mainRow && mainRow.children.length >= 9) {
+            // Remove 9th and 8th td (Status and Actions) from the main row only
+            mainRow.removeChild(mainRow.children[8]); // 9th column (Actions)
+            mainRow.removeChild(mainRow.children[7]); // 8th column (Status)
           }
 
-          rowClone.querySelectorAll('.action-menu-container').forEach(menu => {
-            menu.style.display = 'none';
-          });
-          actionColumn.querySelectorAll('table').forEach(nestedTable => {
-            nestedTable.style.border = 'none !important';
-            nestedTable.style.background = 'none !important';
-          });
-          actionColumn.querySelectorAll('td, th').forEach(cell => {
-            cell.style.border = 'none !important';
-            cell.style.padding = '0 !important';
-          });
-
-          //updates the width of table
-          const newColumnWidths = [3, 6, 8, 65, 6, 6, 6];
+          // Set fixed widths and enforce wrapping for all cells
           const tds = tableInRow.querySelectorAll('tr > td:not(table table td)');
           tds.forEach((td, index) => {
-            td.style.width = `${newColumnWidths[index]}%`;
+            td.style.width = `${scaledColumnWidths[index]}mm`;
+            td.style.maxWidth = `${scaledColumnWidths[index]}mm`;
+            td.style.minWidth = `${scaledColumnWidths[index]}mm`;
             td.style.boxSizing = 'border-box';
+            td.style.wordBreak = 'break-word';
+            td.style.overflowWrap = 'break-word';
+            td.style.whiteSpace = 'pre-line';
+            td.style.verticalAlign = 'middle';
+            // Set vertical alignment based on column type
+            // if (index === 3 || index === 4 || index === 5) { // Original Date, Responsibility, Review Date columns
+              
+            // } else {
+            //   td.style.verticalAlign = 'top';
+            // }
+            td.style.fontSize = '10px';
+            td.style.lineHeight = '1.3';
+            td.style.padding = '2px 4px';
           });
-          // List processing
-          const processLists = (element, depth = 0) => {
-            element.querySelectorAll('ul, ol').forEach(list => {
-              list.style.listStyle = 'none';
-              list.style.paddingLeft = '0';
 
-              let counter = 1;
-              const isOl = list.tagName === 'OL';
-
-              Array.from(list.children).forEach(li => {
-                li.innerHTML = li.innerHTML.replace(/^(\s*)(•|\d+\.?)\s+/, '');
-
-                const marker = document.createElement('span');
-                marker.className = 'list-marker';
-                marker.style.width = '20px';
-                marker.style.display = 'inline-block';
-
-                if (isOl) {
-                  const styles = ['decimal', 'lower-alpha', 'lower-roman']
-                  marker.textContent = `${this.getMarker(counter, styles[depth % 3])}. `
-                  counter++;
-                } else {
-                  const bullets = ['•', '•', '•'];
-                  marker.textContent = `${bullets[depth % 3]} `;
-                }
-
-                li.insertBefore(marker, li.firstChild);
-                if (li.querySelector('ul, ol')) processLists(li, depth + 1);
-              })
-            })
+          // Action column (index 3)
+          const actionColumn = tableInRow.querySelector('td:nth-child(4)');
+          if (actionColumn) {
+            actionColumn.style.width = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.maxWidth = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.minWidth = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.wordBreak = 'break-word';
+            actionColumn.style.overflowWrap = 'break-word';
+            actionColumn.style.whiteSpace = 'pre-line';
+            actionColumn.style.fontSize = '10px';
+            actionColumn.style.lineHeight = '1.3';
+            actionColumn.style.verticalAlign = 'top';
+            // Also apply to all nested elements
+            actionColumn.querySelectorAll('*').forEach(el => {
+              el.style.wordBreak = 'break-word';
+              el.style.overflowWrap = 'break-word';
+              el.style.whiteSpace = 'pre-line';
+              el.style.fontSize = '10px';
+              el.style.lineHeight = '1.3';
+              el.style.maxWidth = '100%';
+            });
           }
-          processLists(rowClone);
 
-          // Content wrapper
-          rowClone.querySelectorAll('li').forEach(li => {
-            const contentWrapper = document.createElement('span');
-            contentWrapper.style.display = 'inline-block'
-            contentWrapper.style.width = 'calc(100% - 2px)'
-
-            while (li.childNodes.length > 1) {
-              contentWrapper.appendChild(li.childNodes[1]);
-            }
-            li.appendChild(contentWrapper)
-          });
+          // Add .pdf-capture-mode for PDF-specific styles
+          rowClone.classList.add('pdf-capture-mode');
+          tableInRow.style.tableLayout = 'fixed';
+          tableInRow.style.width = `${usableWidth}mm`;
+          tableInRow.style.maxWidth = `${usableWidth}mm`;
+          tableInRow.style.borderCollapse = 'collapse';
 
           // Temporary container
-          const tempDiv = document.createElement('div')
-          tempDiv.className = 'pdf-capture-mode'
-          tempDiv.style.position = 'absolute'
-          tempDiv.style.left = '-9999px'
-          tempDiv.style.background = '#fff'
-          tempDiv.style.marginLeft = '-20px'
-          tempDiv.style.width = '1165px'
-          rowClone.style.width = '1165px'
-          tempDiv.appendChild(rowClone)
-          document.body.appendChild(tempDiv)
+          const tempDiv = document.createElement('div');
+          tempDiv.style.position = 'absolute';
+          tempDiv.style.left = '-9999px';
+          tempDiv.style.background = '#fff';
+          tempDiv.style.width = `${usableWidth}mm`;
+          rowClone.style.width = `${usableWidth}mm`;
+          tempDiv.appendChild(rowClone);
+          document.body.appendChild(tempDiv);
 
           try {
             const canvas = await html2canvas(rowClone, {
               scale: 2,
               useCORS: true,
               backgroundColor: null,
-              width: 1120,
+              width: usableWidth * 3.78, // px per mm
               logging: true,
               allowTaint: true,
               letterRendering: true,
               fontFamilyCSS: '*',
               onclone: (clonedDoc) => {
-                // Force layout stability
                 clonedDoc.body.style.overflow = 'visible';
                 clonedDoc.body.style.position = 'static';
               }
-            })
+            });
 
-            // Page management
+            // Page management (unchanged)
             let renderedHeight = 0;
             while (renderedHeight < canvas.height) {
               const sliceHeightPx = Math.min(
                 ((pageHeight - position - 10) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
-              )
+              );
 
               const sliceCanvas = document.createElement('canvas');
               sliceCanvas.width = canvas.width;
@@ -641,67 +1012,55 @@ export default {
               const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0);
               const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width;
 
-              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth+1, sliceImgHeight);
+              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth + 1, sliceImgHeight);
 
-              renderedHeight += sliceHeightPx
-              position += sliceImgHeight
+              renderedHeight += sliceHeightPx;
+              position += sliceImgHeight;
 
               if (renderedHeight < canvas.height) {
-                pdf.addPage(orientation, 'a4')
-                position = marginY
-
-                xPosition = marginX
-                pdf.setFontSize(12)
-                pdf.setFont('Arial', 'bold')
-
+                pdf.addPage(orientation, 'a4');
+                position = marginY;
+                xPosition = marginX;
+                pdf.setFontSize(12);
+                pdf.setFont('Arial', 'bold');
                 // Main title
-                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)'
-                const headerWidth = pdf.getTextWidth(headerText)
-                pdf.setFillColor(255, 255, 0)
-                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F')
-                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' })
-
+                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+                const headerWidth = pdf.getTextWidth(headerText);
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
+                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
                 // Date header
-                const today = new Date()
-                const options = { timeZone: 'Asia/Kolkata' }
+                const today = new Date();
+                const options = { timeZone: 'Asia/Kolkata' };
                 const formattedDate = today.toLocaleDateString('en-IN', options)
                   .replace(/\//g, '.')
-                  .replace(/\b(\d)\b/g, '0$1')
-                pdf.setFillColor(255, 255, 0)
-                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F')
-                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' })
-
-                // position += 18;
-                position += 1
-
-                pdf.setFontSize(7.5)
-                pdf.setFont('Arial', 'bold')
-
+                  .replace(/\b(\d)\b/g, '0$1');
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
+                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+                position += 1;
+                pdf.setFontSize(7.5);
+                pdf.setFont('Arial', 'bold');
+                xPosition = marginX;
                 headers.forEach((header, index) => {
-                  const cellWidth = mmWidths[index]
-                  const textWidth = pdf.getTextWidth(header)
-                  const paddedWidth = cellWidth + 1.5
-                  const xStart = xPosition - 0.25
-
-                  pdf.setFillColor(59, 130, 246)
-                  pdf.rect(xStart, position, paddedWidth, 8, 'F')
-                  pdf.text(
-                    header,
-                    xPosition + (cellWidth - textWidth) / 2,
-                    position + 5.5
-                  )
-                  xPosition += cellWidth
-                })
-                position += 10
+                  const cellWidth = scaledColumnWidths[index];
+                  const textWidth = pdf.getTextWidth(header);
+                  pdf.setFillColor(59, 130, 246);
+                  pdf.rect(xPosition, position, cellWidth, 8, 'F');
+                  // Center header text in the cell, with optional offset
+                  const textX = xPosition + cellWidth / 2 + (headerOffsets[index] || 0);
+                  pdf.text(header, textX, position + 5.5, { align: 'center' });
+                  xPosition += cellWidth;
+                });
+                position += 10;
               }
             }
-            document.body.removeChild(tempDiv)
+            document.body.removeChild(tempDiv);
           } catch (error) {
-            console.error(`Row ${i} error:`, error)
-            document.body.removeChild(tempDiv)
+            console.error(`Row ${i} error:`, error);
+            document.body.removeChild(tempDiv);
           }
         }
-
         pdf.save('dashboard.pdf');
       } catch (error) {
         console.error('PDF generation failed:', error);
@@ -952,6 +1311,201 @@ export default {
       return this.activeTasks.find(task => task && task.id === this.activeMenuId) || null;
     },
 
+    getHighlightClass(reviewDate) {
+      const today = new Date();
+      const review = reviewDate ? new Date(reviewDate) : null;
+      const isToday = review && review.getFullYear() === today.getFullYear() && review.getMonth() === today.getMonth() && review.getDate() === today.getDate();
+      return ['yellow-bg-bold', isToday ? 'red-text' : 'black-text'];
+    },
+
+    handleSearchInput() {
+      // Clear previous debounce timeout
+      if (this.searchDebounceTimeout) {
+        clearTimeout(this.searchDebounceTimeout)
+      }
+      
+      // Debounce search for better performance
+      this.searchDebounceTimeout = setTimeout(() => {
+        this.performSearch()
+      }, 150)
+    },
+
+    performSearch() {
+      if (!this.searchQuery || this.searchQuery.trim().length === 0) {
+        this.filteredTasks = []
+        this.searchStats = null
+        return
+      }
+
+      const query = this.searchQuery.toLowerCase().trim()
+      const queryWords = query.split(/\s+/).filter(word => word.length > 0)
+      
+      // Use search index if available for faster performance
+      if (this.searchIndex) {
+        this.filteredTasks = this.searchUsingIndex(queryWords)
+      } else {
+        this.filteredTasks = this.searchUsingBruteForce(queryWords)
+      }
+      
+      // Calculate search statistics
+      this.calculateSearchStats(queryWords)
+    },
+
+    searchUsingIndex(queryWords) {
+      // Fast search using pre-built index
+      const matchedTaskIds = new Set()
+      
+      queryWords.forEach(word => {
+        if (this.searchIndex[word]) {
+          this.searchIndex[word].forEach(taskId => {
+            matchedTaskIds.add(taskId)
+          })
+        }
+      })
+      
+      return this.activeTasks.filter(task => matchedTaskIds.has(task.id))
+    },
+
+    searchUsingBruteForce(queryWords) {
+      return this.activeTasks.filter(task => {
+        // Check if all query words are found in any of the searchable fields
+        return queryWords.every(word => {
+          const descriptionMatch = task.description.toLowerCase().includes(word)
+          const sectorMatch = task.sector_division.toLowerCase().includes(word)
+          const actionMatch = this.stripHtmlTags(task.action_to_be_taken).toLowerCase().includes(word)
+          
+          return descriptionMatch || sectorMatch || actionMatch
+        })
+      })
+    },
+
+    calculateSearchStats(queryWords) {
+      if (!this.filteredTasks.length) {
+        this.searchStats = null
+        return
+      }
+
+      let descriptionMatches = 0
+      let sectorMatches = 0
+      let actionMatches = 0
+
+      this.filteredTasks.forEach(task => {
+        const description = task.description.toLowerCase()
+        const sector = task.sector_division.toLowerCase()
+        const action = this.stripHtmlTags(task.action_to_be_taken).toLowerCase()
+
+        queryWords.forEach(word => {
+          if (description.includes(word)) descriptionMatches++
+          if (sector.includes(word)) sectorMatches++
+          if (action.includes(word)) actionMatches++
+        })
+      })
+
+      this.searchStats = {
+        descriptionMatches,
+        sectorMatches,
+        actionMatches
+      }
+    },
+
+    buildSearchIndex() {
+      // Build a fast search index for better performance
+      this.searchIndex = {}
+      
+      this.activeTasks.forEach(task => {
+        const words = this.extractSearchableWords(task)
+        words.forEach(word => {
+          if (!this.searchIndex[word]) {
+            this.searchIndex[word] = new Set()
+          }
+          this.searchIndex[word].add(task.id)
+        })
+      })
+    },
+
+    extractSearchableWords(task) {
+      const words = new Set()
+      
+      // Extract words from description
+      const descWords = task.description.toLowerCase().match(/\b\w+\b/g) || []
+      descWords.forEach(word => words.add(word))
+      
+      // Extract words from sector
+      const sectorWords = task.sector_division.toLowerCase().match(/\b\w+\b/g) || []
+      sectorWords.forEach(word => words.add(word))
+      
+      // Extract words from action content (strip HTML)
+      const actionText = this.stripHtmlTags(task.action_to_be_taken)
+      const actionWords = actionText.toLowerCase().match(/\b\w+\b/g) || []
+      actionWords.forEach(word => words.add(word))
+      
+      return Array.from(words)
+    },
+
+    stripHtmlTags(html) {
+      if (!html) return ''
+      const div = document.createElement('div')
+      div.innerHTML = html
+      return div.textContent || div.innerText || ''
+    },
+
+    extractMatchedText(text, query) {
+      const index = text.toLowerCase().indexOf(query.toLowerCase())
+      if (index === -1) return text.substring(0, 60) + '...'
+      
+      const start = Math.max(0, index - 20)
+      const end = Math.min(text.length, index + query.length + 40)
+      let extracted = text.substring(start, end)
+      
+      if (start > 0) extracted = '...' + extracted
+      if (end < text.length) extracted = extracted + '...'
+      
+      return extracted
+    },
+
+    handleSearchBlur() {
+      // Delay hiding suggestions to allow for clicks
+      setTimeout(() => {
+        this.showSearchSuggestions = false
+      }, 200)
+    },
+
+    clearSearch() {
+      this.searchQuery = ''
+      this.filteredTasks = []
+      this.searchStats = null
+      this.showSearchSuggestions = false
+      
+      if (this.searchDebounceTimeout) {
+        clearTimeout(this.searchDebounceTimeout)
+      }
+    },
+
+    selectSuggestion(suggestion) {
+      this.searchQuery = suggestion.text
+      this.showSearchSuggestions = false
+      this.performSearch()
+      
+      // Scroll to the selected task
+      this.$nextTick(() => {
+        const taskElement = document.querySelector(`[data-task-id="${suggestion.taskId}"]`)
+        if (taskElement) {
+          taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          taskElement.classList.add('search-highlight')
+          setTimeout(() => {
+            taskElement.classList.remove('search-highlight')
+          }, 2000)
+        }
+      })
+    },
+
+    isTaskInSearchResults(taskId) {
+      return this.filteredTasks.some(task => task.id === taskId)
+    },
+
+    getDisplayIndex(index) {
+      return index + 1
+    }
   }
 }
 </script>
@@ -974,14 +1528,14 @@ export default {
 
  /* Create task button - compact styling like FinalDashboard */
 .create-task-btn {
-   padding: 0.5rem 1rem;
+   padding: 1rem 1rem;
    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: white;
   border: none;
    border-radius: 6px;
    cursor: pointer;
-   font-weight: 500;
-   font-size: 0.8rem;
+   font-weight: 600;
+   font-size: 0.85rem;
    transition: all 0.2s ease;
    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
   display: flex;
@@ -1007,14 +1561,14 @@ export default {
   display: flex;
   align-items: center;
    gap: 6px;
-   padding: 0.5rem 1rem;
+   padding: 1rem 1.5rem;
    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
    color: white;
    border: none;
    border-radius: 6px;
    cursor: pointer;
-   font-weight: 500;
-   font-size: 0.8rem;
+   font-weight: 600;
+   font-size: 0.85rem;
    transition: all 0.2s ease;
    box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
 }
@@ -1045,6 +1599,335 @@ export default {
    background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
    transform: translateY(-1px);
    box-shadow: 0 4px 8px rgba(30, 58, 138, 0.3);
+}
+
+/* ========================================
+   WORLD-CLASS FILTER SYSTEM STYLES
+   ======================================== */
+
+.filter-container {
+  position: relative;
+  display: inline-block;
+}
+
+.filter-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
+  min-width: 120px;
+  justify-content: center;
+}
+
+.filter-btn:hover {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(30, 58, 138, 0.3);
+}
+
+.filter-btn.active {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.dropdown-arrow {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.filter-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  animation: badgePulse 0.6s ease-out;
+}
+
+@keyframes badgePulse {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e7eb;
+  z-index: 1000;
+  animation: dropdownSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+@keyframes dropdownSlideIn {
+  0% { 
+    opacity: 0; 
+    transform: translateY(-10px) scale(0.95); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.filter-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.clear-filters-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-filters-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.filter-section {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.filter-section:last-child {
+  border-bottom: none;
+}
+
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.filter-option:hover {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.filter-option.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.filter-radio {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.filter-option-text {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.filter-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.custom-date-section {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.date-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.custom-date-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.custom-date-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.date-picker-wrapper svg {
+  position: absolute;
+  left: 0.75rem;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.active-filters-summary {
+  padding: 1rem 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.active-filters-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.active-filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid #bfdbfe;
+}
+
+.remove-filter-btn {
+  background: none;
+  border: none;
+  color: #1e40af;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.remove-filter-btn:hover {
+  background: #1e40af;
+  color: white;
+}
+
+.filter-results-summary {
+  padding: 1rem 1.5rem;
+  background: #f0f9ff;
+  border-top: 1px solid #e0f2fe;
+  text-align: center;
+}
+
+.results-text {
+  font-size: 0.85rem;
+  color: #0369a1;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .filter-dropdown {
+    width: 320px;
+    right: -50px;
+  }
+  
+  .filter-btn {
+    min-width: 100px;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-dropdown {
+    width: 280px;
+    right: -80px;
+  }
+  
+  .filter-section {
+    padding: 1rem;
+  }
+  
+  .filter-header {
+    padding: 1rem;
+  }
 }
 
 
@@ -1227,6 +2110,47 @@ export default {
   font-weight: bolder;
 }
 
+.status-approved {
+  color: #047857 !important;
+  background-color: #d1fae5;
+  padding: 12px 8px;
+  border-radius: 24px;
+  font-size: 0.8rem;
+  font-weight: bolder;
+  border: 1px solid #10b981;
+  letter-spacing: 0.02em;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+}
+
+.status-editor {
+  color: #a15a00 !important;
+  background-color: #f6c08b;
+  padding: 12px 8px;
+  border-radius: 24px;
+  font-size: 0.8rem;
+  font-weight: bolder;
+  border: 1px solid #f6c08b;
+  letter-spacing: 0.02em;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+}
+
+.status-reviewer {
+  color: #2563eb !important;
+  background-color: #e3edff;
+  padding: 12px 8px;
+  border-radius: 24px;
+  font-size: 0.8rem;
+  font-weight: bolder;
+  border: 1px solid #2563eb;
+  letter-spacing: 0.02em;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
+}
 
 /* Actions cell styling */
 .actions-cell {
@@ -1449,12 +2373,13 @@ export default {
 
  .action-content-cell table th,
  .action-content-cell table td {
-   border: 1px solid #d1d5db !important;
-   padding: 4px 6px !important;
-   text-align: left !important;
+   border: 1px solid #222 !important;
+   padding: 3px !important;
+   text-align: center !important;
+   vertical-align: middle !important;
    word-wrap: break-word !important;
    overflow-wrap: break-word !important;
-   font-size: 0.7rem !important;
+   font-size: 10px !important;
  }
 
  .action-content-cell table th {
@@ -1491,55 +2416,55 @@ export default {
    color: #000 !important;
  }
 
-/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS - FIXED! */
+/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS - REDUCED SPACING! */
 .action-content-cell /deep/ .action-node.level-1 { 
   margin-left: 0px !important; 
   /* background-color: rgba(59, 130, 246, 0.02) !important; */
 }
 .action-content-cell /deep/ .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .action-content-cell /deep/ .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   /* border-left: 2px solid rgba(139, 92, 246, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell /deep/ .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell /deep/ .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
   /* border-left: 2px solid rgba(239, 68, 68, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
-/* 🔧 ADDITIONAL: Multiple selector approaches for maximum compatibility */
+/* 🔧 HIGH SPECIFICITY: Override rules for table context - REDUCED SPACING! */
 table .action-content-cell /deep/ .action-node.level-2,
 td .action-content-cell /deep/ .action-node.level-2 {
-  margin-left: 40px !important;
-  padding-left: 8px !important;
+  margin-left: 20px !important;
+  padding-left: 4px !important;
   /* background-color: rgba(16, 185, 129, 0.05) !important; */
   /* border-left: 3px solid rgba(16, 185, 129, 0.4) !important; */
 }
 table .action-content-cell /deep/ .action-node.level-3,
 td .action-content-cell /deep/ .action-node.level-3 {
-  margin-left: 80px !important;
-  padding-left: 8px !important;
+  margin-left: 40px !important;
+  padding-left: 6px !important;
   /* background-color: rgba(245, 158, 11, 0.05) !important; */
   /* border-left: 3px solid rgba(139, 92, 246, 0.4) !important; */
 }
 table .action-content-cell /deep/ .action-node.level-4,
 td .action-content-cell /deep/ .action-node.level-4 {
-  margin-left: 120px !important;
-  padding-left: 8px !important;
+  margin-left: 60px !important;
+  padding-left: 6px !important;
   /* background-color: rgba(139, 92, 246, 0.05) !important; */
   /* border-left: 3px solid rgba(245, 158, 11, 0.4) !important; */
 }
@@ -1582,13 +2507,14 @@ td .action-content-cell /deep/ .action-node.level-4 {
 
 /* ✅ Completed nodes styling with DEEP SELECTORS - GREEN COLOR */
 .action-content-cell /deep/ .action-node.completed { 
+  color: green !important;
   /* background-color: rgba(16, 185, 129, 0.1) !important; */
   /* border-left: 3px solid #10b981 !important; Green left border */
   border-radius: 4px !important;
   padding: 4px 8px !important;
 }
 .action-content-cell /deep/ .action-node.completed .node-content { 
-  /* color: #059669 !important; */
+  color: rgb(0, 255, 0) !important;
   font-weight: 500 !important; /* Slightly bold */
 }
 .action-content-cell /deep/ .action-node.completed .node-marker { 
@@ -1596,44 +2522,44 @@ td .action-content-cell /deep/ .action-node.level-4 {
   font-weight: 600 !important;
 }
 
-/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility */
+/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility - REDUCED SPACING! */
 .action-content-cell >>> .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 2px !important;
 }
 .action-content-cell >>> .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 2px !important;
 }
 .action-content-cell >>> .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 2px !important;
  }
 
-/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely */
+/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely - REDUCED SPACING! */
 td.action-content-cell .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 2px !important;
 }
 td.action-content-cell .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 2px !important;
 }
 td.action-content-cell .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
-  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 8px !important;
+  /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
+  padding-left: 2px !important;
 }
  
  .action-content-cell p { margin: 0.25em 0 !important; }
@@ -1661,15 +2587,15 @@ td.action-content-cell .action-node.level-4 {
    align-items: flex-start !important;
  }
 
- /* Preserve hierarchical indentation even when scaled */
+ /* Preserve hierarchical indentation even when scaled - REDUCED SPACING! */
  .action-content-cell.auto-scaled-small /deep/ .action-node.level-1,
  .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-1 { margin-left: 0 !important; }
  .action-content-cell.auto-scaled-small /deep/ .action-node.level-2,
- .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-2 { margin-left: 16px !important; }
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-2 { margin-left: 6px !important; }
  .action-content-cell.auto-scaled-small /deep/ .action-node.level-3,
- .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-3 { margin-left: 32px !important; }
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-3 { margin-left: 12px !important; }
  .action-content-cell.auto-scaled-small /deep/ .action-node.level-4,
- .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-4 { margin-left: 48px !important; }
+ .action-content-cell.auto-scaled-tiny /deep/ .action-node.level-4 { margin-left: 18px !important; }
 
  /* Auto-scaled table improvements */
  .action-content-cell.auto-scaled-small /deep/ table,
@@ -1697,14 +2623,14 @@ td.action-content-cell .action-node.level-4 {
  }
 
 .download-pdf-btn {
-   padding: 0.5rem 1rem;
+   padding: 1rem 1.5rem;
    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: white;
   border: none;
    border-radius: 6px;
    cursor: pointer;
-   font-weight: 500;
-   font-size: 0.8rem;
+   font-weight: 600;
+   font-size: 0.85rem;
    transition: all 0.2s ease;
    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
 }
@@ -1713,5 +2639,517 @@ td.action-content-cell .action-node.level-4 {
    background: linear-gradient(135deg, #047857 0%, #059669 100%);
    transform: translateY(-1px);
    box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+}
+
+/* PDF Export: Strict fixed layout and wrapping for .pdf-capture-mode */
+.pdf-capture-mode table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #ddd !important;
+}
+.pdf-capture-mode th, .pdf-capture-mode td {
+  border: 1px solid #ddd !important;
+  padding: 2px 4px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  box-sizing: border-box !important;
+  max-width: none !important;
+}
+.pdf-capture-mode td {
+  max-width: none !important;
+}
+.pdf-capture-mode td:nth-child(4) {
+  /* Action to be Taken column: max width, strict wrapping */
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  vertical-align: top !important;
+  max-width: 90mm !important;
+  min-width: 90mm !important;
+  width: 90mm !important;
+}
+.pdf-capture-mode td * {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+.pdf-capture-mode ul, .pdf-capture-mode ol {
+  padding-left: 18px !important;
+  margin: 0.2em 0 !important;
+}
+.pdf-capture-mode li {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+.pdf-capture-mode table table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+.pdf-capture-mode table table th, .pdf-capture-mode table table td {
+  font-size: 9px !important;
+  padding: 2px 3px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+
+/* Table styling for tables inside 'Action to be Taken' (dashboard and PDF) */
+.action-content-cell table,
+.action-content-cell th,
+.action-content-cell td,
+.pdf-capture-mode .action-content-cell table,
+.pdf-capture-mode .action-content-cell th,
+.pdf-capture-mode .action-content-cell td,
+.action-content-cell table table,
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #222 !important;
+  border-collapse: collapse !important;
+  padding: 3px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.action-content-cell table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+}
+
+.action-content-cell th {
+  background: #f2f2f2 !important;
+  font-weight: 600 !important;
+  color: #222 !important;
+}
+
+/* Ensure nested tables also get the same styling */
+.action-content-cell table table,
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #222 !important;
+  padding: 1px !important;
+  background: #fff !important;
+  font-size: 11px !important;
+}
+
+.yellow-bg-bold {
+  background: #ffeb3b !important;
+  font-weight: bold !important;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* PDF-specific vertical alignment for highlight columns */
+.pdf-capture-mode .original-date-cell,
+.pdf-capture-mode .responsibility-cell,
+.pdf-capture-mode .review-date-cell {
+  vertical-align: middle !important;
+}
+
+.pdf-capture-mode .yellow-bg-bold {
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+
+/* Ensure bold styling for S.No, Sector/Division, and Description columns in PDF */
+.pdf-capture-mode td:nth-child(1) strong,
+.pdf-capture-mode td:nth-child(2) strong,
+.pdf-capture-mode td:nth-child(3) strong {
+  font-weight: bold !important;
+}
+.red-text {
+  color: #d32f2f !important;
+}
+.black-text {
+  color: #222 !important;
+}
+.review-date-cell, .responsibility-cell {
+  text-align: center !important;
+}
+
+/* PDF-specific: Remove all vertical gap between lines in action content for testing */
+.pdf-capture-mode .action-content-cell *,
+.pdf-capture-mode .action-node,
+.pdf-capture-mode .action-node * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.1 !important;
+}
+
+.pdf-capture-mode p,
+.pdf-capture-mode li,
+.pdf-capture-mode div {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.1 !important;
+}
+
+.search-actions-row {
+  display: flex;
+  align-items: stretch;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  position: relative;
+}
+
+.search-wrapper {
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-actions-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .search-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .dashboard-actions-inline {
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
+</style>
+
+<!-- GLOBAL TABLE BOUNDARY STYLES: Not scoped, only border/padding, no background/color override -->
+<style>
+.action-content-cell table,
+.action-content-cell th,
+.action-content-cell td,
+.pdf-capture-mode .action-content-cell table,
+.pdf-capture-mode .action-content-cell th,
+.pdf-capture-mode .action-content-cell td,
+.action-content-cell table table,
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #222 !important;
+  border-collapse: collapse !important;
+  padding: 3px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+</style>
+
+<!-- ADVANCED SEARCH SYSTEM STYLES -->
+<style>
+.search-container {
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.search-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.search-wrapper:focus-within {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05);
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.search-input-group {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.search-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #6b7280;
+  margin-right: 0.75rem;
+  transition: color 0.2s ease;
+}
+
+.search-wrapper:focus-within .search-icon {
+  color: #3b82f6;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 1rem;
+  color: #1f2937;
+  padding: 0.5rem 0;
+  font-weight: 500;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.search-input.has-results {
+  color: #059669;
+  font-weight: 600;
+}
+
+.clear-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.clear-search-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: scale(1.1);
+}
+
+.search-results-info {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.results-count {
+  font-weight: 600;
+  color: #1e40af;
+  background: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.search-stats {
+  color: #4b5563;
+  font-size: 0.8125rem;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #f8fafc;
+  transform: translateX(4px);
+}
+
+.suggestion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-meta {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.suggestion-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #9ca3af;
+  margin-left: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.suggestion-item:hover .suggestion-icon {
+  color: #3b82f6;
+  transform: translateX(2px);
+}
+
+/* Search highlight animation for matched tasks */
+.search-highlight {
+  animation: searchPulse 2s ease-in-out;
+}
+
+@keyframes searchPulse {
+  0%, 100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  25% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.15);
+  }
+  75% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* Responsive design for search */
+@media (max-width: 768px) {
+  .search-input-group {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .search-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 0.5rem;
+  }
+  
+  .search-input {
+    font-size: 0.875rem;
+  }
+  
+  .search-results-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .search-stats {
+    font-size: 0.75rem;
+  }
+  
+  .suggestion-item {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .suggestion-title {
+    font-size: 0.875rem;
+  }
+  
+  .suggestion-meta {
+    font-size: 0.75rem;
+  }
+}
+
+/* Keyboard navigation support */
+.search-suggestions:focus-within .suggestion-item:focus {
+  background: #eff6ff;
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+/* Loading state for search */
+.search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Empty state styling */
+.search-suggestions:empty::after {
+  content: 'No suggestions found';
+  display: block;
+  padding: 1rem;
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Smooth transitions for all search elements */
+.search-container * {
+  transition: all 0.2s ease;
+}
+
+/* Enhanced focus states for accessibility */
+.search-input:focus {
+  outline: none;
+}
+
+.search-wrapper:focus-within {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Performance optimizations */
+.search-suggestions {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+.suggestion-item {
+  will-change: transform, background-color;
 }
 </style>

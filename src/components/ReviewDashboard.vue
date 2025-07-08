@@ -44,7 +44,7 @@
             <div class="filter-buttons">
               <button 
                 class="filter-btn"
-                :class="{ active: activeFilter === 'all' }"
+                :class="['filter-btn', { active: activeFilter === 'all', 'active-all': activeFilter === 'all', 'active-pending': activeFilter === 'pending', 'active-approved': activeFilter === 'approved', 'active-comments': activeFilter === 'with-comments' } ]"
                 @click="setFilter('all')"
               >
                 <i class="fas fa-list"></i>
@@ -53,7 +53,7 @@
               </button>
               <button 
                 class="filter-btn"
-                :class="{ active: activeFilter === 'pending' }"
+                :class="['filter-btn', { active: activeFilter === 'pending', 'active-pending': activeFilter === 'pending' } ]"
                 @click="setFilter('pending')"
               >
                 <i class="fas fa-clock"></i>
@@ -62,7 +62,7 @@
               </button>
               <button 
                 class="filter-btn"
-                :class="{ active: activeFilter === 'approved' }"
+                :class="['filter-btn', { active: activeFilter === 'approved', 'active-approved': activeFilter === 'approved' } ]"
                 @click="setFilter('approved')"
               >
                 <i class="fas fa-check-circle"></i>
@@ -71,7 +71,7 @@
               </button>
               <button 
                 class="filter-btn"
-                :class="{ active: activeFilter === 'with-comments' }"
+                :class="['filter-btn', { active: activeFilter === 'with-comments', 'active-comments': activeFilter === 'with-comments' } ]"
                 @click="setFilter('with-comments')"
               >
                 <i class="fas fa-comments"></i>
@@ -115,10 +115,23 @@
                 </select>
                 <span>per page</span>
               </div>
-              
-              <button class="refresh-btn" @click="loadReviews" :disabled="loading">
-                <i class="fas fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
-                <span>Refresh</span>
+              <button 
+                class="filter-btn"
+                :class="{ 'active': timeFilter === '24h', 'active-all': timeFilter === '24h' }"
+                @click="setTimeFilter('24h')"
+                style="min-width:120px;"
+              >
+                <i class="fas fa-clock"></i>
+                Last 24 Hours
+              </button>
+              <button 
+                class="filter-btn"
+                :class="{ 'active': timeFilter === '48h', 'active-all': timeFilter === '48h' }"
+                @click="setTimeFilter('48h')"
+                style="min-width:120px;"
+              >
+                <i class="fas fa-clock"></i>
+                Last 48 Hours
               </button>
             </div>
           </div>
@@ -282,7 +295,8 @@ export default {
       pageSize: 10,
       currentUserRole: null,
       searchQuery: '',
-      searchDebounceTimer: null
+      searchDebounceTimer: null,
+      timeFilter: 'all', // 'all', '24h', '48h'
     }
   },
 
@@ -339,6 +353,14 @@ export default {
           break
       }
 
+      // Apply time filter
+      if (this.timeFilter === '24h') {
+        const now = Date.now()
+        filtered = filtered.filter(r => new Date(r.created_at).getTime() >= now - 24 * 60 * 60 * 1000)
+      } else if (this.timeFilter === '48h') {
+        const now = Date.now()
+        filtered = filtered.filter(r => new Date(r.created_at).getTime() >= now - 48 * 60 * 60 * 1000)
+      }
       return filtered
     },
 
@@ -424,6 +446,10 @@ export default {
     searchQuery() {
       this.currentPage = 1 // Reset pagination when search changes
       this.updateQueryParams()
+    },
+    timeFilter() {
+      this.currentPage = 1 // Reset pagination when time filter changes
+      this.updateQueryParams()
     }
   },
 
@@ -441,7 +467,10 @@ export default {
     async loadReviews() {
       try {
         this.loading = true
+        console.log('🔍 Loading reviews for user role:', this.currentUserRole)
+        
         const response = await this.$http.secured.get('/reviews')
+        console.log('📡 Reviews API response:', response.data)
         
         if (response.data.success) {
           // Sort reviews by task review_date (nearest first), then by created_at (latest first)
@@ -459,12 +488,23 @@ export default {
             const createdB = new Date(b.created_at)
             return createdB - createdA
           })
+          
+          console.log('📊 Processed reviews:', this.reviews)
+          console.log('👤 User role:', this.currentUserRole)
+          console.log('📋 Total reviews found:', this.reviews.length)
+          
+          // Log reviews where user is editor (for debugging)
+          const editorReviews = this.reviews.filter(review => 
+            review.task_version && review.task_version.editor_id
+          )
+          console.log('✏️ Reviews with editor info:', editorReviews.length)
+          
         } else {
           this.$toast.error('Failed to load reviews')
           this.reviews = []
         }
       } catch (error) {
-        console.error('Error loading reviews:', error)
+        console.error('❌ Error loading reviews:', error)
         this.$toast.error('Error loading reviews')
         this.reviews = []
       } finally {
@@ -474,6 +514,11 @@ export default {
 
     setFilter(filter) {
       this.activeFilter = filter
+    },
+
+    setTimeFilter(filter) {
+      this.timeFilter = filter
+      this.currentPage = 1
     },
 
     goToPage(page) {
@@ -506,6 +551,10 @@ export default {
       if (query.search) {
         this.searchQuery = query.search
       }
+
+      if (query.timeFilter) {
+        this.timeFilter = query.timeFilter
+      }
     },
 
     updateQueryParams() {
@@ -517,6 +566,10 @@ export default {
       
       if (this.searchQuery.trim()) {
         query.search = this.searchQuery.trim()
+      }
+
+      if (this.timeFilter !== 'all') {
+        query.timeFilter = this.timeFilter
       }
       
       // Only update if query actually changed
@@ -769,12 +822,30 @@ export default {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
-.filter-btn.active {
-  border-color: #1e40af;
-  background: #1e40af;
-  color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+.filter-btn.active,
+.filter-btn.active-all {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%) !important;
+  color: #fff !important;
+  border-color: #1e40af !important;
+  box-shadow: 0 2px 8px #1e40af22;
+}
+.filter-btn.active-pending {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  color: #92400e !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 2px 8px #f59e0b22;
+}
+.filter-btn.active-approved {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
+  color: #065f46 !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 2px 8px #10b98122;
+}
+.filter-btn.active-comments {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  color: #991b1b !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 2px 8px #ef444422;
 }
 
 .filter-btn .count {

@@ -1,12 +1,166 @@
 <template>
   <div class="dashboard-container">
-    <!-- Top Actions - Right Aligned -->
-    <div class="dashboard-actions">
-      <button class="filter-btn">
-        Filter
-        <img src="../assets/img/filter1.png" alt="Filter" style="height: 16px;width: 14px;" />
+    <!-- Advanced Search Bar + Actions Row -->
+    <div class="search-actions-row">
+      <div class="search-wrapper">
+        <div class="search-input-group">
+          <div class="search-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 21L16.514 16.506L21 21ZM19 10.5C19 15.194 15.194 19 10.5 19C5.806 19 2 15.194 2 10.5C2 5.806 5.806 2 10.5 2C15.194 2 19 5.806 19 10.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input 
+            v-model="searchQuery" 
+            @input="handleSearchInput"
+            @focus="showSearchSuggestions = true"
+            @blur="handleSearchBlur"
+            type="text" 
+            placeholder="Search approved tasks by description, sector, or action items..."
+            class="search-input"
+            :class="{ 'has-results': filteredTasks.length > 0 && searchQuery.length > 0 }"
+          />
+          <button 
+            v-if="searchQuery.length > 0" 
+            @click="clearSearch" 
+            class="clear-search-btn"
+            title="Clear search"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
       </button>
-      <button @click="downloadPDF" class="download-pdf-btn">Download PDF</button>
+        </div>
+        
+        <!-- Search Results Counter -->
+        <div v-if="searchQuery.length > 0" class="search-results-info">
+          <span class="results-count">{{ filteredTasks.length }} of {{ approvedTasks.length }} tasks</span>
+          <span v-if="searchStats" class="search-stats">
+            • {{ searchStats.descriptionMatches }} in descriptions
+            • {{ searchStats.sectorMatches }} in sectors
+            • {{ searchStats.actionMatches }} in actions
+          </span>
+        </div>
+      </div>
+      <!-- Action Buttons -->
+      <div class="dashboard-actions-inline">
+        <!-- Enhanced Filter Button -->
+        <div class="filter-container">
+          <button 
+            @click="toggleFilterDropdown" 
+            class="filter-btn"
+            :class="{ 'active': showFilterDropdown }"
+          >
+            <span class="filter-text">Filter</span>
+            <img src="../assets/img/filter1.png" alt="Filter" style="height: 20px;width: 18px;" />
+            <span v-if="activeFiltersCount > 0" class="filter-badge">{{ activeFiltersCount }}</span>
+          </button>
+          
+          <!-- Filter Dropdown -->
+          <div v-if="showFilterDropdown" class="filter-dropdown">
+            <div class="filter-section">
+              <h4 class="filter-section-title">Review Date</h4>
+              <div class="filter-options">
+                <label class="filter-option">
+                  <input 
+                    type="radio" 
+                    v-model="filters.reviewDate" 
+                    value="all"
+                    @change="applyFilters"
+                  />
+                  <span class="filter-option-text">All dates</span>
+                </label>
+                <label class="filter-option">
+                  <input 
+                    type="radio" 
+                    v-model="filters.reviewDate" 
+                    value="today"
+                    @change="applyFilters"
+                  />
+                  <span class="filter-option-text">Today</span>
+                </label>
+                <label class="filter-option">
+                  <input 
+                    type="radio" 
+                    v-model="filters.reviewDate" 
+                    value="yesterday"
+                    @change="applyFilters"
+                  />
+                  <span class="filter-option-text">Yesterday</span>
+                </label>
+                <label class="filter-option">
+                  <input 
+                    type="radio" 
+                    v-model="filters.reviewDate" 
+                    value="tomorrow"
+                    @change="applyFilters"
+                  />
+                  <span class="filter-option-text">Tomorrow</span>
+                </label>
+                <label class="filter-option">
+                  <input 
+                    type="radio" 
+                    v-model="filters.reviewDate" 
+                    value="custom"
+                    @change="applyFilters"
+                  />
+                  <span class="filter-option-text">Custom date</span>
+                </label>
+              </div>
+              
+              <!-- Custom Date Picker -->
+              <div v-if="filters.reviewDate === 'custom'" class="custom-date-picker">
+                <input 
+                  type="date" 
+                  v-model="filters.customDate"
+                  @change="applyFilters"
+                  class="date-input"
+                />
+              </div>
+            </div>
+            
+            <!-- Filter Actions -->
+            <div class="filter-actions">
+              <button @click="clearAllFilters" class="clear-filters-btn">
+                Clear All
+              </button>
+              <button @click="closeFilterDropdown" class="close-filter-btn">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- Download PDF Button -->
+        <button 
+          @click="downloadPDF" 
+          class="download-btn"
+          :disabled="pdfVisible"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 16L12 8M12 8L15 11M12 8L9 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 15V16C3 18.8284 3 20.2426 3.87868 21.1213C4.75736 22 6.17157 22 9 22H15C17.8284 22 19.2426 22 20.1213 21.1213C21 20.2426 21 18.8284 21 16V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ pdfVisible ? 'Generating PDF...' : 'Download PDF' }}
+        </button>
+      </div>
+      <!-- Search Suggestions -->
+      <div v-if="showSearchSuggestions && searchSuggestions.length > 0" class="search-suggestions">
+        <div 
+          v-for="suggestion in searchSuggestions" 
+          :key="suggestion.id"
+          @click="selectSuggestion(suggestion)"
+          class="suggestion-item"
+        >
+          <div class="suggestion-content">
+            <div class="suggestion-title">{{ suggestion.text }}</div>
+            <div class="suggestion-meta">{{ suggestion.type }} • {{ suggestion.context }}</div>
+          </div>
+          <div class="suggestion-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Table Headers -->
@@ -25,28 +179,37 @@
     </div>
 
     <!-- Table Rows -->
-    <div v-for="(task, index) in approvedTasks"
+    <div v-for="(task, index) in displayTasks"
          :key="task.id"
          :data-task-id="task.id"
-         class="table-row">
+         class="table-row"
+         :class="{ 
+           'search-highlight': searchQuery.length > 0 && isTaskInSearchResults(task.id)
+         }">
       <table>
         <tr>
-          <td>{{ index + 1 }}</td>
-          <td>{{ task.sector_division }}</td>
-          <td>{{ task.description }}</td>
+          <td><strong>{{ getDisplayIndex(index) }}</strong></td>
+          <td><strong>{{ task.sector_division }}</strong></td>
+          <td><strong>{{ task.description }}</strong></td>
           <td v-html="processActionContent(task.action_to_be_taken)" class="action-content-cell"></td>
-          <td>{{ formatDate(task.original_date) }}</td>
-          <td>{{ task.responsibility }}</td>
-          <td>{{ formatDate(task.review_date) }}</td>
+          <td class="original-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.original_date) }}</span>
+          </td>
+          <td class="responsibility-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ task.responsibility }}</span>
+          </td>
+          <td class="review-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+            <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.review_date) }}</span>
+          </td>
         </tr>
       </table>
     </div>
 
     <!-- Empty State -->
-    <div v-if="approvedTasks.length === 0" class="empty-state">
+    <div v-if="displayTasks.length === 0" class="empty-state">
       <div class="empty-icon">📋</div>
-      <h3>No Approved Tasks</h3>
-      <p>No approved tasks found for the selected date.</p>
+      <h3>{{ searchQuery.length > 0 ? 'No Search Results' : 'No Approved Tasks' }}</h3>
+      <p>{{ searchQuery.length > 0 ? 'No approved tasks match your search criteria.' : 'No approved tasks found for the selected date.' }}</p>
     </div>
   </div>
 </template>
@@ -63,7 +226,17 @@ export default {
       selectedDate: new Date(),
       approvedTasks: [],
       pdfVisible: false,
-      resizeTimeout: null
+      resizeTimeout: null,
+      pdfMode: false,
+      searchQuery: '',
+      showSearchSuggestions: false,
+      searchSuggestions: [],
+      searchStats: null,
+      showFilterDropdown: false,
+      filters: {
+        reviewDate: 'all',
+        customDate: ''
+      }
     }
   },
 
@@ -87,6 +260,40 @@ export default {
         approved: 'status-approved',
         completed: 'status-completed'
       }
+    },
+    displayTasks() {
+      let tasks = this.approvedTasks
+      
+      // Apply filters first
+      if (this.hasActiveFilters) {
+        tasks = this.applyFiltersToTasks(tasks)
+      }
+      
+      // Then apply search
+      if (this.searchQuery.length > 0) {
+        tasks = this.filteredTasks
+      }
+      
+      return tasks
+    },
+    filteredTasks() {
+      return this.approvedTasks.filter(task => {
+        const search = this.searchQuery.toLowerCase()
+        return (
+          task.description.toLowerCase().includes(search) ||
+          task.sector_division.toLowerCase().includes(search) ||
+          this.processActionContent(task.action_to_be_taken).toLowerCase().includes(search)
+        )
+      })
+    },
+    hasActiveFilters() {
+      return this.filters.reviewDate !== 'all' || 
+             (this.filters.reviewDate === 'custom' && this.filters.customDate)
+    },
+    activeFiltersCount() {
+      let count = 0
+      if (this.filters.reviewDate !== 'all') count++
+      return count
     }
   },
 
@@ -97,10 +304,14 @@ export default {
   mounted() {
     // Re-apply scaling on window resize
     window.addEventListener('resize', this.handleResize)
+    
+    // Add click outside handler for filter dropdown
+    document.addEventListener('click', this.handleClickOutside)
   },
 
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
+    document.removeEventListener('click', this.handleClickOutside)
   },
 
   methods: {
@@ -112,6 +323,9 @@ export default {
           }
         })
         
+        // Debug: Log the actual data received
+        console.log('Raw approved tasks data:', response.data.tasks)
+        
         // Sort tasks by review_date (earliest first)
         const sortTasksByReviewDate = (tasks) => {
           return tasks.sort((a, b) => {
@@ -122,6 +336,15 @@ export default {
         }
 
         this.approvedTasks = sortTasksByReviewDate(response.data.tasks)
+        
+        // Debug: Log processed tasks with review dates
+        console.log('Processed approved tasks with review dates:', this.approvedTasks.map(task => ({
+          id: task.id,
+          description: task.description,
+          review_date: task.review_date,
+          review_date_type: typeof task.review_date,
+          review_date_parsed: task.review_date ? new Date(task.review_date) : null
+        })))
         
         // Apply auto-scaling after tasks are loaded
         this.$nextTick(() => {
@@ -252,6 +475,7 @@ export default {
 
     async downloadPDF() {
       this.pdfVisible = true
+      this.pdfMode = true
       
       try {
         await this.$nextTick()
@@ -292,12 +516,13 @@ export default {
               body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
               .dashboard-container { max-width: 1200px; margin: 0 auto; }
               table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 11px; }
+              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 11px; vertical-align: middle !important; }
               th { background-color: #f5f5f5; font-weight: bold; }
               .table-headers th { background-color: #4a90e2; color: white; }
               .status-approved { background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; }
               .action-content-cell { max-width: 300px; word-wrap: break-word; }
               .list-marker { font-weight: bold; margin-right: 5px; }
+              .yellow-bg-bold { background: #ffeb3b !important; font-weight: bold !important; border-radius: 4px; padding: 2px 6px; display: inline-block; vertical-align: middle; }
             </style>
           </head>
           <body class="pdf-capture-mode">
@@ -363,6 +588,7 @@ export default {
         console.error('PDF generation failed:', error)
       } finally {
         this.pdfVisible = false
+        this.pdfMode = false
       }
     },
 
@@ -384,6 +610,202 @@ export default {
         completed: 'Completed'
       }
       return statusMap[status] || status
+    },
+
+    getHighlightClass(reviewDate) {
+      const today = new Date();
+      const review = reviewDate ? new Date(reviewDate) : null;
+      const isToday = review && review.getFullYear() === today.getFullYear() && review.getMonth() === today.getMonth() && review.getDate() === today.getDate();
+      return ['yellow-bg-bold', isToday ? 'red-text' : 'black-text'];
+    },
+
+    handleSearchInput() {
+      this.generateSearchSuggestions()
+      this.calculateSearchStats()
+    },
+
+    handleSearchBlur() {
+      // Delay hiding suggestions to allow for clicks
+      setTimeout(() => {
+        this.showSearchSuggestions = false
+      }, 200)
+    },
+
+    clearSearch() {
+      this.searchQuery = ''
+      this.searchSuggestions = []
+      this.searchStats = null
+      this.showSearchSuggestions = false
+    },
+
+    selectSuggestion(suggestion) {
+      this.searchQuery = suggestion.text
+      this.showSearchSuggestions = false
+      this.$nextTick(() => {
+        // Find and highlight the task
+        const taskElement = document.querySelector(`[data-task-id="${suggestion.taskId}"]`)
+        if (taskElement) {
+          taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          taskElement.classList.add('highlight-animation')
+          setTimeout(() => {
+            taskElement.classList.remove('highlight-animation')
+          }, 2000)
+        }
+      })
+    },
+
+    generateSearchSuggestions() {
+      if (this.searchQuery.length < 2) {
+        this.searchSuggestions = []
+        return
+      }
+
+      const suggestions = []
+      const search = this.searchQuery.toLowerCase()
+
+      this.approvedTasks.forEach(task => {
+        // Description suggestions
+        if (task.description.toLowerCase().includes(search)) {
+          suggestions.push({
+            id: `desc-${task.id}`,
+            text: task.description,
+            type: 'Description',
+            context: task.sector_division,
+            taskId: task.id
+          })
+        }
+
+        // Sector suggestions
+        if (task.sector_division.toLowerCase().includes(search)) {
+          suggestions.push({
+            id: `sector-${task.id}`,
+            text: task.sector_division,
+            type: 'Sector',
+            context: task.description.substring(0, 50) + '...',
+            taskId: task.id
+          })
+        }
+
+        // Action content suggestions (first 100 chars)
+        const actionContent = this.processActionContent(task.action_to_be_taken)
+        if (actionContent.toLowerCase().includes(search)) {
+          const matchIndex = actionContent.toLowerCase().indexOf(search)
+          const start = Math.max(0, matchIndex - 20)
+          const end = Math.min(actionContent.length, matchIndex + search.length + 20)
+          const snippet = actionContent.substring(start, end)
+          
+          suggestions.push({
+            id: `action-${task.id}`,
+            text: snippet,
+            type: 'Action',
+            context: task.description,
+            taskId: task.id
+          })
+        }
+      })
+
+      // Limit suggestions and remove duplicates
+      this.searchSuggestions = suggestions
+        .filter((suggestion, index, self) => 
+          index === self.findIndex(s => s.id === suggestion.id)
+        )
+        .slice(0, 8)
+    },
+
+    calculateSearchStats() {
+      if (this.searchQuery.length === 0) {
+        this.searchStats = null
+        return
+      }
+
+      const search = this.searchQuery.toLowerCase()
+      let descriptionMatches = 0
+      let sectorMatches = 0
+      let actionMatches = 0
+
+      this.approvedTasks.forEach(task => {
+        if (task.description.toLowerCase().includes(search)) descriptionMatches++
+        if (task.sector_division.toLowerCase().includes(search)) sectorMatches++
+        if (this.processActionContent(task.action_to_be_taken).toLowerCase().includes(search)) actionMatches++
+      })
+
+      this.searchStats = {
+        descriptionMatches,
+        sectorMatches,
+        actionMatches
+      }
+    },
+
+    isTaskInSearchResults(taskId) {
+      return this.filteredTasks.some(task => task.id === taskId)
+    },
+
+    getDisplayIndex(index) {
+      return index + 1
+    },
+
+    toggleFilterDropdown() {
+      this.showFilterDropdown = !this.showFilterDropdown
+    },
+
+    applyFilters() {
+      // This method is called when filter options change
+      // The actual filtering is handled in computed properties
+    },
+
+    clearAllFilters() {
+      this.filters.reviewDate = 'all'
+      this.filters.customDate = ''
+    },
+
+    closeFilterDropdown() {
+      this.showFilterDropdown = false
+    },
+
+    applyFiltersToTasks(tasks) {
+      return tasks.filter(task => {
+        if (this.filters.reviewDate !== 'all') {
+          const taskReviewDate = task.review_date ? new Date(task.review_date) : null
+          if (!taskReviewDate) return false
+
+          // Use the same logic as TentativeDashboard - compare local dates
+          const taskDate = new Date(task.review_date)
+          taskDate.setHours(0, 0, 0, 0)
+          
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+
+          switch (this.filters.reviewDate) {
+            case 'today':
+              return taskDate.getTime() === today.getTime()
+            case 'yesterday': {
+              const yesterday = new Date(today)
+              yesterday.setDate(today.getDate() - 1)
+              return taskDate.getTime() === yesterday.getTime()
+            }
+            case 'tomorrow': {
+              const tomorrow = new Date(today)
+              tomorrow.setDate(today.getDate() + 1)
+              return taskDate.getTime() === tomorrow.getTime()
+            }
+            case 'custom':
+              if (!this.filters.customDate) return false
+              const customDate = new Date(this.filters.customDate)
+              customDate.setHours(0, 0, 0, 0)
+              return taskDate.getTime() === customDate.getTime()
+            default:
+              return true
+          }
+        }
+        return true
+      })
+    },
+
+    handleClickOutside(event) {
+      const filterContainer = event.target.closest('.filter-container')
+      if (!filterContainer && this.showFilterDropdown) {
+        this.showFilterDropdown = false
+      }
     }
   }
 }
@@ -400,30 +822,258 @@ export default {
   min-height: calc(100vh - 4rem);
 }
 
-/* Compact Right-Aligned Actions */
+/* Search Actions Row Layout */
+.search-actions-row {
+  display: flex;
+  align-items: stretch;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  position: relative;
+}
+
+.search-wrapper {
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-actions-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .search-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .dashboard-actions-inline {
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+}
+
+/* Search System Styles */
+.search-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.search-wrapper:focus-within {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05);
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.search-input-group {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.search-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #6b7280;
+  margin-right: 0.75rem;
+  transition: color 0.2s ease;
+}
+
+.search-wrapper:focus-within .search-icon {
+  color: #3b82f6;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 1rem;
+  color: #1f2937;
+  padding: 0.5rem 0;
+  font-weight: 500;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.search-input.has-results {
+  color: #059669;
+  font-weight: 600;
+}
+
+.clear-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.clear-search-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: scale(1.1);
+}
+
+.search-results-info {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.results-count {
+  font-weight: 600;
+  color: #1e40af;
+  background: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.search-stats {
+  color: #4b5563;
+  font-size: 0.8125rem;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #f8fafc;
+  transform: translateX(4px);
+}
+
+.suggestion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-meta {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-icon {
+  color: #9ca3af;
+  margin-left: 0.75rem;
+  transition: color 0.2s ease;
+}
+
+.suggestion-item:hover .suggestion-icon {
+  color: #3b82f6;
+}
+
+/* Search Highlight Animation */
+.search-highlight {
+  animation: searchHighlight 0.5s ease-in-out;
+}
+
+@keyframes searchHighlight {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(59, 130, 246, 0.1); }
+}
+
+.highlight-animation {
+  animation: taskHighlight 2s ease-in-out;
+}
+
+@keyframes taskHighlight {
+  0%, 100% { background-color: transparent; }
+  25%, 75% { background-color: rgba(59, 130, 246, 0.15); }
+}
+
+/* Legacy Actions (for backward compatibility) */
 .dashboard-actions {
   display: flex;
-  justify-content: flex-end; /* Changed from flex-start to flex-end */
+  justify-content: flex-end;
   align-items: center;
-  gap: 0.75rem; /* Reduced gap */
+  gap: 0.75rem;
   margin-bottom: 1.5rem;
-  /* Removed card styling - no background, padding, shadow, border */
+}
+
+/* Enhanced Filter Button Styles */
+.filter-container {
+  position: relative;
 }
 
 .filter-btn {
   display: flex;
   align-items: center;
-  gap: 6px; /* Reduced gap */
-  padding: 0.5rem 1rem; /* Reduced padding */
+  gap: 6px;
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 0.8rem; /* Reduced font size */
+  font-weight: 600;
+  font-size: 0.85rem;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
+  position: relative;
 }
 
 .filter-btn:hover {
@@ -432,20 +1082,191 @@ export default {
   box-shadow: 0 4px 8px rgba(30, 58, 138, 0.3);
 }
 
-.download-pdf-btn {
-  padding: 0.5rem 1rem; /* Reduced padding */
+.filter-btn.active {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  box-shadow: 0 4px 8px rgba(30, 58, 138, 0.4);
+}
+
+.filter-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  animation: badgePulse 0.3s ease-in-out;
+}
+
+@keyframes badgePulse {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 280px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  z-index: 50;
+  margin-top: 8px;
+  animation: dropdownSlide 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-section {
+  padding: 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.filter-section:last-child {
+  border-bottom: none;
+}
+
+.filter-section-title {
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.filter-option:hover {
+  background-color: #f9fafb;
+}
+
+.filter-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.filter-option-text {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.custom-date-picker {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.date-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #374151;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: #f9fafb;
+  border-top: 1px solid #f3f4f6;
+}
+
+.clear-filters-btn {
+  flex: 1;
+  padding: 0.75rem;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-filters-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.close-filter-btn {
+  flex: 1;
+  padding: 0.75rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-filter-btn:hover {
+  background: #2563eb;
+}
+
+.download-btn {
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 0.8rem; /* Reduced font size */
+  font-weight: 600;
+  font-size: 0.85rem;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
 }
 
-.download-pdf-btn:hover {
+.download-btn:hover {
   background: linear-gradient(135deg, #047857 0%, #059669 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
@@ -577,7 +1398,7 @@ export default {
 /* Action Content Styling - More Compact with Auto-scaling */
 .action-content-cell {
   text-align: left !important;
-  vertical-align: top !important;
+  vertical-align: top !important; /* Keep top for action content */
   padding: 0.75rem !important; /* Reduced padding */
   overflow: hidden !important; /* Prevent horizontal overflow */
   word-wrap: break-word;
@@ -587,6 +1408,13 @@ export default {
   box-sizing: border-box;
   /* Smooth transition for scaling */
   transition: transform 0.3s ease;
+}
+
+/* Specific vertical alignment for highlight columns */
+.original-date-cell,
+.responsibility-cell,
+.review-date-cell {
+  vertical-align: middle !important;
 }
 
 .action-content-cell ul, .action-content-cell ol {
@@ -669,30 +1497,30 @@ export default {
   color: #000 !important;
 }
 
-/* 📐 ENHANCED: Hierarchical indentation with deep selectors */
+/* 📐 ENHANCED: Hierarchical indentation with deep selectors - REDUCED SPACING! */
 .action-content-cell /deep/ .action-node.level-1 { 
   margin-left: 0 !important; 
   background-color: rgba(59, 130, 246, 0.02) !important;
 }
 .action-content-cell /deep/ .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .action-content-cell /deep/ .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell /deep/ .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell /deep/ .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
 /* 🎨 UNIFIED: List style colors with deep selectors */
@@ -748,30 +1576,30 @@ export default {
   font-weight: 600 !important;
 }
 
-/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility */
+/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility - REDUCED SPACING! */
 .action-content-cell >>> .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   /* border-left: 2px solid rgba(16, 185, 129, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .action-content-cell >>> .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell >>> .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
   /* border-left: 2px solid rgba(245, 158, 11, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-cell >>> .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
   /* border-left: 2px solid rgba(239, 68, 68, 0.3) !important; */
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
 /* Scaled content adjustments */
@@ -890,7 +1718,7 @@ export default {
   }
   
   .filter-btn,
-  .download-pdf-btn {
+  .download-btn {
     justify-content: center;
     padding: 0.6rem 1rem; /* Slightly larger on mobile for touch */
     font-size: 0.85rem;
@@ -970,5 +1798,68 @@ export default {
   min-width: 400px !important; /* Force minimum width for action column */
   width: 55% !important;
   max-width: none !important;
+}
+
+.yellow-bg-bold {
+  background: #ffeb3b !important;
+  font-weight: bold !important;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.red-text {
+  color: #d32f2f !important;
+}
+.black-text {
+  color: #222 !important;
+}
+.review-date-cell, .responsibility-cell {
+  text-align: center !important;
+}
+</style>
+
+<style>
+.pdf-capture-mode .yellow-bg-bold {
+  background: #ffeb3b !important;
+  font-weight: bold !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+.pdf-capture-mode .red-text {
+  color: #d32f2f !important;
+}
+.pdf-capture-mode .black-text {
+  color: #222 !important;
+}
+
+/* Ensure bold styling for S.No, Sector/Division, and Description columns in PDF */
+.pdf-capture-mode td:nth-child(1) strong,
+.pdf-capture-mode td:nth-child(2) strong,
+.pdf-capture-mode td:nth-child(3) strong {
+  font-weight: bold !important;
+}
+
+/* PDF-specific: Remove all vertical gap between lines in action content for testing */
+.pdf-capture-mode .action-content-cell *,
+.pdf-capture-mode .action-node,
+.pdf-capture-mode .action-node * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.1 !important;
+}
+
+.pdf-capture-mode p,
+.pdf-capture-mode li,
+.pdf-capture-mode div {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.1 !important;
 }
 </style>

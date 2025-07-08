@@ -9,7 +9,7 @@
               </div>
       <div class="govt-title">
         <h1>Task Management Dashboard</h1>
-        <p class="dept-subtitle">North East Development Authority</p>
+        <p class="dept-subtitle">Ministry of Development of North Eastern Region</p>
                     </div>
       <div class="today-date">
         <div class="date-display">{{ getCurrentDate() }}</div>
@@ -1318,34 +1318,34 @@ export default {
   color: #000 !important;
 }
 
-/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS */
+/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS - REDUCED SPACING! */
 .action-content-display /deep/ .action-node.level-1 { 
   margin-left: 0px !important; 
   /* background-color: rgba(59, 130, 246, 0.02) !important; */
 }
 .action-content-display /deep/ .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .action-content-display /deep/ .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
   border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-display /deep/ .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-display /deep/ .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
   border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
 /* 🎨 UNIFIED: List style colors with DEEP SELECTORS */
@@ -1400,56 +1400,56 @@ export default {
   font-weight: 600 !important;
 }
 
-/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility */
+/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility - REDUCED SPACING! */
 .action-content-display >>> .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .action-content-display >>> .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
   border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-display >>> .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .action-content-display >>> .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
   border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
-/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely */
+/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely - REDUCED SPACING! */
 .task-modal .action-content-display .action-node.level-2 { 
-  margin-left: 40px !important; 
+  margin-left: 20px !important; 
   /* background-color: rgba(16, 185, 129, 0.02) !important; */
   border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 4px !important;
 }
 .task-modal .action-content-display .action-node.level-3 { 
-  margin-left: 80px !important; 
+  margin-left: 40px !important; 
   /* background-color: rgba(139, 92, 246, 0.02) !important; */
   border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .task-modal .action-content-display .action-node.level-4 { 
-  margin-left: 120px !important; 
+  margin-left: 60px !important; 
   /* background-color: rgba(245, 158, 11, 0.02) !important; */
   border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 .task-modal .action-content-display .action-node.level-5 { 
-  margin-left: 160px !important; 
+  margin-left: 80px !important; 
   /* background-color: rgba(239, 68, 68, 0.02) !important; */
   border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 8px !important;
+  padding-left: 6px !important;
 }
 
 /* --- Modern Glassmorphism Card for .chart-container --- */

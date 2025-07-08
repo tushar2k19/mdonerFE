@@ -12,7 +12,8 @@ export default {
       email: '',
       password: '',
       error: '',
-      ENCRYPTION_KEY: 'f1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6'
+      ENCRYPTION_KEY: 'f1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6',
+      showPassword: false // <-- Add for eye icon
     }
   },
   created: function () {
@@ -99,6 +100,9 @@ export default {
       this.password = ''
       this.email = ''
       delete localStorage.signedIn
+    },
+    togglePassword() {
+      this.showPassword = !this.showPassword
     }
   }
 }
@@ -132,7 +136,7 @@ export default {
             </div>
 
             <div class="form-group">
-              <div class="input-wrapper">
+              <div class="input-wrapper modern-input">
                 <span class="input-icon">✉</span>
                 <input
                   type="email"
@@ -141,22 +145,27 @@ export default {
                   placeholder="Email"
                   @input="clearError"
                   required
+                  autocomplete="username"
                 >
               </div>
             </div>
 
             <div class="form-group">
-              <div class="input-wrapper">
+              <div class="input-wrapper modern-input">
                 <span class="input-icon">🔒</span>
                 <input
-                  type="password"
+                  :type="showPassword ? 'text' : 'password'"
                   id="password"
                   v-model="password"
                   placeholder="Password"
                   @input="clearError"
                   required
+                  autocomplete="current-password"
                 >
-                <span class="password-toggle">👁</span>
+                <span class="password-toggle" @click="togglePassword" :title="showPassword ? 'Hide' : 'Show'">
+                  <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"><path stroke="#666" stroke-width="2" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3.5" stroke="#666" stroke-width="2"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"><path stroke="#666" stroke-width="2" d="M17.94 17.94A10.97 10.97 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-6.06M9.88 9.88A3.5 3.5 0 0 1 12 8.5c1.93 0 3.5 1.57 3.5 3.5 0 .7-.21 1.36-.57 1.9M1 1l22 22"/></svg>
+                </span>
               </div>
             </div>
 
@@ -302,6 +311,60 @@ export default {
 .input-wrapper {
   position: relative;
   width: 100%;
+}
+
+.input-wrapper.modern-input {
+  background: #f4f8fb;
+  border-radius: 10px;
+  border: 1.5px solid #e0e7ef;
+  box-shadow: 0 2px 8px rgba(30,64,175,0.04);
+  transition: border 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  position: relative;
+  margin-bottom: 0;
+}
+.input-wrapper.modern-input:focus-within {
+  border: 1.5px solid #1e3a8a;
+  box-shadow: 0 0 0 2px #1e3a8a22;
+  background: #fff;
+}
+.input-wrapper.modern-input input {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding-left: 2.5em;
+  padding-right: 2.5em;
+  font-size: 1.05em;
+  color: #1e293b;
+  font-weight: 500;
+  height: 48px;
+  border-radius: 10px;
+  outline: none;
+  transition: background 0.2s;
+}
+.input-wrapper.modern-input input:focus {
+  background: #fff;
+}
+.input-wrapper .input-icon {
+  left: 1em;
+  color: #1e3a8a;
+  font-size: 1.2em;
+}
+.input-wrapper .password-toggle {
+  right: 1em;
+  color: #1e3a8a;
+  font-size: 1.2em;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+.input-wrapper .password-toggle svg {
+  display: block;
+}
+.input-wrapper .password-toggle:active {
+  color: #fbbf24;
 }
 
 .input-icon {

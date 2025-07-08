@@ -56,12 +56,12 @@ export default {
     return {
       navigationRoutes: [
         { path: '/', label: 'Home' },
-        { path: '/daily-dashboard', label: 'Daily Dashboard' },
-        { path: '/tentative', label: 'Illustrative Dashboard', requiresEditor: true },
+        // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+        { path: '/tentative', label: 'Editor Dashboard', requiresEditor: true }, // Renamed from 'Illustrative Dashboard'
         { path: '/final', label: 'Full Dashboard' },
-        { path: '/completed-tasks', label: 'Completed Tasks', requiresEditor: true },
+        // { path: '/completed-tasks', label: 'Completed Tasks', requiresEditor: true }, // COMMENTED OUT
         { path: '/review-tasks', label: 'Review Tasks' },
-        { path: '/system-logs', label: 'System Logs', requiresEditor: true }
+        // { path: '/system-logs', label: 'System Logs', requiresEditor: true } // COMMENTED OUT
       ]
     }
   },
@@ -90,12 +90,30 @@ export default {
     },
     
     filteredNavigationRoutes () {
-      return this.navigationRoutes.filter(route => {
-        if (route.requiresEditor) {
-          return this.userRole === 'editor'
-        }
-        return true
-      })
+      // Custom logic for editor and reviewer roles
+      if (this.userRole === 'editor') {
+        return [
+          { path: '/', label: 'Home' },
+          // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+          { path: '/tentative', label: 'Editor Dashboard' },
+          { path: '/final', label: 'Full Dashboard' },
+          // { path: '/completed-tasks', label: 'Completed Tasks' }, // COMMENTED OUT
+          { path: '/review-tasks', label: 'Review Tasks' },
+          // { path: '/system-logs', label: 'System Logs' } // COMMENTED OUT
+        ]
+      } else if (this.userRole === 'reviewer') {
+        return [
+          { path: '/', label: 'Home' },
+          // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+          { path: '/final', label: 'Full Dashboard' },
+          { path: '/review-tasks', label: 'Review Tasks' }
+        ]
+      } else {
+        // Default: show only Home
+        return [
+          { path: '/', label: 'Home' }
+        ]
+      }
     }
   },
   methods: {
@@ -116,11 +134,12 @@ export default {
 
 <style scoped>
 .header {
-  background: white;
-  border-bottom: 1px solid #E5E7EB;
+  background: #fff;
+  border-bottom: 3px solid #1e3a8a;
   position: sticky;
   top: 0;
   z-index: 1000;
+  box-shadow: 0 2px 8px rgba(30,64,175,0.04);
 }
 
 .header-container {
@@ -130,72 +149,115 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: white;
+  background: #fff;
 }
 
 .logo-section {
   display: flex;
   align-items: center;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-right: 2rem;
+  position: relative;
+  overflow: visible;
 }
 
 .govt-logo {
-  font-size: 28px;  /* Increased from 24px to 28px */
-  font-weight: 700;
   display: flex;
   align-items: center;
-  line-height: 1;  /* Added to improve vertical alignment */
-  letter-spacing: -0.5px;  /* Added to improve text spacing */
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #1e3a8a;
+  background: none;
+  filter: none;
+  text-shadow: none;
+  position: relative;
 }
 
 .ne {
-  color: #0066FF;
-  font-weight: bolder;
-  font-size: 40px;
-
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 1.9em;
+  border-radius: 90%;
+  background: #1e3a8a;
+  color: #fff;
+  font-size: 0.6em;
+  font-weight: 900;
+  margin-right: 0.15em;
+  box-shadow: 0 2px 8px rgba(30,64,175,0.08);
+  border: 2.5px solid #fbbf24;
+  letter-spacing: 0.01em;
+  padding: 6px 12px;
+  color:#fbbf24
 }
 
 .volve {
-  color: #009951;
-  font-weight: bolder;
-  font-size: 40px;
+  font-size: 0.9em;
+  font-weight: 800;
+  color: #059669;
+  letter-spacing: 0.01em;
+  background: none;
+  text-shadow: none;
+}
+
+/* Simple underline for logo for authority */
+.govt-logo::after {
+  content: '';
+  display: block;
+  height: 5px;
+  width: 80%;
+  margin: 0.18em auto 0 auto;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #fbbf24 0%, #fff 100%);
+  opacity: 0.7;
 }
 
 .nav-center {
   display: flex;
   gap: 8px;
   align-items: center;
-  background: white;
-  padding: 4px;
-  border-radius: 8px;
+  background: none;
+  padding: 0;
+  border-radius: 0;
 }
 
 .nav-link {
   text-decoration: none;
-  color: #1F2937;
-  font-weight: 500;
-  padding: 8px 16px;
+  color: #1e3a8a;
+  font-weight: 600;
+  padding: 8px 18px;
   border-radius: 20px;
   height: 36px;
   min-width: fit-content;
-  transition: all 0.2s ease;
+  transition: all 0.18s;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 15px;
   border: none;
+  background: #f8fafc;
 }
 
 .nav-link:not(.active) {
-  background: #F0F3FF;
+  background: #f8fafc;
+  color: #1e3a8a;
 }
 
 .nav-link:hover:not(.active) {
-  background: #E8F0FE;
+  background: #fbbf24;
+  color: #1e3a8a;
 }
 
 .nav-link.active {
-  background: #0066FF;
-  color: white;
+  background: #1e3a8a;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(30,64,175,0.08);
 }
 
 .nav-right {
@@ -213,53 +275,59 @@ export default {
 .btn-auth {
   height: 36px;
   padding: 8px 16px;
-  background: white;
-  border: 1px solid #E5E7EB;
+  background: #fff;
+  border: 1.5px solid #1e3a8a;
   border-radius: 6px;
   text-decoration: none;
-  color: #1F2937;
+  color: #1e3a8a;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  transition: background 0.18s, color 0.18s, border 0.18s;
 }
 
 .btn-auth:hover {
-  background: #F9FAFB;
+  background: #fbbf24;
+  color: #1e3a8a;
+  border-color: #fbbf24;
 }
 
 .logout-icon {
   font-size: 16px;
-  color: #1F2937;
+  color: #1e3a8a;
 }
 
 @media (max-width: 768px) {
   .header-container {
     padding: 0.5rem 1rem;
   }
-
   .nav-center {
-    gap: 6px;
+    gap: 4px;
   }
-
   .nav-link {
-    padding: 6px 12px;
+    padding: 6px 10px;
     font-size: 13px;
   }
-
-  .govt-logo {
-    font-size: 24px;  /* Adjusted mobile size */
+  .logo-section {
+    margin-right: 0.7rem;
   }
-
+  .govt-logo, .ne, .volve {
+    font-size: 1.1rem;
+  }
+  .ne {
+    width: 1.5em;
+    height: 1.5em;
+    font-size: 1em;
+  }
   .nav-right {
     gap: 1rem;
   }
-
   .btn-auth {
-    padding: 6px 12px;
+    padding: 6px 10px;
     font-size: 13px;
   }
 }
