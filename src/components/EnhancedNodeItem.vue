@@ -1,6 +1,7 @@
 <template>
   <div class="enhanced-node-item" :id="'action-node-' + node.id" :class="[
     { 'completed': node.completed },
+    { 'has-reviewer': node.reviewer_id },
     showDiff ? `diff-${node.diff_status || 'unchanged'}` : '',
     { 'dragging': isDragging, 'drag-over': isDragOver }
   ]" :draggable="!readonly" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
@@ -94,6 +95,7 @@
               @keyup="onContentChange"
               @contextmenu="handleTableContextMenu"
               class="rich-editor"
+              data-placeholder="Enter content..."
             ></div>
 
             <!-- Table Context Menu -->
@@ -228,8 +230,20 @@
               <button @click="deleteNode" class="action-item delete-item">
                 🗑 Delete
               </button>
+              <button @click="openReviewerModal" class="action-item">
+                <span v-if="!node.reviewer_id">👤 Assign Reviewer</span>
+                <span v-else>👤 Change Reviewer</span>
+              </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Reviewer Hover Display -->
+      <div v-if="node.reviewer_name" class="reviewer-hover-badge" @mouseenter="showReviewerHover = true" @mouseleave="showReviewerHover = false">
+        <span class="reviewer-badge">👤 {{ node.reviewer_name }}</span>
+        <div v-if="showReviewerHover" class="reviewer-hover-popup">
+          Reviewer: {{ node.reviewer_name }}
         </div>
       </div>
     </div>
@@ -244,6 +258,7 @@
         :show-diff="showDiff"
         :diff-data="diffData"
         :readonly="readonly"
+        :task-version-id="taskVersionId"
         @update-node="$emit('update-node', $event, arguments[1])"
         @delete-node="$emit('delete-node', $event)"
         @add-subpoint="$emit('add-subpoint', $event)"
@@ -271,6 +286,27 @@
         <div class="table-modal-actions">
           <button @click="closeTableModal" class="btn btn-secondary">Cancel</button>
           <button @click="createTableAtLevel" class="btn btn-primary">Create Table</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reviewer Modal -->
+    <div v-if="showReviewerModal" class="reviewer-modal-overlay" @click.self="closeReviewerModal">
+      <div class="reviewer-modal" @click.stop>
+        <h4>{{ node.reviewer_id ? 'Change Reviewer' : 'Assign Reviewer' }}</h4>
+        <div v-if="loadingReviewers" class="reviewer-loading">Loading reviewers...</div>
+        <div v-else>
+          <select v-model="selectedReviewerId" class="reviewer-select">
+            <option value="">-- Select Reviewer --</option>
+            <option v-for="reviewer in reviewers" :key="reviewer.id" :value="reviewer.id">
+              {{ reviewer.name }}
+            </option>
+          </select>
+          <div class="reviewer-modal-actions">
+            <button @click="closeReviewerModal" class="btn btn-secondary">Cancel</button>
+            <button @click="assignReviewer" class="btn btn-primary" :disabled="!selectedReviewerId">Assign</button>
+            <button v-if="node.reviewer_id" @click="removeReviewer" class="btn btn-danger">Remove Reviewer</button>
+          </div>
         </div>
       </div>
     </div>
@@ -305,6 +341,10 @@ export default {
     readonly: {
       type: Boolean,
       default: false
+    },
+    taskVersionId: {
+      type: [Number, String],
+      required: true
     }
   },
 
@@ -340,7 +380,12 @@ export default {
         { name: 'Light Gray', value: '#f8f9fa' },
         { name: 'Light Cyan', value: '#d1f2eb' },
         { name: 'Light Salmon', value: '#ffcccb' }
-      ]
+      ],
+      showReviewerModal: false,
+      reviewers: [],
+      selectedReviewerId: '',
+      loadingReviewers: false,
+      showReviewerHover: false
     }
   },
 
@@ -425,22 +470,19 @@ export default {
 
   methods: {
     startEdit () {
+      if (this.readonly) return
+      
       this.isEditing = true
-      this.editContent = this.node.content || '<p>Enter content...</p>'
-      this.originalContent = this.node.content || ''
-
+      this.editContent = this.node.content
+      
+      // Set up rich editor after DOM update
       this.$nextTick(() => {
         if (this.$refs.richEditor) {
-          this.$refs.richEditor.innerHTML = this.editContent
+          this.$refs.richEditor.innerHTML = this.node.content || ''
           this.$refs.richEditor.focus()
-
-          // Put cursor at the end
-          const range = document.createRange()
-          const sel = window.getSelection()
-          range.selectNodeContents(this.$refs.richEditor)
-          range.collapse(false)
-          sel.removeAllRanges()
-          sel.addRange(range)
+          
+          // Set default font size to 10pt (size 2)
+          document.execCommand('fontSize', false, '2')
         }
       })
     },
@@ -1040,6 +1082,59 @@ export default {
       } catch (error) {
         console.error('Error processing drop:', error)
       }
+    },
+
+    openReviewerModal () {
+      this.showReviewerModal = true
+      this.selectedReviewerId = this.node.reviewer_id || ''
+      this.fetchReviewers()
+      this.showActionDropdown = false
+    },
+    closeReviewerModal () {
+      this.showReviewerModal = false
+      this.selectedReviewerId = ''
+    },
+    async fetchReviewers () {
+      this.loadingReviewers = true
+      try {
+        const response = await this.$http.secured.get('/users/reviewers')
+        this.reviewers = response.data
+      } catch (error) {
+        this.$toast && this.$toast.error('Failed to load reviewers')
+      } finally {
+        this.loadingReviewers = false
+      }
+    },
+    async assignReviewer () {
+      if (!this.selectedReviewerId) return
+      try {
+        const response = await this.$http.secured.put(`/task_versions/${this.taskVersionId}/nodes/${this.node.id}`, {
+          action_node: { reviewer_id: this.selectedReviewerId }
+        })
+        const updatedNodeData = response.data.data
+        this.$emit('update-node', this.node.id, {
+          reviewer_id: updatedNodeData.reviewer_id,
+          reviewer_name: updatedNodeData.reviewer_name
+        })
+        this.closeReviewerModal()
+      } catch (error) {
+        this.$toast && this.$toast.error('Failed to assign reviewer')
+      }
+    },
+    async removeReviewer () {
+      try {
+        const response = await this.$http.secured.put(`/task_versions/${this.taskVersionId}/nodes/${this.node.id}`, {
+          action_node: { reviewer_id: null }
+        })
+        const updatedNodeData = response.data.data
+        this.$emit('update-node', this.node.id, {
+          reviewer_id: updatedNodeData.reviewer_id,
+          reviewer_name: updatedNodeData.reviewer_name
+        })
+        this.closeReviewerModal()
+      } catch (error) {
+        this.$toast && this.$toast.error('Failed to remove reviewer')
+      }
     }
   }
 }
@@ -1066,6 +1161,11 @@ export default {
 .enhanced-node-item.completed .node-marker {
   color: #10b981;
   font-weight: 600;
+}
+
+.enhanced-node-item.has-reviewer .node-content {
+  background-color: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .node-content {
@@ -1137,8 +1237,8 @@ export default {
   display: table !important;
   visibility: visible !important;
   /* Temporary debug styles to make tables super obvious */
-  border: 3px solid red !important;
-  background-color: yellow !important;
+  /* border: 3px solid red !important; */
+  /* background-color: yellow !important; */
 }
 
 .rich-text-display /deep/ table th,
@@ -1155,9 +1255,9 @@ export default {
 
 .rich-text-display /deep/ table th,
 .rich-text-display >>> table th {
-  background-color: #ff0000 !important;
+  /* background-color: #ff0000 !important; */
   font-weight: 600 !important;
-  color: white !important;
+  color: black !important;
 }
 
 .rich-text-display /deep/ table thead,
@@ -1513,7 +1613,7 @@ export default {
 
 .form-input:focus {
   outline: none;
-  border-color: #3b82f6;
+  /* border-color: #3b82f6; */
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -1803,5 +1903,90 @@ export default {
 .enhanced-node-item[draggable="true"]:hover {
   border-left: 3px solid #3b82f6;
   background-color: rgba(59, 130, 246, 0.05);
+}
+
+.reviewer-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.reviewer-modal {
+  background: white;
+  border-radius: 10px;
+  padding: 2rem;
+  min-width: 320px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.reviewer-select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  margin-bottom: 1rem;
+}
+.reviewer-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+.btn-danger:hover {
+  background: #dc2626;
+}
+.reviewer-hover-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.reviewer-badge {
+  background: #ffeb3b;
+  color: black;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-left: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reviewer-hover-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: #374151;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9em;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  white-space: nowrap;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+.reviewer-hover-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #374151 transparent transparent transparent;
+}
+
+/* Add placeholder styles */
+.rich-editor[contenteditable="true"]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  font-style: italic;
 }
 </style>

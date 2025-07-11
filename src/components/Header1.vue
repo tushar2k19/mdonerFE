@@ -182,12 +182,12 @@ export default {
   align-items: center;
   justify-content: center;
   width: 2em;
-  height: 1.9em;
+  height: 1.8em;
   border-radius: 90%;
   background: #1e3a8a;
   color: #fff;
   font-size: 0.6em;
-  font-weight: 900;
+  font-weight: 800;
   margin-right: 0.15em;
   box-shadow: 0 2px 8px rgba(30,64,175,0.08);
   border: 2.5px solid #fbbf24;
@@ -199,10 +199,11 @@ export default {
 .volve {
   font-size: 0.9em;
   font-weight: 800;
-  color: #059669;
+  color: #1dc13b;
   letter-spacing: 0.01em;
   background: none;
-  text-shadow: none;
+  text-shadow:#056b0c;
+  
 }
 
 /* Simple underline for logo for authority */

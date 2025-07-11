@@ -52,6 +52,7 @@
         :show-diff="showDiff"
         :diff-data="diffData"
         :readonly="readonly"
+        :task-version-id="taskVersionId"
         @update-node="updateNode"
         @delete-node="deleteNode"
         @add-subpoint="addSubpoint"
@@ -195,7 +196,7 @@ export default {
 
     addNode(listStyle = 'decimal') {
       const newNode = this.createNode({
-        content: '<p>Enter content...</p>',
+        content: '',
         level: 1,
         list_style: listStyle,
         node_type: 'rich_text', // All nodes support mixed content now
@@ -215,7 +216,7 @@ export default {
       const newListStyle = this.getListStyleForLevel(newLevel)
       
       const newNode = this.createNode({
-        content: '<p>Enter content...</p>',
+        content: '',
         level: newLevel,
         list_style: newListStyle,
         node_type: 'rich_text', // Support mixed content
@@ -235,7 +236,7 @@ export default {
 
     addPointSameLevel(targetNode, siblings, index) {
       const newNode = this.createNode({
-        content: '<p>Enter content...</p>',
+        content: '',
         level: targetNode.level,
         list_style: targetNode.list_style,
         node_type: 'rich_text', // Support mixed content
@@ -289,7 +290,7 @@ export default {
 
       // Create new node at parent level (one level up from current node)
       const newNode = this.createNode({
-        content: '<p>New parent level point...</p>',
+        content: '',
         level: parentLevel,
         list_style: parentListStyle,
         node_type: 'rich_text',
@@ -452,7 +453,7 @@ export default {
     createNode(nodeData) {
       return {
         id: this.nextTempId--,
-        content: nodeData.content || '<p>Enter content...</p>',
+        content: nodeData.content || '',
         level: nodeData.level || 1,
         list_style: nodeData.list_style || 'decimal',
         node_type: nodeData.node_type || 'rich_text', // Default to rich_text for mixed content support

@@ -307,14 +307,206 @@ export default {
     
     // Add click outside handler for filter dropdown
     document.addEventListener('click', this.handleClickOutside)
+
+    // Position reviewer badges after mount and initial render
+    this.$nextTick(() => {
+      // Wait for DOM to be fully updated
+      setTimeout(() => {
+        this.displayTasks.forEach(task => {
+          this.positionReviewerBadges(task.id);
+        });
+      }, 100);
+    });
+
+    // Add scroll event listener with debounce
+    this.handleScroll = this.debounce(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    }, 100);
+    
+    window.addEventListener('scroll', this.handleScroll);
+    
+    // Add resize observer for dynamic content changes
+    this.resizeObserver = new ResizeObserver(this.debounce(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    }, 100));
+    
+    // Observe the action content cells
+    document.querySelectorAll('.action-content-cell').forEach(cell => {
+      this.resizeObserver.observe(cell);
+    });
   },
 
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
     document.removeEventListener('click', this.handleClickOutside)
+    window.removeEventListener('scroll', this.handleScroll)
+    
+    // Cleanup resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+    
+    // Clear any pending timeouts
+    if (this.menuHideTimeout) {
+      clearTimeout(this.menuHideTimeout)
+    }
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout)
+    }
+  },
+
+  updated() {
+    // Reposition badges when the component updates
+    this.$nextTick(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    });
   },
 
   methods: {
+    // Add toRoman helper method
+    toRoman(num) {
+      const roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+      return roman[num - 1] || num;
+    },
+
+    // Add parseActionNodes method
+    parseActionNodes(task) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(task.action_to_be_taken, 'text/html');
+      const actionNodes = doc.querySelectorAll('.action-node');
+      
+      return Array.from(actionNodes).map(node => {
+        const contentElement = node.querySelector('.node-content');
+        const content = contentElement && contentElement.textContent ? contentElement.textContent.trim() : '';
+        const hasReviewer = node.classList.contains('has-reviewer');
+        const reviewerName = hasReviewer ? node.getAttribute('data-reviewer-name') : null;
+        const offsetTop = node.offsetTop;
+        return { content, hasReviewer, reviewerName, offsetTop };
+      });
+    },
+
+    // Add positionReviewerBadges method
+    positionReviewerBadges(taskId) {
+      const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
+      if (!taskRow) return;
+
+      const actionCell = taskRow.querySelector('.action-content-cell');
+      const responsibilityCell = taskRow.querySelector('.responsibility-cell');
+      if (!actionCell || !responsibilityCell) return;
+
+      // Clear existing reviewer badges
+      const existingBadges = responsibilityCell.querySelectorAll('.reviewer-badge-parallel');
+      existingBadges.forEach(badge => badge.remove());
+
+      // Ensure responsibility cell has proper positioning
+      if (window.getComputedStyle(responsibilityCell).position !== 'relative') {
+        responsibilityCell.style.position = 'relative';
+      }
+
+      // Get all action nodes in this task
+      const actionNodes = actionCell.querySelectorAll('.action-node');
+      actionNodes.forEach(node => {
+        if (node.classList.contains('has-reviewer')) {
+          const reviewerName = node.dataset.reviewerName;
+          if (!reviewerName) return;
+
+          // Create reviewer badge
+          const badge = document.createElement('div');
+          badge.className = 'reviewer-badge-parallel yellow-bg-bold';
+          badge.textContent = reviewerName;
+
+          // Apply inline styles directly
+          Object.assign(badge.style, {
+            backgroundColor: '#ffeb3b',
+            fontWeight: 'bold',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            display: 'inline-block',
+            color: '#000000',
+            margin: '2px 0',
+            opacity: '1',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            zIndex: '10',
+            position: 'absolute',
+            left: '6px',
+            width: 'calc(100% - 12px)',
+            textAlign: 'left',
+            boxSizing: 'border-box'
+          });
+
+          // Get positions relative to the cells
+          const nodeRect = node.getBoundingClientRect();
+          const responsibilityCellRect = responsibilityCell.getBoundingClientRect();
+
+          // Calculate relative position
+          const topOffset = nodeRect.top - responsibilityCellRect.top;
+          badge.style.top = `${topOffset}px`;
+          
+          // Add hover effect to highlight connection
+          const nodeId = Math.random().toString(36).substr(2, 9);
+          node.dataset.nodeId = nodeId;
+          badge.dataset.nodeId = nodeId;
+          
+          // Add hover effects
+          badge.addEventListener('mouseenter', () => {
+            node.classList.add('highlight-connection');
+            badge.classList.add('highlight-connection');
+            // Add hover styles inline
+            badge.style.opacity = '0.9';
+            badge.style.transform = 'translateY(-1px)';
+            badge.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          });
+          
+          badge.addEventListener('mouseleave', () => {
+            node.classList.remove('highlight-connection');
+            badge.classList.remove('highlight-connection');
+            // Reset hover styles
+            badge.style.opacity = '1';
+            badge.style.transform = '';
+            badge.style.boxShadow = '';
+          });
+          
+          node.addEventListener('mouseenter', () => {
+            const relatedBadge = responsibilityCell.querySelector(`[data-node-id="${nodeId}"]`);
+            if (relatedBadge) {
+              node.classList.add('highlight-connection');
+              relatedBadge.classList.add('highlight-connection');
+            }
+          });
+          
+          node.addEventListener('mouseleave', () => {
+            const relatedBadge = responsibilityCell.querySelector(`[data-node-id="${nodeId}"]`);
+            if (relatedBadge) {
+              node.classList.remove('highlight-connection');
+              relatedBadge.classList.remove('highlight-connection');
+            }
+          });
+          
+          responsibilityCell.appendChild(badge);
+        }
+      });
+    },
+
+    // Add debounce utility method
+    debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    },
+
     async fetchApprovedTasks() {
       try {
         const response = await this.$http.secured.get('/tasks/approved', {
@@ -352,7 +544,7 @@ export default {
         })
       } catch (error) {
         console.error('Error fetching approved tasks:', error)
-        this.approvedTasks = []
+        this.$toast.error('Failed to fetch approved tasks')
       }
     },
 
@@ -450,21 +642,72 @@ export default {
             // Remove existing markers
             li.innerHTML = li.innerHTML.replace(/^(\s*)(•|\d+\.?)\s+/, '')
             
+            // Check for reviewer information before processing
+            const hasReviewer = li.textContent.includes('Reviewer:')
+            const reviewerMatch = hasReviewer ? li.textContent.match(/Reviewer:\s*([^,\n]+)/) : null
+            const reviewerName = reviewerMatch ? reviewerMatch[1].trim() : null
+            
             const marker = document.createElement('span')
             marker.className = 'list-marker'
             marker.style.width = '20px'
             marker.style.display = 'inline-block'
             
-            if (list.tagName === 'OL') {
-              marker.textContent = `${counter}. `
-              counter++
-            } else {
-              const bullets = ['•', '•', '•']
-              marker.textContent = `${bullets[depth % 3]} `
+            // Determine marker style based on depth
+            let markerText = ''
+            let markerStyle = ''
+            switch (depth % 4) {
+              case 0:
+                markerText = counter + '.'
+                markerStyle = 'decimal'
+                break
+              case 1:
+                markerText = String.fromCharCode(96 + counter)
+                markerStyle = 'lower-alpha'
+                break
+              case 2:
+                markerText = this.toRoman(counter).toLowerCase()
+                markerStyle = 'lower-roman'
+                break
+              case 3:
+                markerText = '•'
+                markerStyle = 'bullet'
+                break
             }
             
-            li.insertBefore(marker, li.firstChild)
-            if (li.querySelector('ul, ol')) processLists(li, depth + 1)
+            marker.textContent = markerText
+            
+            // Create action node wrapper
+            const actionNode = document.createElement('div')
+            actionNode.className = `action-node level-${depth + 1} style-${markerStyle}`
+            
+            // Add marker and content
+            const nodeMarker = document.createElement('div')
+            nodeMarker.className = 'node-marker'
+            nodeMarker.appendChild(marker)
+            
+            const nodeContent = document.createElement('div')
+            nodeContent.className = 'node-content'
+            nodeContent.innerHTML = li.innerHTML
+            
+            actionNode.appendChild(nodeMarker)
+            actionNode.appendChild(nodeContent)
+            
+            // Add reviewer information to action node if present
+            if (hasReviewer && reviewerName) {
+              actionNode.classList.add('has-reviewer')
+              actionNode.dataset.reviewerName = reviewerName
+            }
+            
+            li.innerHTML = ''
+            li.appendChild(actionNode)
+            
+            counter++
+            
+            // Process nested lists
+            const nestedLists = li.querySelectorAll(':scope > ul, :scope > ol')
+            if (nestedLists.length > 0) {
+              processLists(li, depth + 1)
+            }
           })
         })
       }
@@ -1332,16 +1575,13 @@ export default {
 }
 
 .table-row td {
-  padding: 0.75rem; /* Reduced from 1rem */
-  color: #495057;
-  font-size: 0.8rem; /* Reduced from 0.875rem */
-  vertical-align: middle;
-  line-height: 1.4;
-  white-space: normal;
-  word-break: break-word;
-  border-right: 1px solid #f8f9fa;
-  background: white;
-  overflow: hidden; /* Prevent cell overflow */
+  vertical-align: top !important;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: #1a202c;
+  background: #fff;
 }
 
 .table-row td:last-child {
@@ -1397,12 +1637,13 @@ export default {
 
 /* Action Content Styling - More Compact with Auto-scaling */
 .action-content-cell {
-  text-align: left !important;
-  vertical-align: top !important; /* Keep top for action content */
-  padding: 0.75rem !important; /* Reduced padding */
+  vertical-align: top !important;
+  padding: 0.75rem !important;
+  line-height: 1.5 !important;
+  font-size: 0.875rem !important;
+  color: #1a202c !important;
   overflow: hidden !important; /* Prevent horizontal overflow */
   word-wrap: break-word;
-  line-height: 1.4;
   max-width: 100% !important; /* Ensure it doesn't exceed container */
   position: relative;
   box-sizing: border-box;
@@ -1816,6 +2057,26 @@ export default {
 }
 .review-date-cell, .responsibility-cell {
   text-align: center !important;
+}
+
+.responsibility-cell {
+  position: relative;
+  padding: 0.75rem !important;
+  min-height: 50px;
+  overflow: visible !important; /* Ensure badges are visible */
+}
+
+/* Highlight connection class for hover effects */
+.highlight-connection {
+  background-color: #ffeb3b !important;
+  color: #000000 !important;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5) !important;
+}
+
+/* Ensure action nodes with reviewers are properly marked */
+.action-content-cell /deep/ .action-node.has-reviewer {
+  position: relative !important;
+  z-index: 1 !important;
 }
 </style>
 

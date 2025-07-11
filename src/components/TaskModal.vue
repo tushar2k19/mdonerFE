@@ -270,8 +270,19 @@ export default {
 
     onNodesChanged (nodesData) {
       // NodeEditor emits flat array of nodes: [{ id, content, level, ... }]
-      // Store this for saving to backend
-      this.flatActionNodes = nodesData
+      // Store this for saving to backend, preserving all node properties
+      this.flatActionNodes = nodesData.map(node => ({
+        ...node,
+        content: node.content,
+        level: node.level,
+        list_style: node.list_style,
+        node_type: node.node_type || 'rich_text',
+        parent_id: node.parent_id,
+        position: node.position,
+        review_date: node.review_date,
+        completed: node.completed,
+        reviewer_id: node.reviewer_id // Preserve reviewer_id
+      }))
 
       // Also update the action_to_be_taken field for display
       if (nodesData && nodesData.length > 0) {

@@ -100,8 +100,8 @@ th, td {
   display: table !important;
   visibility: visible !important;
   /* Debug styles to make tables super obvious */
-  border: 5px solid blue !important;
-  background-color: lime !important;
+  /* border: 5px solid blue !important; */
+  /* background-color: lime !important; */
 }
 
 .rich-text-display table th,
@@ -124,7 +124,7 @@ th, td {
 .review-date {
   font-size: 0.85em !important;
   color: #333 !important;
-  font-weight: 500 !important;
+  font-weight: 700 !important;
   margin-left: 8px !important;
   background-color: #ffeb3b !important; /* Yellow highlight background */
   padding: 2px 6px !important;

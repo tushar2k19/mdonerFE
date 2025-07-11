@@ -233,13 +233,13 @@
           <td><strong>{{ task.description }}</strong></td>
           <td v-html="task.action_to_be_taken" class="action-content-cell" 
               @click="debugContent(task)"></td>
-          <td class="original-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="original-date-cell" :style="pdfMode ? 'vertical-align: top;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.original_date) }}</span>
           </td>
-          <td class="responsibility-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="responsibility-cell" :style="pdfMode ? 'vertical-align: top;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ task.responsibility }}</span>
           </td>
-          <td class="review-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="review-date-cell" :style="pdfMode ? 'vertical-align: top;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.review_date) }}</span>
           </td>
           <td><span :class="statusClass[task.status || 'unknown']">{{ formatStatus(task.status) }}</span></td>
@@ -272,7 +272,7 @@
               @click="openReviewModal(getCurrentTask()); forceHideMenu()"
               class="menu-item">{{ getReviewButtonText(getCurrentTask()) }}</button>
       <button @click="openCommentsModal(getCurrentTask()); forceHideMenu()"
-              class="menu-item">Comments</button>
+              class="menu-item">Reviews</button>
       <button v-if="canApprove(getCurrentTask())"
               @click="approveTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Approve</button>
@@ -505,17 +505,54 @@ export default {
     document.addEventListener('click', this.handleClickOutside)
     
     if (this.$route.query.highlightTaskId) {
-      const row = document.querySelector(`tr[data-task-id="${this.$route.query.highlightTaskId}"]`)
+      const row = document.querySelector(`[data-task-id="${this.$route.query.highlightTaskId}"]`)
       if (row) {
         row.scrollIntoView({ behavior: 'smooth', block: 'center' })
         row.classList.add('highlight-transition')
       }
     }
+
+    // Position reviewer badges after mount and initial render
+    this.$nextTick(() => {
+      // Wait for DOM to be fully updated
+      setTimeout(() => {
+        this.displayTasks.forEach(task => {
+          this.positionReviewerBadges(task.id);
+        });
+      }, 100);
+    });
+
+    // Add scroll event listener with debounce
+    this.handleScroll = this.debounce(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    }, 100);
+    
+    window.addEventListener('scroll', this.handleScroll);
+    
+    // Add resize observer for dynamic content changes
+    this.resizeObserver = new ResizeObserver(this.debounce(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    }, 100));
+    
+    // Observe the action content cells
+    document.querySelectorAll('.action-content-cell').forEach(cell => {
+      this.resizeObserver.observe(cell);
+    });
   },
 
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
     document.removeEventListener('click', this.handleClickOutside)
+    window.removeEventListener('scroll', this.handleScroll)
+    
+    // Cleanup resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
     
     // Clear any pending timeouts
     if (this.menuHideTimeout) {
@@ -524,6 +561,15 @@ export default {
     if (this.resizeTimeout) {
       clearTimeout(this.resizeTimeout)
     }
+  },
+
+  updated() {
+    // Reposition badges when the component updates
+    this.$nextTick(() => {
+      this.displayTasks.forEach(task => {
+        this.positionReviewerBadges(task.id);
+      });
+    });
   },
 
   methods: {
@@ -1505,7 +1551,139 @@ export default {
 
     getDisplayIndex(index) {
       return index + 1
-    }
+    },
+
+    // Add new method to parse action nodes and their reviewers
+    parseActionNodes(task) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(task.action_to_be_taken, 'text/html');
+      const actionNodes = doc.querySelectorAll('.action-node');
+      
+      return Array.from(actionNodes).map(node => {
+        const contentElement = node.querySelector('.node-content');
+        const content = contentElement && contentElement.textContent ? contentElement.textContent.trim() : '';
+        const hasReviewer = node.classList.contains('has-reviewer');
+        const reviewerName = hasReviewer ? task.reviewer_info : null;
+        const offsetTop = node.offsetTop;
+        return { content, hasReviewer, reviewerName, offsetTop };
+      });
+    },
+
+    // Add method to position reviewer badges
+    positionReviewerBadges(taskId) {
+      const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
+      if (!taskRow) return;
+
+      const actionCell = taskRow.querySelector('.action-content-cell');
+      const responsibilityCell = taskRow.querySelector('.responsibility-cell');
+      if (!actionCell || !responsibilityCell) return;
+
+      // Clear existing reviewer badges
+      const existingBadges = responsibilityCell.querySelectorAll('.reviewer-badge-parallel');
+      existingBadges.forEach(badge => badge.remove());
+
+      // Ensure responsibility cell has proper positioning
+      if (window.getComputedStyle(responsibilityCell).position !== 'relative') {
+        responsibilityCell.style.position = 'relative';
+      }
+
+      // Get all action nodes in this task
+      const actionNodes = actionCell.querySelectorAll('.action-node');
+      actionNodes.forEach(node => {
+        if (node.classList.contains('has-reviewer')) {
+          const reviewerName = node.dataset.reviewerName;
+          if (!reviewerName) return;
+
+          // Create reviewer badge
+          const badge = document.createElement('div');
+          badge.className = 'reviewer-badge-parallel yellow-bg-bold';
+          badge.textContent = reviewerName;
+
+          // Apply inline styles directly
+          Object.assign(badge.style, {
+            backgroundColor: '#ffeb3b',
+            fontWeight: 'bold',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            display: 'inline-block',
+            color: '#000000',
+            margin: '2px 0',
+            opacity: '1',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            zIndex: '10',
+            position: 'absolute',
+            left: '6px',
+            width: 'calc(100% - 12px)',
+            textAlign: 'left',
+            boxSizing: 'border-box'
+          });
+
+          // Get positions relative to the cells
+          const nodeRect = node.getBoundingClientRect();
+          const responsibilityCellRect = responsibilityCell.getBoundingClientRect();
+
+          // Calculate relative position
+          const topOffset = nodeRect.top - responsibilityCellRect.top;
+          badge.style.top = `${topOffset}px`;
+          
+          // Add hover effect to highlight connection
+          const nodeId = Math.random().toString(36).substr(2, 9);
+          node.dataset.nodeId = nodeId;
+          badge.dataset.nodeId = nodeId;
+          
+          // Add hover effects
+          badge.addEventListener('mouseenter', () => {
+            node.classList.add('highlight-connection');
+            badge.classList.add('highlight-connection');
+            // Add hover styles inline
+            badge.style.opacity = '0.9';
+            badge.style.transform = 'translateY(-1px)';
+            badge.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          });
+          
+          badge.addEventListener('mouseleave', () => {
+            node.classList.remove('highlight-connection');
+            badge.classList.remove('highlight-connection');
+            // Reset hover styles
+            badge.style.opacity = '1';
+            badge.style.transform = '';
+            badge.style.boxShadow = '';
+          });
+          
+          node.addEventListener('mouseenter', () => {
+            const relatedBadge = responsibilityCell.querySelector(`[data-node-id="${nodeId}"]`);
+            if (relatedBadge) {
+              node.classList.add('highlight-connection');
+              relatedBadge.classList.add('highlight-connection');
+            }
+          });
+          
+          node.addEventListener('mouseleave', () => {
+            const relatedBadge = responsibilityCell.querySelector(`[data-node-id="${nodeId}"]`);
+            if (relatedBadge) {
+              node.classList.remove('highlight-connection');
+              relatedBadge.classList.remove('highlight-connection');
+            }
+          });
+          
+          responsibilityCell.appendChild(badge);
+        }
+      });
+    },
+
+    // Add debounce utility method
+    debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    },
   }
 }
 </script>
@@ -2005,7 +2183,7 @@ export default {
    padding: 0.75rem;
    color: #495057;
    font-size: 0.8rem;
-  vertical-align: middle;
+  vertical-align: top;
    line-height: 1.4;
   white-space: normal;
   word-break: break-word;
@@ -2156,7 +2334,7 @@ export default {
 .actions-cell {
   padding: 1rem 0.8rem !important;
   text-align: center !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
   overflow: visible !important;
   position: static !important; /* Remove stacking context */
 }
@@ -2164,7 +2342,7 @@ export default {
 .table-row td:nth-child(8) {
   padding: 1rem 0.8rem !important;
   text-align: left !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
   overflow: visible !important;
   position: relative;
 }
@@ -2491,7 +2669,7 @@ td .action-content-cell /deep/ .action-node.level-4 {
 .action-content-cell /deep/ .action-node .node-content .review-date {
    font-size: 0.85em !important;
    color: #333 !important;
-   font-weight: 500 !important;
+   font-weight: 700 !important;
    margin-left: 8px !important;
   /* background-color: #ffeb3b !important; */
    padding: 2px 6px !important;
@@ -2720,7 +2898,7 @@ td.action-content-cell .action-node.level-4 {
   margin: 0 !important;
   box-sizing: border-box !important;
   text-align: center !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
 }
 
 .action-content-cell table {
@@ -2751,19 +2929,19 @@ td.action-content-cell .action-node.level-4 {
   border-radius: 4px;
   padding: 2px 6px;
   display: inline-block;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 /* PDF-specific vertical alignment for highlight columns */
 .pdf-capture-mode .original-date-cell,
 .pdf-capture-mode .responsibility-cell,
 .pdf-capture-mode .review-date-cell {
-  vertical-align: middle !important;
+  vertical-align: top !important;
 }
 
 .pdf-capture-mode .yellow-bg-bold {
   display: inline-block !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
 }
 
 /* Ensure bold styling for S.No, Sector/Division, and Description columns in PDF */
@@ -2836,6 +3014,51 @@ td.action-content-cell .action-node.level-4 {
     justify-content: flex-end;
   }
 }
+
+.responsibility-cell {
+  position: relative;
+  padding: 0.75rem !important;
+  min-height: 50px;
+  overflow: visible !important; /* Ensure badges are visible */
+}
+
+/* Only keep the highlight-connection class since it's still used */
+.highlight-connection {
+  background-color: #ffeb3b !important;
+  color: #000000 !important;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5) !important;
+}
+
+/* Ensure action nodes with reviewers are properly marked */
+.action-content-cell /deep/ .action-node.has-reviewer {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Hide reviewer badges in action content for TentativeDashboard */
+.action-content-cell /deep/ .reviewer-badge-parallel {
+  display: none !important;
+}
+
+/* But keep the reviewer badges in the responsibility cell visible */
+.responsibility-cell .reviewer-badge-parallel {
+  display: inline-block !important;
+  background-color: #ffeb3b !important;
+  font-weight: bold !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  color: #000000 !important;
+  margin: 2px 0 !important;
+  opacity: 1 !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  position: absolute !important;
+  left: 6px !important;
+  width: calc(100% - 12px) !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
 </style>
 
 <!-- GLOBAL TABLE BOUNDARY STYLES: Not scoped, only border/padding, no background/color override -->
@@ -2855,7 +3078,7 @@ td.action-content-cell .action-node.level-4 {
   margin: 0 !important;
   box-sizing: border-box !important;
   text-align: center !important;
-  vertical-align: middle !important;
+  vertical-align: top !important;
 }
 </style>
 
@@ -2865,43 +3088,37 @@ td.action-content-cell .action-node.level-4 {
   margin-bottom: 1.5rem;
   position: relative;
   z-index: 10;
+  width: 100%;
 }
 
 .search-wrapper {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.search-wrapper:focus-within {
-  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -2px rgba(59, 130, 246, 0.05);
-  border-color: #3b82f6;
-  transform: translateY(-1px);
+  position: relative;
+  width: 100%;
 }
 
 .search-input-group {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 0.5rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.search-input-group:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
 .search-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   color: #6b7280;
-  margin-right: 0.75rem;
-  transition: color 0.2s ease;
-}
-
-.search-wrapper:focus-within .search-icon {
-  color: #3b82f6;
+  margin-right: 0.5rem;
 }
 
 .search-input {
@@ -2909,65 +3126,50 @@ td.action-content-cell .action-node.level-4 {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 1rem;
+  font-size: 0.875rem;
   color: #1f2937;
-  padding: 0.5rem 0;
-  font-weight: 500;
+  padding: 0.25rem;
 }
 
 .search-input::placeholder {
   color: #9ca3af;
-  font-weight: 400;
-}
-
-.search-input.has-results {
-  color: #059669;
-  font-weight: 600;
 }
 
 .clear-search-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: #f3f4f6;
+  width: 20px;
+  height: 20px;
+  background: transparent;
   border: none;
-  border-radius: 50%;
-  color: #6b7280;
+  color: #9ca3af;
   cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
   transition: all 0.2s ease;
-  margin-left: 0.5rem;
 }
 
 .clear-search-btn:hover {
-  background: #e5e7eb;
-  color: #374151;
-  transform: scale(1.1);
+  color: #4b5563;
 }
 
 .search-results-info {
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: #6b7280;
 }
 
 .results-count {
-  font-weight: 600;
-  color: #1e40af;
-  background: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-weight: 500;
+  color: #4b5563;
 }
 
 .search-stats {
-  color: #4b5563;
-  font-size: 0.8125rem;
+  color: #6b7280;
 }
 
 .search-suggestions {

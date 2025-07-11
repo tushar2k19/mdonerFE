@@ -644,7 +644,18 @@ export default {
       
       try {
         const response = await this.$http.secured.put(`/review/${this.reviewId}`, {
-          nodes_data: this.reviewNodes,
+          nodes_data: this.reviewNodes.map(node => ({
+            ...node,
+            content: node.content,
+            level: node.level,
+            list_style: node.list_style,
+            node_type: node.node_type || 'rich_text',
+            parent_id: node.parent_id,
+            position: node.position,
+            review_date: node.review_date,
+            completed: node.completed,
+            reviewer_id: node.reviewer_id // Preserve reviewer_id
+          })),
           status: 'pending'
         })
         

@@ -150,7 +150,14 @@
             </div>
               <div class="detail-row">
                 <span class="detail-label">Responsibility:</span>
-                <span class="detail-value">{{ task.responsibility }}</span>
+                <span class="detail-value">{{ task.responsibility }}
+                  <span v-if="task.reviewer_info" class="reviewer-info">
+                    <br>
+                    <span class="reviewer-badge">
+                      👤 {{ task.reviewer_info }}
+                    </span>
+                  </span>
+                </span>
             </div>
           </div>
 
@@ -342,33 +349,37 @@ export default {
     },
 
     processActionNodes(nodes) {
+      if (!nodes) return [];
       return nodes.map(node => ({
         ...node,
         content: this.stripHtmlTags(node.content || ''),
-        children: node.children ? this.processActionNodes(node.children) : []
+        children: node.children ? this.processActionNodes(node.children) : [],
+        completed: node.completed || false
       }))
     },
 
     countNodesRecursive(nodes) {
-      let count = 0
+      if (!nodes) return 0;
+      let count = 0;
       nodes.forEach(node => {
-        count += 1
+        count += 1;
         if (node.children && node.children.length > 0) {
-          count += this.countNodesRecursive(node.children)
+          count += this.countNodesRecursive(node.children);
         }
-      })
-      return count
+      });
+      return count;
     },
 
     countCompletedNodesRecursive(nodes) {
-      let count = 0
+      if (!nodes) return 0;
+      let count = 0;
       nodes.forEach(node => {
-        if (node.completed) count += 1
-          if (node.children && node.children.length > 0) {
-          count += this.countCompletedNodesRecursive(node.children)
+        if (node.completed) count += 1;
+        if (node.children && node.children.length > 0) {
+          count += this.countCompletedNodesRecursive(node.children);
         }
-      })
-      return count
+      });
+      return count;
     },
 
     getTotalSubtasks(task) {
@@ -1613,5 +1624,150 @@ export default {
   .progress-track {
     min-width: 110px;
   }
+}
+
+.action-content-display >>> .action-node.has-reviewer {
+  background-color: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.action-content-display >>> .action-node .node-marker {
+  display: flex;
+  align-items: center;
+  min-width: 32px;
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.action-content-display >>> .action-node .node-content {
+  flex: 1;
+  min-width: 0;
+  max-width: calc(100% - 200px);
+}
+
+.action-content-display >>> .action-node .reviewer-badge {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.action-content-display >>> .action-node.level-2 { 
+  margin-left: 20px !important; 
+  border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
+  padding-left: 4px !important;
+}
+
+.action-content-display >>> .action-node.level-3 { 
+  margin-left: 40px !important; 
+  border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
+  padding-left: 6px !important;
+}
+
+.action-content-display >>> .action-node.level-4 { 
+  margin-left: 60px !important; 
+  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
+  padding-left: 6px !important;
+}
+
+.action-content-display >>> .action-node.level-5 { 
+  margin-left: 80px !important; 
+  border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
+  padding-left: 6px !important;
+}
+
+.reviewer-info {
+  display: block;
+  margin-top: 4px;
+}
+/* 
+.reviewer-badge {
+  display: inline-block;
+  background: #3b82f6;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-top: 4px;
+} */
+
+/* Reviewer Badge Styles */
+.action-content-display /deep/ .reviewer-badge-parallel {
+  display: inline-block !important;
+  background-color: #ffeb3b !important;
+  color: black !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  margin-left: 8px !important;
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  opacity: 0.9 !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.action-content-display /deep/ .action-node {
+  position: relative !important;
+  padding-right: 120px !important; /* Make space for reviewer badge */
+}
+
+.action-content-display /deep/ .reviewer-badge-parallel:hover {
+  opacity: 1 !important;
+}
+
+/* Alternative deep selector syntax for maximum compatibility */
+.action-content-display >>> .reviewer-badge-parallel {
+  display: inline-block !important;
+  background-color: #ffeb3b !important;
+  color: black !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  margin-left: 8px !important;
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  opacity: 0.9 !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.action-content-display >>> .action-node {
+  position: relative !important;
+  padding-right: 120px !important; /* Make space for reviewer badge */
+}
+
+.action-content-display >>> .reviewer-badge-parallel:hover {
+  opacity: 1 !important;
+}
+
+/* Nuclear option: Global styles that bypass scoping entirely */
+.task-modal .action-content-display .reviewer-badge-parallel {
+  display: inline-block !important;
+  background-color: #2563eb !important;
+  color: white !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  margin-left: 8px !important;
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  opacity: 0.9 !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.task-modal .action-content-display .action-node {
+  position: relative !important;
+  padding-right: 120px !important; /* Make space for reviewer badge */
+}
+
+.task-modal .action-content-display .reviewer-badge-parallel:hover {
+  opacity: 1 !important;
 }
 </style>
