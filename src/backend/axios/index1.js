@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://wadibackend.com'
+const API_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://mdoner-production.up.railway.app'
 // const API_URL = 'https://wadibackend.com'
 function getCookie (name) {
   const value = `; ${document.cookie}`
