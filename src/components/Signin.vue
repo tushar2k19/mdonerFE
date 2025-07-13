@@ -177,6 +177,11 @@ export default {
               Log In
             </button>
 
+            <div class="signup-link">
+              Don't have an account? 
+              <router-link to="/signup" class="link">Sign up here</router-link>
+            </div>
+
             <p class="disclaimer">For illustration purpose only</p>
           </form>
         </div>
@@ -411,6 +416,23 @@ input:focus {
   color: #0066FF;
   text-decoration: none;
   font-size: 14px;
+}
+
+.signup-link {
+  text-align: center;
+  margin: 24px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.signup-link .link {
+  color: #0066FF;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.signup-link .link:hover {
+  text-decoration: underline;
 }
 
 .login-button {

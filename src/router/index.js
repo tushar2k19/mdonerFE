@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import Router from 'vue-router'
 import Signin from '../components/Signin.vue'
+import Signup from '../components/Signup.vue'
 import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
 import CompletedTasks from '../components/CompletedTasks.vue'
@@ -23,6 +24,11 @@ const router = new Router({
       path: '/login',
       name: 'Signin',
       component: Signin
+    },
+    {
+      path: '/signup',
+      name: 'Signup',
+      component: Signup
     },
     {
       path: '/daily-dashboard',
