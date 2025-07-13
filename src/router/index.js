@@ -18,7 +18,8 @@ const router = new Router({
     {
       path: '/',
       name: 'Home',
-      component: Home
+      component: Home,
+      meta: { requiresAuth: true }
     },
     {
       path: '/login',
@@ -44,17 +45,20 @@ const router = new Router({
           'Task completion trends',
           'Priority-based task sorting'
         ]
-      }
+      },
+      meta: { requiresAuth: true }
     },
     {
       path: '/tentative',
       name: 'TentativeDashboard',
-      component: TentativeDashboard
+      component: TentativeDashboard,
+      meta: { requiresAuth: true }
     },
     {
       path: '/final',
       name: 'FinalDashboard',
-      component: FinalDashboard
+      component: FinalDashboard,
+      meta: { requiresAuth: true }
     },
     {
       path: '/completed-tasks',
@@ -70,12 +74,14 @@ const router = new Router({
           'Team productivity insights',
           'Advanced filtering options'
         ]
-      }
+      },
+      meta: { requiresAuth: true }
     },
     {
       path: '/review-tasks',
       name: 'ReviewTasks',
-      component: ReviewDashboard
+      component: ReviewDashboard,
+      meta: { requiresAuth: true }
     },
     {
       path: '/system-logs',
@@ -96,13 +102,15 @@ const router = new Router({
     {
       path: '/completed',
       name: 'CompletedTasksOld',
-      component: CompletedTasks
+      component: CompletedTasks,
+      meta: { requiresAuth: true }
     },
     {
       path: '/review/:id',
       name: 'ReviewInterface',
       component: ReviewInterface,
-      props: route => ({ reviewId: route.params.id })
+      props: route => ({ reviewId: route.params.id }),
+      meta: { requiresAuth: true }
     }
     
     // {
