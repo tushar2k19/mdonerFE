@@ -80,8 +80,7 @@ export default {
         return
       }
       // eslint-disable-next-line camelcase
-      const { user_info, csrf_token, jwt_access1 } = decryptedData
-      console.log("jwt_access", jwt_access1)
+      const { user_info, csrf_token } = decryptedData
       Cookies.set('user_info', user_info, {
         // expires: 1, // 1 day
         secure: process.env.NODE_ENV === 'production',
@@ -92,16 +91,10 @@ export default {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict'
       })
-      if (jwt_access1) {
-        alert ("jwt_access")
-        Cookies.set('jwt_access', jwt_access1, {
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict'
-        })
-      }
       localStorage.signedIn = true
       this.error = ''
       this.$router.replace('/')
+      localStorage.setItem('jwt_access', response.data.access)
     },
     signinFailed: function (error) {
       this.error = (error.response && error.response.data && error.response.data.error) || ''

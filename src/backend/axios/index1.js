@@ -1,5 +1,4 @@
 import axios from 'axios'
-import Cookies from 'js-cookie'
 
 const API_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://mdoner-production.up.railway.app'
 // const API_URL = 'https://wadibackend.com'
@@ -38,9 +37,10 @@ securedAxiosInstance.interceptors.request.use(config => {
       config.headers['X-CSRF-TOKEN'] = csrfToken
     }
   }
-  const jwt = Cookies.get('jwt_access')
-  if (jwt) {
-    config.headers['Authorization'] = `Bearer ${jwt}`
+  const token = localStorage.getItem('jwt_access')
+  // alert (token)
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
   }
   return config
 })
