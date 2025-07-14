@@ -41,7 +41,7 @@
                 </div>
               </div>
 
-              <div class="form-group">
+        <div class="form-group">
                 <div class="input-wrapper modern-input">
                   <span class="input-icon">👤</span>
                   <input
@@ -54,9 +54,9 @@
                   >
                 </div>
               </div>
-            </div>
+        </div>
 
-            <div class="form-group">
+        <div class="form-group">
               <div class="input-wrapper modern-input">
                 <span class="input-icon">✉</span>
                 <input
@@ -69,9 +69,9 @@
                   autocomplete="email"
                 >
               </div>
-            </div>
+        </div>
 
-            <div class="form-group">
+        <div class="form-group">
               <div class="input-wrapper modern-input">
                 <span class="input-icon">🔒</span>
                 <input
@@ -88,9 +88,9 @@
                   <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"><path stroke="#666" stroke-width="2" d="M17.94 17.94A10.97 10.97 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-6.06M9.88 9.88A3.5 3.5 0 0 1 12 8.5c1.93 0 3.5 1.57 3.5 3.5 0 .7-.21 1.36-.57 1.9M1 1l22 22"/></svg>
                 </span>
               </div>
-            </div>
+        </div>
 
-            <div class="form-group">
+        <div class="form-group">
               <div class="input-wrapper modern-input">
                 <span class="input-icon">🔒</span>
                 <input
@@ -107,9 +107,9 @@
                   <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"><path stroke="#666" stroke-width="2" d="M17.94 17.94A10.97 10.97 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-6.06M9.88 9.88A3.5 3.5 0 0 1 12 8.5c1.93 0 3.5 1.57 3.5 3.5 0 .7-.21 1.36-.57 1.9M1 1l22 22"/></svg>
                 </span>
               </div>
-            </div>
+        </div>
 
-            <div class="form-group">
+        <div class="form-group">
               <div class="input-wrapper modern-input">
                 <span class="input-icon">🎯</span>
                 <select
@@ -120,11 +120,11 @@
                   class="role-select"
                 >
                   <option value="" disabled>Select your role</option>
-                  <option value="0">Editor</option>
-                  <option value="1">Reviewer</option>
-                  <option value="2">Final Reviewer</option>
-                </select>
-              </div>
+            <option value="0">Editor</option>
+            <option value="1">Reviewer</option>
+            <option value="2">Final Reviewer</option>
+          </select>
+        </div>
             </div>
 
             <button type="submit" class="signup-button" :disabled="isLoading">
@@ -138,7 +138,7 @@
             </div>
 
             <p class="disclaimer">For illustration purpose only</p>
-          </form>
+      </form>
         </div>
       </div>
 
@@ -178,25 +178,25 @@
         </div>
       </div>
     </div>
-  </div>
-</template>
+    </div>
+  </template>
+  
+  <script>
+  import { plainAxiosInstance } from '../backend/axios/index1'
 
-<script>
-import { plainAxiosInstance } from '../backend/axios/index1'
-
-export default {
-  name: 'Signup',
-  data() {
-    return {
-      form: {
-        first_name: '',
-        last_name: '',
-        email: '',
-        password: '',
-        password_confirmation: '',
-        role: ''
-      },
-      error: '',
+  export default {
+    name: 'Signup',
+    data() {
+      return {
+        form: {
+          first_name: '',
+          last_name: '',
+          email: '',
+          password: '',
+          password_confirmation: '',
+          role: ''
+        },
+        error: '',
       success: false,
       isLoading: false,
       showPassword: false,
@@ -205,8 +205,8 @@ export default {
   },
   created() {
     this.checkSignedin()
-  },
-  methods: {
+    },
+    methods: {
     clearError() {
       this.error = ''
     },
@@ -248,20 +248,20 @@ export default {
       }
       return true
     },
-    async signup() {
+      async signup() {
       if (!this.validateForm()) {
         return
       }
 
       this.isLoading = true
-      this.error = ''
-      this.success = false
+        this.error = ''
+        this.success = false
 
-      try {
-        const response = await plainAxiosInstance.post('/signup', { user: this.form })
+        try {
+          const response = await plainAxiosInstance.post('/signup', { user: this.form })
         
-        if (response.data.success) {
-          this.success = true
+          if (response.data.success) {
+            this.success = true
           // Use alert instead of toast since toast might not be available
           alert('Account created successfully! You can now sign in.')
           
@@ -279,23 +279,23 @@ export default {
           setTimeout(() => {
             this.$router.push('/login')
           }, 2000)
-        } else {
-          this.error = response.data.errors ? response.data.errors.join(', ') : 'Signup failed'
-        }
-      } catch (err) {
+          } else {
+            this.error = response.data.errors ? response.data.errors.join(', ') : 'Signup failed'
+          }
+        } catch (err) {
         console.error('Signup failed:', err)
-        this.error = err.response && err.response.data && err.response.data.errors
-          ? err.response.data.errors.join(', ')
+          this.error = err.response && err.response.data && err.response.data.errors
+            ? err.response.data.errors.join(', ')
           : 'Signup failed. Please try again.'
       } finally {
         this.isLoading = false
+        }
       }
     }
   }
-}
-</script>
-
-<style scoped>
+  </script>
+  
+  <style scoped>
 .signup-page {
   min-height: 100vh;
   min-width: 100vw;
@@ -685,4 +685,4 @@ export default {
     max-width: 100%;
   }
 }
-</style>
+  </style>
