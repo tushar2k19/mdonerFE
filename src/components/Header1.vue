@@ -1,11 +1,11 @@
 <template>
   <header class="header">
     <div class="header-container">
-      <div class="logo-section">
+      <router-link to="/" class="logo-section">
         <div class="govt-logo">
           <span class="ne">NE</span><span class="volve">volve</span>
         </div>
-      </div>
+      </router-link>
 
       <nav class="nav-center" v-if="isAuthenticated">
         <router-link
@@ -169,6 +169,7 @@ export default {
   margin-right: 2rem;
   position: relative;
   overflow: visible;
+  text-decoration: none;
 }
 
 .govt-logo {
