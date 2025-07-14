@@ -1131,9 +1131,11 @@ export default {
       if (confirm('Are you sure you want to delete this task?')) {
         try {
           await this.$http.secured.delete(`/task/${taskId}`)
+          this.$toast.success('Task deleted successfully!')
           await this.fetchTasksByDate()
         } catch (error) {
           console.error('Error deleting task:', error)
+          this.$toast.error('Failed to delete task.')
         }
       }
     },
