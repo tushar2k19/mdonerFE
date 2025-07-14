@@ -1,7 +1,15 @@
 <template>
   <div id="app">
-    <component :is="layout">
-      <router-view />
+    <!-- Loading Overlay -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    </div>
+    
+    <component :is="layout" :is-loading="isLoading">
+      <router-view :is-loading="isLoading" />
     </component>
   </div>
 </template>
@@ -11,9 +19,10 @@ import Header1 from './components/Header1.vue'
 
 const AuthenticatedLayout = {
   components: { Header1 },
+  props: ['isLoading'],
   template: `
     <div>
-      <Header1 class="header"/>
+      <Header1 class="header" :is-loading="isLoading"/>
       <div class="content-wrapper">
         <slot></slot>
       </div>
@@ -22,6 +31,7 @@ const AuthenticatedLayout = {
 }
 
 const UnauthenticatedLayout = {
+  props: ['isLoading'],
   template: `
     <div><slot></slot></div>
   `
@@ -31,7 +41,9 @@ export default {
   name: 'App',
   data () {
     return {
-      isAuthenticated: true
+      isAuthenticated: true,
+      isLoading: false,
+      loadingRequestCount: 0
     }
   },
   computed: {
@@ -47,6 +59,10 @@ export default {
       }
     }
   },
+  created() {
+    // Make loading methods globally available
+    this.setupGlobalLoading()
+  },
   methods: {
     checkAuthStatus () {
       const newAuthStatus = !!localStorage.getItem('signedIn')
@@ -56,6 +72,21 @@ export default {
           window.scrollTo(0, 0)
           console.log('Forced re-render and attempted scroll')
         })
+      }
+    },
+    
+    setupGlobalLoading() {
+      // Make loading methods globally available
+      window.showGlobalLoading = () => {
+        this.loadingRequestCount++
+        this.isLoading = true
+      }
+      
+      window.hideGlobalLoading = () => {
+        this.loadingRequestCount = Math.max(0, this.loadingRequestCount - 1)
+        if (this.loadingRequestCount === 0) {
+          this.isLoading = false
+        }
       }
     }
   }
@@ -67,6 +98,52 @@ export default {
 * {
   margin: 0;
   padding: 0;
+}
+
+/* Loading Overlay Styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: white;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner p {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Disable pointer events when loading */
+.loading-overlay ~ * {
+  pointer-events: none;
 }
 
 /* Global table styles to ensure tables are always displayed */

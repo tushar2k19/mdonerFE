@@ -45,6 +45,13 @@ import NotificationService from '../services/NotificationService'
 export default {
   name: 'NotificationComponent',
 
+  props: {
+    isLoading: {
+      type: Boolean,
+      default: false
+    }
+  },
+
   data () {
     return {
       showNotifications: false,

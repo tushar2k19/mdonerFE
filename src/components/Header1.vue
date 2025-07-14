@@ -23,6 +23,7 @@
         <NotificationComponent
           v-if="isAuthenticated"
           class="notification-wrapper"
+          :is-loading="isLoading"
         />
         <button
           v-if="isAuthenticated"
@@ -51,6 +52,12 @@ export default {
   name: 'Header',
   components: {
     NotificationComponent
+  },
+  props: {
+    isLoading: {
+      type: Boolean,
+      default: false
+    }
   },
   data () {
     return {

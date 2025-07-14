@@ -29,7 +29,13 @@ const plainAxiosInstance = axios.create({
   }
 })
 
+// Request interceptor for secured instance
 securedAxiosInstance.interceptors.request.use(config => {
+  // Show loading overlay
+  if (window.showGlobalLoading) {
+    window.showGlobalLoading()
+  }
+  
   const method = config.method.toUpperCase()
   if (method !== 'OPTIONS' && method !== 'GET') {
     const csrfToken = getCookie('csrf_token')
@@ -43,19 +49,58 @@ securedAxiosInstance.interceptors.request.use(config => {
     config.headers['Authorization'] = `Bearer ${token}`
   }
   return config
+}, error => {
+  // Hide loading overlay on request error
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  return Promise.reject(error)
 })
 
-securedAxiosInstance.interceptors.response.use(null, error => {
+// Response interceptor for secured instance
+securedAxiosInstance.interceptors.response.use(response => {
+  // Hide loading overlay on successful response
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  return response
+}, error => {
+  // Hide loading overlay on error
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  
   if (error.response && error.response.config && error.response.status === 401) {
+    // Show loading for refresh token request
+    if (window.showGlobalLoading) {
+      window.showGlobalLoading()
+    }
+    
     return plainAxiosInstance.post('/refresh', {}, { headers: { 'X-CSRF-TOKEN': getCookie('csrf_token') } })
       .then(response => {
+        // Hide loading after refresh
+        if (window.hideGlobalLoading) {
+          window.hideGlobalLoading()
+        }
+        
         localStorage.csrf = response.data.csrf
         localStorage.signedIn = true
 
         let retryConfig = error.response.config
         retryConfig.headers['X-CSRF-TOKEN'] = getCookie('csrf_token')
+        
+        // Show loading for retry request
+        if (window.showGlobalLoading) {
+          window.showGlobalLoading()
+        }
+        
         return plainAxiosInstance.request(retryConfig)
       }).catch(error => {
+        // Hide loading on refresh failure
+        if (window.hideGlobalLoading) {
+          window.hideGlobalLoading()
+        }
+        
         delete localStorage.csrf
         delete localStorage.signedIn
         location.replace('/login')
@@ -64,6 +109,36 @@ securedAxiosInstance.interceptors.response.use(null, error => {
   } else {
     return Promise.reject(error)
   }
+})
+
+// Request interceptor for plain instance
+plainAxiosInstance.interceptors.request.use(config => {
+  // Show loading overlay
+  if (window.showGlobalLoading) {
+    window.showGlobalLoading()
+  }
+  return config
+}, error => {
+  // Hide loading overlay on request error
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  return Promise.reject(error)
+})
+
+// Response interceptor for plain instance
+plainAxiosInstance.interceptors.response.use(response => {
+  // Hide loading overlay on successful response
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  return response
+}, error => {
+  // Hide loading overlay on error
+  if (window.hideGlobalLoading) {
+    window.hideGlobalLoading()
+  }
+  return Promise.reject(error)
 })
 
 export {securedAxiosInstance, plainAxiosInstance}
