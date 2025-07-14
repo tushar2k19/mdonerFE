@@ -178,10 +178,10 @@ export default {
               Log In
             </button>
 
-            <div class="signup-link">
+            <!-- <div class="signup-link">
               Don't have an account? 
               <router-link to="/signup" class="link">Sign up here</router-link>
-            </div>
+            </div> -->
 
             <p class="disclaimer">For illustration purpose only</p>
           </form>

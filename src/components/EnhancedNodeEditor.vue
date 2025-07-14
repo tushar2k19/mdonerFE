@@ -42,7 +42,8 @@
     <!-- Nodes Container -->
     <div class="nodes-container" 
          :class="{ 'context-menu-open': contextMenuOpen }"
-         v-if="nodes.length > 0">
+         v-if="nodes.length > 0"
+         ref="nodesContainer">
       <EnhancedNodeItem
         v-for="(node, index) in nodes"
         :key="node.id"
@@ -839,6 +840,24 @@ export default {
     handleContextMenuToggle(isOpen) {
       this.contextMenuOpen = isOpen
       console.log('🎯 Context menu state changed:', isOpen ? 'opened' : 'closed')
+      
+      // Adjust container scrolling behavior when context menu is open
+      if (this.$refs.nodesContainer) {
+        const container = this.$refs.nodesContainer
+        if (isOpen) {
+          // Temporarily increase container height to accommodate context menu
+          container.style.transition = 'max-height 0.3s ease'
+          container.style.maxHeight = '800px'
+          container.style.overflowY = 'auto'
+          
+          // Ensure the container can scroll smoothly
+          container.style.scrollBehavior = 'smooth'
+        } else {
+          // Restore original container height
+          container.style.maxHeight = '600px'
+          container.style.scrollBehavior = 'auto'
+        }
+      }
     }
   }
 }
@@ -981,11 +1000,34 @@ export default {
   max-height: 600px;
   overflow-y: auto;
   transition: max-height 0.3s ease;
+  position: relative;
+  scroll-behavior: smooth;
 }
 
 /* Dynamic height adjustment when context menu is open */
 .nodes-container.context-menu-open {
   max-height: 800px;
+  overflow-y: auto;
+  z-index: 1;
+}
+
+/* Ensure proper scrolling with context menu */
+.nodes-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nodes-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.nodes-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.nodes-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .empty-state {

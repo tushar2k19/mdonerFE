@@ -26,32 +26,6 @@
         </div>
 
         <div class="form-group">
-          <label>Action to be Taken</label>
-          <!-- <editor
-            :api-key="apiKey"
-            :init="editorConfig"
-            v-model="formData.action_to_be_taken" -->
-
-          <EnhancedNodeEditor
-            :task-version-id="taskVersionId"
-            :initial-nodes="actionNodes"
-            @nodes-changed="onNodesChanged"
-          />
-        </div>
-
-        <div class="form-group">
-          <label>Original Date</label>
-          <datepicker
-            v-model="formData.original_date"
-            class="custom-datepicker"
-            :calendar-class="'calendar-wrapper'"
-            :input-class="'datepicker-input'"
-            :monday-first="true"
-            format="dd MMM yyyy"
-          ></datepicker>
-        </div>
-
-        <div class="form-group">
           <label>Responsibility</label>
           <input
             v-model="formData.responsibility"
@@ -70,6 +44,20 @@
             :monday-first="true"
             format="dd MMM yyyy"
           ></datepicker>
+        </div>
+
+        <div class="form-group">
+          <label>Action to be Taken</label>
+          <!-- <editor
+            :api-key="apiKey"
+            :init="editorConfig"
+            v-model="formData.action_to_be_taken" -->
+
+          <EnhancedNodeEditor
+            :task-version-id="taskVersionId"
+            :initial-nodes="actionNodes"
+            @nodes-changed="onNodesChanged"
+          />
         </div>
       </div>
 
@@ -120,7 +108,7 @@ export default {
         sector_division: '',
         description: '',
         action_to_be_taken: '',
-        original_date: null,
+        original_date: new Date(), // Automatically set to today's date
         responsibility: '',
         review_date: null
       },
@@ -229,7 +217,7 @@ export default {
         sector_division: this.task.sector_division,
         description: this.task.description,
         action_to_be_taken: this.task.action_to_be_taken,
-        original_date: new Date(this.task.original_date),
+        original_date: new Date(this.task.original_date), // Keep existing original_date for edits
         responsibility: this.task.responsibility,
         review_date: this.task.review_date ? new Date(this.task.review_date) : null
       }
@@ -294,7 +282,6 @@ export default {
       const requiredFields = [
         { field: 'sector_division', label: 'Sector/Division' },
         { field: 'description', label: 'Description' },
-        { field: 'original_date', label: 'Original Date' },
         { field: 'responsibility', label: 'Responsibility' },
         { field: 'review_date', label: 'Review Date' }
       ]

@@ -761,13 +761,64 @@ export default {
       this.currentRow = cell.parentNode.rowIndex
       this.currentColumn = cell.cellIndex
 
-      // Position context menu
+      // Position context menu with proper container bounds checking
       this.showTableContextMenu = true
-      this.contextMenuY = event.clientY
-      this.contextMenuX = event.clientX
+      
+      // Get container bounds for proper positioning
+      const container = this.$el.closest('.nodes-container') || this.$el.closest('.modal-body')
+      const containerRect = container ? container.getBoundingClientRect() : { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
+      
+      // Calculate initial position
+      let menuX = event.clientX
+      let menuY = event.clientY
+      
+      // Estimate context menu dimensions (will be adjusted after DOM update)
+      const menuWidth = 220
+      const menuHeight = 400
+      
+      // Adjust X position to stay within container bounds
+      if (menuX + menuWidth > containerRect.right) {
+        menuX = containerRect.right - menuWidth - 10
+      }
+      if (menuX < containerRect.left) {
+        menuX = containerRect.left + 10
+      }
+      
+      // Adjust Y position to stay within container bounds
+      if (menuY + menuHeight > containerRect.bottom) {
+        menuY = containerRect.bottom - menuHeight - 10
+      }
+      if (menuY < containerRect.top) {
+        menuY = containerRect.top + 10
+      }
+      
+      this.contextMenuX = menuX
+      this.contextMenuY = menuY
 
-      // Notify parent that context menu is open
+      // Notify parent that context menu is open (for container height adjustment)
       this.$emit('context-menu-opened', true)
+
+      // Ensure the container can scroll to accommodate the menu
+      this.$nextTick(() => {
+        const contextMenuEl = this.$el.querySelector('.table-context-menu')
+        if (contextMenuEl && container) {
+          // Check if menu is fully visible in container
+          const menuRect = contextMenuEl.getBoundingClientRect()
+          const containerRect = container.getBoundingClientRect()
+          
+          // If menu extends beyond container bottom, scroll container
+          if (menuRect.bottom > containerRect.bottom) {
+            const scrollAmount = menuRect.bottom - containerRect.bottom + 20
+            container.scrollBy({ top: scrollAmount, behavior: 'smooth' })
+          }
+          
+          // If menu extends beyond container top, scroll up
+          if (menuRect.top < containerRect.top) {
+            const scrollAmount = containerRect.top - menuRect.top + 20
+            container.scrollBy({ top: -scrollAmount, behavior: 'smooth' })
+          }
+        }
+      })
 
       // Hide context menu when clicking elsewhere
       this.$nextTick(() => {
@@ -1660,8 +1711,13 @@ export default {
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   padding: 0.5rem;
-  z-index: 1000;
+  z-index: 10050;
   min-width: 200px;
+  max-width: 220px;
+  max-height: 400px;
+  overflow-y: auto;
+  backdrop-filter: blur(4px);
+  border: 2px solid rgba(59, 130, 246, 0.1);
 }
 
 .context-menu-group {
@@ -1706,6 +1762,25 @@ export default {
 
 .context-menu-item.delete-item:hover {
   background-color: #fef2f2;
+}
+
+/* Ensure context menu is properly scrollable */
+.table-context-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.table-context-menu::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.table-context-menu::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.table-context-menu::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 /* Color Picker Styles */
