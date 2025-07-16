@@ -1,7 +1,9 @@
 import axios from 'axios'
+import backendHealthService from '../../services/BackendHealthService.js'
 
 const API_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://mdoner-production.up.railway.app'
 // const API_URL = 'https://wadibackend.com'
+
 function getCookie (name) {
   const value = `; ${document.cookie}`
   const parts = value.split(`; ${name}=`)
@@ -10,6 +12,7 @@ function getCookie (name) {
     return decodeURIComponent(encodedValue)
   }
 }
+
 const securedAxiosInstance = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -31,6 +34,13 @@ const plainAxiosInstance = axios.create({
 
 // Request interceptor for secured instance
 securedAxiosInstance.interceptors.request.use(config => {
+  // Check if backend is healthy before making request
+  if (!backendHealthService.canMakeRequest()) {
+    const error = new Error('Backend service is currently unavailable. Please try again later.')
+    error.isBackendDown = true
+    return Promise.reject(error)
+  }
+  
   // Show loading overlay
   if (window.showGlobalLoading) {
     window.showGlobalLoading()
@@ -63,11 +73,23 @@ securedAxiosInstance.interceptors.response.use(response => {
   if (window.hideGlobalLoading) {
     window.hideGlobalLoading()
   }
+  
+  // Mark backend as healthy on successful response
+  backendHealthService.markBackendHealthy()
+  
   return response
 }, error => {
   // Hide loading overlay on error
   if (window.hideGlobalLoading) {
     window.hideGlobalLoading()
+  }
+  
+  // Mark backend as unhealthy for network errors or 5xx errors
+  if (error.isBackendDown || 
+      error.code === 'ECONNABORTED' || 
+      error.code === 'NETWORK_ERROR' ||
+      (error.response && error.response.status >= 500)) {
+    backendHealthService.markBackendUnhealthy()
   }
   
   if (error.response && error.response.config && error.response.status === 401) {

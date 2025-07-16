@@ -8,6 +8,9 @@
       </div>
     </div>
     
+    <!-- Backend Down Modal -->
+    <BackendDownModal />
+    
     <component :is="layout" :is-loading="isLoading">
       <router-view :is-loading="isLoading" />
     </component>
@@ -16,6 +19,8 @@
 
 <script>
 import Header1 from './components/Header1.vue'
+import BackendDownModal from './components/BackendDownModal.vue'
+import backendHealthService from './services/BackendHealthService.js'
 
 const AuthenticatedLayout = {
   components: { Header1 },
@@ -39,6 +44,9 @@ const UnauthenticatedLayout = {
 
 export default {
   name: 'App',
+  components: {
+    BackendDownModal
+  },
   data () {
     return {
       isAuthenticated: true,
@@ -62,6 +70,14 @@ export default {
   created() {
     // Make loading methods globally available
     this.setupGlobalLoading()
+    
+    // Start backend health monitoring
+    backendHealthService.startHealthMonitoring()
+  },
+  
+  beforeDestroy() {
+    // Clean up health monitoring
+    backendHealthService.stopHealthMonitoring()
   },
   methods: {
     checkAuthStatus () {
