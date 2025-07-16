@@ -7,7 +7,7 @@ class BackendHealthService {
     this.failureCount = 0
     this.lastFailureTime = null
     this.circuitBreakerThreshold = 2 // Number of failures before opening circuit
-    this.circuitBreakerTimeout = 30000 // 30 seconds to try again
+    this.circuitBreakerTimeout = 120000 // 2 minutes to try again
     this.healthCheckInterval = null
     this.API_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://mdoner-production.up.railway.app'
   }

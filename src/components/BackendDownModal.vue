@@ -142,8 +142,8 @@ export default {
 <style scoped>
 .backend-down-modal {
   position: fixed;
-  top: 0;
-  left: 0;
+  top: 50%;
+  left: 50%;
   width: 100%;
   height: 100%;
   z-index: 99999;
@@ -155,8 +155,9 @@ export default {
 
 .modal-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.8);
