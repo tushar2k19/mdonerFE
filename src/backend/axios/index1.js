@@ -88,8 +88,12 @@ securedAxiosInstance.interceptors.response.use(response => {
   if (error.isBackendDown || 
       error.code === 'ECONNABORTED' || 
       error.code === 'NETWORK_ERROR' ||
-      (error.response && error.response.status >= 500)) {
+      (error.response && error.response.status >= 500) ||
+      (error.response && error.response.status === 404)) {
     backendHealthService.markBackendUnhealthy()
+    if (backendHealthService.forceHealthCheck) {
+      backendHealthService.forceHealthCheck()
+    }
   }
   
   if (error.response && error.response.config && error.response.status === 401) {

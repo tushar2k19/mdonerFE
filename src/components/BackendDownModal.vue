@@ -146,10 +146,11 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10000;
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: all;
 }
 
 .modal-overlay {
@@ -160,6 +161,8 @@ export default {
   height: 100%;
   background-color: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
+  z-index: 99999;
+  pointer-events: all;
 }
 
 .modal-content {

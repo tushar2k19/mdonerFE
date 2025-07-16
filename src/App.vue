@@ -1,19 +1,18 @@
 <template>
   <div id="app">
-    <!-- Loading Overlay -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="loading-spinner">
-        <div class="spinner"></div>
-        <p>Loading...</p>
+    <BackendDownModal v-if="isBackendDown" />
+    <template v-else>
+      <!-- Loading Overlay -->
+      <div v-if="isLoading" class="loading-overlay">
+        <div class="loading-spinner">
+          <div class="spinner"></div>
+          <p>Loading...</p>
+        </div>
       </div>
-    </div>
-    
-    <!-- Backend Down Modal -->
-    <BackendDownModal />
-    
-    <component :is="layout" :is-loading="isLoading">
-      <router-view :is-loading="isLoading" />
-    </component>
+      <component :is="layout" :is-loading="isLoading">
+        <router-view :is-loading="isLoading" />
+      </component>
+    </template>
   </div>
 </template>
 
@@ -51,7 +50,8 @@ export default {
     return {
       isAuthenticated: true,
       isLoading: false,
-      loadingRequestCount: 0
+      loadingRequestCount: 0,
+      isBackendDown: false
     }
   },
   computed: {
@@ -70,16 +70,21 @@ export default {
   created() {
     // Make loading methods globally available
     this.setupGlobalLoading()
-    
+    // Listen for backend health changes
+    window.addEventListener('backendHealthChange', this.handleBackendHealthChange)
     // Start backend health monitoring
     backendHealthService.startHealthMonitoring()
+    // Immediate health check on app load
+    backendHealthService.checkBackendHealth()
   },
-  
   beforeDestroy() {
-    // Clean up health monitoring
+    window.removeEventListener('backendHealthChange', this.handleBackendHealthChange)
     backendHealthService.stopHealthMonitoring()
   },
   methods: {
+    handleBackendHealthChange(event) {
+      this.isBackendDown = !event.detail.isHealthy
+    },
     checkAuthStatus () {
       const newAuthStatus = !!localStorage.getItem('signedIn')
       if (this.isAuthenticated !== newAuthStatus) {

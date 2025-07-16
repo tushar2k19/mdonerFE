@@ -188,6 +188,11 @@ class BackendHealthService {
 
     throw lastError
   }
+
+  // Force an immediate health check and update modal
+  async forceHealthCheck() {
+    await this.checkBackendHealth();
+  }
 }
 
 // Create singleton instance
