@@ -142,8 +142,8 @@ export default {
 <style scoped>
 .backend-down-modal {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   z-index: 99999;
@@ -155,15 +155,17 @@ export default {
 
 .modal-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
   z-index: 99999;
   pointer-events: all;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-content {
@@ -175,6 +177,8 @@ export default {
   text-align: center;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideIn 0.3s ease-out;
+  position: relative;
+  z-index: 100000;
 }
 
 @keyframes slideIn {
