@@ -164,6 +164,19 @@ plainAxiosInstance.interceptors.response.use(response => {
   if (window.hideGlobalLoading) {
     window.hideGlobalLoading()
   }
+  // Mark backend as unhealthy for network errors or 5xx/404 errors
+  if (
+    error.isBackendDown ||
+    error.code === 'ECONNABORTED' ||
+    error.code === 'NETWORK_ERROR' ||
+    (error.response && error.response.status >= 500) ||
+    (error.response && error.response.status === 404)
+  ) {
+    backendHealthService.markBackendUnhealthy()
+    if (backendHealthService.forceHealthCheck) {
+      backendHealthService.forceHealthCheck()
+    }
+  }
   return Promise.reject(error)
 })
 

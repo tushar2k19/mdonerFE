@@ -44,7 +44,7 @@
         
         <div class="contact-info">
           <p>If this problem persists, please contact your system administrator.</p>
-          <p class="support-email">Support: admin@mdoner.com</p>
+          <p class="support-email">Support: tushar.jha@in.gt.com</p>
         </div>
       </div>
     </div>
