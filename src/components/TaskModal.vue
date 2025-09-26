@@ -34,6 +34,43 @@
           >
         </div>
 
+        <!-- Phase 1: Simple tag add/remove (no dropdown yet) - placed below Responsibility -->
+        <div class="form-group">
+          <label>Tags</label>
+
+          <!-- Add-by-name input (placed first) -->
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <input
+              v-model="newTagName"
+              type="text"
+              class="form-control"
+              placeholder="Type a tag and click Add"
+              style="max-width:320px;"
+            >
+            <button class="btn" @click="addTagByName" style="background:#1e3a8a;color:white;">Add</button>
+          </div>
+
+          <!-- Selected tag chips (now below the input) -->
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <span
+              v-for="tag in selectedTags"
+              :key="tag.id"
+              style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;display:inline-flex;align-items:center;gap:6px;"
+            >
+              {{ tag.name }}
+              <button
+                @click.prevent="removeTag(tag.id)"
+                title="Remove"
+                style="background:transparent;border:none;color:#1e40af;cursor:pointer;font-weight:bold;"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+
+          <small style="color:#6b7280;">Add multiple tags by repeating Add. Use × to remove.</small>
+        </div>
+
         <div class="form-group">
           <label>Review Date</label>
           <datepicker
@@ -59,6 +96,7 @@
             @nodes-changed="onNodesChanged"
           />
         </div>
+
       </div>
 
       <div class="modal-footer">
@@ -117,6 +155,9 @@ export default {
       taskVersionId: null,
       showMergeInterface: false,
       mergeConflictData: null,
+      // Tags (Phase 1)
+      selectedTags: [],
+      newTagName: '',
       oldEditorConfig: {
         height: 425,
         menubar: true,
@@ -227,6 +268,11 @@ export default {
         this.taskVersionId = this.task.current_version_id
         await this.loadActionNodes()
       }
+
+      // Initialize tags when editing existing task
+      if (Array.isArray(this.task.tags)) {
+        this.selectedTags = this.task.tags.map(t => ({ id: t.id, name: t.name }))
+      }
     } else {
       // For new tasks, initialize with empty array
       this.actionNodes = []
@@ -293,11 +339,18 @@ export default {
         }
       }
 
-      // Check if we have at least one action node with content
-      const hasContent = this.flatActionNodes && this.flatActionNodes.length > 0 &&
-                        this.flatActionNodes.some(node => node.content && node.content.trim())
+      // Check for content in any of the following sources:
+      // 1) flatActionNodes (live edits)
+      // 2) actionNodes loaded from backend (when editor hasn’t touched the editor yet)
+      // 3) fallback: action_to_be_taken text (if present)
+      const hasFlatContent = Array.isArray(this.flatActionNodes) &&
+        this.flatActionNodes.some(node => node && node.content && node.content.trim())
 
-      if (!hasContent) {
+      const hasLoadedNodes = Array.isArray(this.actionNodes) && this.actionNodes.length > 0
+
+      const hasPlainText = this.formData.action_to_be_taken && this.formData.action_to_be_taken.toString().trim().length > 0
+
+      if (!hasFlatContent && !hasLoadedNodes && !hasPlainText) {
         this.$toast.error('At least one action item is required')
         return false
       }
@@ -309,16 +362,32 @@ export default {
       if (!this.validateForm()) return
 
       try {
+        const tagIds = this.selectedTags.map(t => t.id)
+
+        // Decide whether to send content updates
+        const filteredNodes = Array.isArray(this.flatActionNodes)
+          ? this.flatActionNodes.filter(node => node && node.content && node.content.trim())
+          : []
+
+        // Clone form data and remove action_to_be_taken if we are not changing content
+        const taskBody = {
+          ...this.formData,
+          original_date: this.formatDate(this.formData.original_date),
+          review_date: this.formatDate(this.formData.review_date),
+          tag_ids: tagIds
+        }
+
+        if (!filteredNodes.length) {
+          // Avoid triggering backend content rewrite when editor made no changes
+          delete taskBody.action_to_be_taken
+        }
+
         const taskData = {
-          task: {
-            ...this.formData,
-            original_date: this.formatDate(this.formData.original_date),
-            review_date: this.formatDate(this.formData.review_date)
-          },
-          // Send flat nodes array to backend
-          action_nodes: this.flatActionNodes
-            ? this.flatActionNodes.filter(node => node.content && node.content.trim())
-            : []
+          task: taskBody
+        }
+
+        if (filteredNodes.length) {
+          taskData.action_nodes = filteredNodes
         }
 
         let response
@@ -339,8 +408,45 @@ export default {
         this.$toast.success(`Task ${this.mode === 'edit' ? 'updated' : 'created'} successfully`)
       } catch (error) {
         console.error('Error saving task:', error)
-        this.$toast.error('Error saving task')
+        if (error && error.response && error.response.data) {
+          const msg = error.response.data.error || error.response.data.message || 'Error saving task'
+          this.$toast.error(msg)
+        } else {
+          this.$toast.error('Error saving task')
+        }
       }
+    },
+
+    async addTagByName () {
+      const name = (this.newTagName || '').trim()
+      if (!name) {
+        this.$toast.error('Enter a tag name')
+        return
+      }
+
+      // Prevent duplicate by name
+      const existsByName = this.selectedTags.some(t => t.name.toLowerCase() === name.toLowerCase())
+      if (existsByName) {
+        this.$toast.info('Tag already added')
+        this.newTagName = ''
+        return
+      }
+
+      try {
+        const res = await this.$http.secured.post('/tags', { name })
+        const tag = res.data // { id, name }
+        if (!this.selectedTags.some(t => t.id === tag.id)) {
+          this.selectedTags.push(tag)
+        }
+        this.newTagName = ''
+      } catch (e) {
+        console.error('Failed to add tag:', e)
+        this.$toast.error('Failed to add tag')
+      }
+    },
+
+    removeTag (id) {
+      this.selectedTags = this.selectedTags.filter(t => t.id !== id)
     },
 
     handleMergeConflict (conflictData) {

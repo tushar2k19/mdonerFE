@@ -230,7 +230,15 @@
         <tr>
           <td><strong>{{ getDisplayIndex(index) }}</strong></td>
           <td><strong>{{ task.sector_division }}</strong></td>
-          <td><strong>{{ task.description }}</strong></td>
+          <td>
+            <strong>{{ task.description }}</strong>
+            <div v-if="task.tags && task.tags.length" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+              <span v-for="t in task.tags" :key="t.id"
+                style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;">
+                {{ t.name }}
+              </span>
+            </div>
+          </td>
           <td v-html="task.action_to_be_taken" class="action-content-cell" 
               @click="debugContent(task)"></td>
           <td class="original-date-cell" :style="pdfMode ? 'vertical-align: top;' : ''">
