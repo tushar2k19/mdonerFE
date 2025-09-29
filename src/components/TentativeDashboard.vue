@@ -148,6 +148,31 @@
               </div>
             </div>
             
+            <!-- Tags Filter (NEW) -->
+            <div class="filter-section">
+              <div class="filter-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 12l-8 8-8-8 8-8 8 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Tags</span>
+              </div>
+
+              <div v-if="isLoadingTags" style="color:#6b7280;font-size:0.9rem;">Loading tags...</div>
+              <div v-else-if="!allTagsForFilter.length" style="color:#6b7280;font-size:0.9rem;">No tags yet</div>
+              <div v-else style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button
+                  v-for="tag in allTagsForFilter"
+                  :key="tag.id"
+                  @click.stop="toggleTagFilter(tag.id)"
+                  class="tag-chip"
+                  :class="{ 'selected': selectedTagsFilter.includes(tag.id) }"
+                  title="Toggle tag filter"
+                >
+                  {{ tag.name }}
+                </button>
+              </div>
+            </div>
+
             <!-- Active Filters Summary -->
             <div v-if="activeFiltersCount > 0" class="active-filters-summary">
               <div class="summary-header">
@@ -164,6 +189,14 @@
                 <span v-if="selectedDateFilter !== 'all'" class="active-filter-tag">
                   {{ getDateFilterLabel(selectedDateFilter) }}
                   <button @click="clearDateFilter" class="remove-filter-btn">×</button>
+                </span>
+                <span
+                  v-for="tid in selectedTagsFilter"
+                  :key="tid"
+                  class="active-filter-tag"
+                >
+                  {{ (allTagsForFilter.find(t => t.id === tid) || {}).name || 'Tag' }}
+                  <button @click="clearOneTagFilter(tid)" class="remove-filter-btn">×</button>
                 </span>
               </div>
             </div>
@@ -368,7 +401,12 @@ export default {
         { value: 'yesterday', label: 'Yesterday' },
         { value: 'tomorrow', label: 'Tomorrow' },
         { value: 'custom', label: 'Custom Date' }
-      ]
+      ],
+
+      // Tags filter (NEW)
+      selectedTagsFilter: [],
+      allTagsForFilter: [],
+      isLoadingTags: false
     }
   },
   watch: {
@@ -420,6 +458,15 @@ export default {
         tasks = this.filterTasksByDate(tasks)
       }
       
+      // NEW: Apply tags filter (ANY match)
+      if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) {
+        tasks = tasks.filter(task => {
+          if (!task || !Array.isArray(task.tags) || task.tags.length === 0) return false
+          const ids = task.tags.map(t => t.id)
+          return ids.some(id => this.selectedTagsFilter.includes(id))
+        })
+      }
+      
       // Apply search filter
       if (this.searchQuery.length > 0) {
         tasks = this.filteredTasks.filter(task => {
@@ -442,6 +489,7 @@ export default {
       let count = 0
       if (this.selectedStatus !== 'all') count++
       if (this.selectedDateFilter !== 'all') count++
+      if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) count++
       return count
     },
     searchSuggestions() {
@@ -605,11 +653,14 @@ export default {
     },
     async fetchTasksByDate() {
       try {
-        const response = await this.$http.secured.get('/tasks', {
-          params: {
-            date: this.selectedDate.toISOString().split('T')[0]
-          }
-        })
+        const params = {
+          date: this.selectedDate.toISOString().split('T')[0]
+        }
+        if (this.selectedTagsFilter && this.selectedTagsFilter.length) {
+          // Send as repeated query keys so Rails parses as an Array: tags[]=1&tags[]=2
+          params['tags[]'] = this.selectedTagsFilter.slice()
+        }
+        const response = await this.$http.secured.get('/tasks', { params })
 
         // Sort tasks by review_date (earliest first)
         const sortTasksByReviewDate = (tasks) => {
@@ -759,11 +810,13 @@ export default {
     
     toggleFilterDropdown() {
       this.showFilterDropdown = !this.showFilterDropdown
-      if (this.showFilterDropdown) {
+    if (this.showFilterDropdown) {
         // Close dropdown when clicking outside
         this.$nextTick(() => {
           document.addEventListener('click', this.handleFilterClickOutside)
         })
+      // Recompute tags in-use every time filter opens
+      this.loadTagsForFilter()
       } else {
         document.removeEventListener('click', this.handleFilterClickOutside)
       }
@@ -782,14 +835,17 @@ export default {
       console.log('Filters applied:', {
         status: this.selectedStatus,
         dateFilter: this.selectedDateFilter,
-        customDate: this.customDate
+        customDate: this.customDate,
+        tags: this.selectedTagsFilter
       })
+    // No refetch needed for local filters (status/date/tags)
     },
     
     clearAllFilters() {
       this.selectedStatus = 'all'
       this.selectedDateFilter = 'all'
       this.customDate = ''
+    this.selectedTagsFilter = []
     },
     
     clearStatusFilter() {
@@ -800,6 +856,47 @@ export default {
       this.selectedDateFilter = 'all'
       this.customDate = ''
     },
+
+  // Load all tags for the filter chips
+  async loadTagsForFilter () {
+    // Build tag list from currently loaded tasks so only in-use tags appear
+    try {
+      this.isLoadingTags = true
+      const idToName = new Map()
+      const source = Array.isArray(this.activeTasks) ? this.activeTasks : []
+      source.forEach(task => {
+        if (task && Array.isArray(task.tags)) {
+          task.tags.forEach(t => {
+            if (t && typeof t.id === 'number' && t.name) {
+              idToName.set(t.id, t.name)
+            }
+          })
+        }
+      })
+      // Convert to sorted array by name
+      this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    } finally {
+      this.isLoadingTags = false
+    }
+  },
+
+  // Toggle a tag id in the selection
+  toggleTagFilter (tagId) {
+    const id = Number(tagId)
+    if (this.selectedTagsFilter.includes(id)) {
+      this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== id)
+    } else {
+      this.selectedTagsFilter = [...this.selectedTagsFilter, id]
+    }
+    this.applyFilters()
+  },
+
+  // Remove a single tag from Active Filters summary
+  clearOneTagFilter (tagId) {
+    this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== tagId)
+    this.applyFilters()
+  },
     
     filterTasksByDate(tasks) {
       if (this.selectedDateFilter === 'all') return tasks
@@ -2075,6 +2172,24 @@ export default {
 .remove-filter-btn:hover {
   background: #1e40af;
   color: white;
+}
+
+/* NEW: tag chips */
+.tag-chip {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tag-chip:hover { filter: brightness(0.97); }
+.tag-chip.selected {
+  background: #1e3a8a;
+  color: #fff;
+  border-color: #1e3a8a;
 }
 
 .filter-results-summary {

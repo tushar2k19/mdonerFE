@@ -117,6 +117,24 @@
                 />
               </div>
             </div>
+
+            <!-- Tags Filter (NEW) -->
+            <div class="filter-section">
+              <h4 class="filter-section-title">Tags</h4>
+              <div v-if="isLoadingTags" style="color:#6b7280;font-size:0.9rem;">Loading tags...</div>
+              <div v-else-if="!allTagsForFilter.length" style="color:#6b7280;font-size:0.9rem;">No tags yet</div>
+              <div v-else style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button
+                  v-for="tag in allTagsForFilter"
+                  :key="tag.id"
+                  @click.stop="toggleTagFilter(tag.id)"
+                  class="tag-chip"
+                  :class="{ 'selected': selectedTagsFilter.includes(tag.id) }"
+                >
+                  {{ tag.name }}
+                </button>
+              </div>
+            </div>
             
             <!-- Filter Actions -->
             <div class="filter-actions">
@@ -190,7 +208,15 @@
         <tr>
           <td><strong>{{ getDisplayIndex(index) }}</strong></td>
           <td><strong>{{ task.sector_division }}</strong></td>
-          <td><strong>{{ task.description }}</strong></td>
+          <td>
+            <strong>{{ task.description }}</strong>
+            <div v-if="task.tags && task.tags.length" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+              <span v-for="t in task.tags" :key="t.id"
+                style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;">
+                {{ t.name }}
+              </span>
+            </div>
+          </td>
           <td v-html="processActionContent(task.action_to_be_taken)" class="action-content-cell"></td>
           <td class="original-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.original_date) }}</span>
@@ -236,7 +262,11 @@ export default {
       filters: {
         reviewDate: 'all',
         customDate: ''
-      }
+      },
+      // Tags filter (NEW)
+      selectedTagsFilter: [],
+      allTagsForFilter: [],
+      isLoadingTags: false
     }
   },
 
@@ -288,11 +318,13 @@ export default {
     },
     hasActiveFilters() {
       return this.filters.reviewDate !== 'all' || 
-             (this.filters.reviewDate === 'custom' && this.filters.customDate)
+             (this.filters.reviewDate === 'custom' && this.filters.customDate) ||
+             (this.selectedTagsFilter && this.selectedTagsFilter.length > 0)
     },
     activeFiltersCount() {
       let count = 0
       if (this.filters.reviewDate !== 'all') count++
+      if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) count++
       return count
     }
   },
@@ -989,6 +1021,10 @@ export default {
 
     toggleFilterDropdown() {
       this.showFilterDropdown = !this.showFilterDropdown
+    if (this.showFilterDropdown) {
+      // Recompute in-use tags from approvedTasks when opening
+      this.loadTagsForFilter()
+    }
     },
 
     applyFilters() {
@@ -999,6 +1035,7 @@ export default {
     clearAllFilters() {
       this.filters.reviewDate = 'all'
       this.filters.customDate = ''
+    this.selectedTagsFilter = []
     },
 
     closeFilterDropdown() {
@@ -1006,7 +1043,8 @@ export default {
     },
 
     applyFiltersToTasks(tasks) {
-      return tasks.filter(task => {
+      // First apply review date filter
+      let filtered = tasks.filter(task => {
         if (this.filters.reviewDate !== 'all') {
           const taskReviewDate = task.review_date ? new Date(task.review_date) : null
           if (!taskReviewDate) return false
@@ -1042,6 +1080,43 @@ export default {
         }
         return true
       })
+
+      // Then apply tags filter (ANY)
+      if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) {
+        filtered = filtered.filter(task => {
+          if (!task || !Array.isArray(task.tags) || task.tags.length === 0) return false
+          const ids = task.tags.map(t => t.id)
+          return ids.some(id => this.selectedTagsFilter.includes(id))
+        })
+      }
+      return filtered
+    },
+
+    // Build tags list from approvedTasks for filter chips
+    loadTagsForFilter () {
+      const idToName = new Map()
+      const source = Array.isArray(this.approvedTasks) ? this.approvedTasks : []
+      source.forEach(task => {
+        if (task && Array.isArray(task.tags)) {
+          task.tags.forEach(t => {
+            if (t && typeof t.id === 'number' && t.name) {
+              idToName.set(t.id, t.name)
+            }
+          })
+        }
+      })
+      this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+
+    toggleTagFilter (tagId) {
+      const id = Number(tagId)
+      if (this.selectedTagsFilter.includes(id)) {
+        this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== id)
+      } else {
+        this.selectedTagsFilter = [...this.selectedTagsFilter, id]
+      }
+      this.applyFilters()
     },
 
     handleClickOutside(event) {
@@ -1428,6 +1503,24 @@ export default {
   font-size: 0.875rem;
   color: #374151;
   font-weight: 500;
+}
+
+/* NEW: tag chips */
+.tag-chip {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tag-chip:hover { filter: brightness(0.97); }
+.tag-chip.selected {
+  background: #1e3a8a;
+  color: #fff;
+  border-color: #1e3a8a;
 }
 
 .custom-date-picker {
