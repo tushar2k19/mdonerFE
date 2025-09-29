@@ -35,7 +35,7 @@
         </div>
 
         <!-- Phase 1: Simple tag add/remove (no dropdown yet) - placed below Responsibility -->
-        <div class="form-group">
+        <div class="form-group" ref="tagField">
           <label>Tags</label>
 
           <!-- Add-by-name input (placed first) -->
@@ -46,8 +46,32 @@
               class="form-control"
               placeholder="Type a tag and click Add"
               style="max-width:320px;"
+              @focus="openTagDropdown"
+              @click="openTagDropdown"
+              @input="openTagDropdown"
             >
             <button class="btn" @click="addTagByName" style="background:#1e3a8a;color:white;">Add</button>
+          </div>
+
+          <!-- Tag suggestions dropdown (Task 1) -->
+          <div v-if="showTagDropdown" class="tag-suggest-dropdown">
+            <div v-if="isLoadingTags" class="tag-suggest-empty">Loading tags…</div>
+            <!-- Show first 20 tags for now (sorting and filtering come in later tasks) -->
+            <div v-else-if="filteredTagSuggestions && filteredTagSuggestions.length" class="tag-suggest-list">
+              <button
+                v-for="t in filteredTagSuggestions"
+                :key="t.id"
+                class="tag-suggest-item"
+                :class="{ selected: isTagSelected(t.id) }"
+                :disabled="isTagSelected(t.id)"
+                @click.prevent="!isTagSelected(t.id) && selectExistingTag(t)"
+              >
+                {{ t.name }}
+              </button>
+            </div>
+            <div v-else class="tag-suggest-empty">
+              No matching tags. Use Add to create "{{ newTagName }}".
+            </div>
           </div>
 
           <!-- Selected tag chips (now below the input) -->
@@ -158,6 +182,12 @@ export default {
       // Tags (Phase 1)
       selectedTags: [],
       newTagName: '',
+      // Tag suggestions dropdown (Task 1)
+      allTags: [],
+      isTagsLoaded: false,
+      showTagDropdown: false,
+      isLoadingTags: false,
+      tagSearch: '',
       oldEditorConfig: {
         height: 425,
         menubar: true,
@@ -251,6 +281,24 @@ export default {
       }
     }
   },
+  computed: {
+    filteredTagSuggestions () {
+      const list = Array.isArray(this.allTags) ? this.allTags : []
+      const q = (this.newTagName || '').trim().toLowerCase()
+      if (!q) return list
+      const prefix = []
+      const contains = []
+      list.forEach(t => {
+        const name = (t.name || '').toLowerCase()
+        if (name.startsWith(q)) {
+          prefix.push(t)
+        } else if (name.includes(q)) {
+          contains.push(t)
+        }
+      })
+      return prefix.concat(contains).slice(0, 20)
+    }
+  },
   async created () {
     // If editing existing task, populate form
     if (this.task) {
@@ -279,7 +327,21 @@ export default {
       this.taskVersionId = 1 // Temporary ID for new tasks
     }
   },
-
+  mounted() {
+    this._onDocClick = (e) => {
+      const root = this.$refs.tagField
+      if (root && !root.contains(e.target)) {
+        this.closeTagDropdown()
+      }
+    }
+    document.addEventListener('click', this._onDocClick)
+  },
+  beforeDestroy() {
+    if (this._onDocClick) {
+      document.removeEventListener('click', this._onDocClick)
+    }
+  },
+  
   methods: {
     async loadActionNodes () {
       try {
@@ -447,6 +509,50 @@ export default {
 
     removeTag (id) {
       this.selectedTags = this.selectedTags.filter(t => t.id !== id)
+    },
+
+    // Task 1: open/close dropdown and load tag suggestions once
+    async openTagDropdown () {
+      await this.loadTagsIfNeeded()
+      this.showTagDropdown = true
+    },
+    closeTagDropdown () {
+      this.showTagDropdown = false
+    },
+    async loadTagsIfNeeded () {
+      if (this.isTagsLoaded || this.isLoadingTags) return
+      try {
+        this.isLoadingTags = true
+        const res = await this.$http.secured.get('/tags', { params: { include_usage: true } })
+        const list = Array.isArray(res.data) ? res.data : []
+        // Task 2: sort by usage_count desc, then name asc; keep top 20
+        const sorted = list
+          .map(t => ({ id: t.id, name: t.name, usage_count: t.usage_count || 0 }))
+          .sort((a, b) => {
+            if ((b.usage_count || 0) !== (a.usage_count || 0)) {
+              return (b.usage_count || 0) - (a.usage_count || 0)
+            }
+            return a.name.localeCompare(b.name)
+          })
+        this.allTags = sorted.slice(0, 20)
+        this.isTagsLoaded = true
+      } catch (e) {
+        console.error('Failed to load tags:', e)
+        this.$toast.error('Failed to load tag suggestions')
+      } finally {
+        this.isLoadingTags = false
+      }
+    },
+    selectExistingTag (tag) {
+      if (!tag || typeof tag.id !== 'number') return
+      const exists = this.selectedTags.some(t => t.id === tag.id)
+      if (!exists) {
+        this.selectedTags.push({ id: tag.id, name: tag.name })
+      }
+      // Keep dropdown open to allow multiple selections
+    },
+    isTagSelected (id) {
+      return this.selectedTags.some(t => t.id === id)
     },
 
     handleMergeConflict (conflictData) {
@@ -761,5 +867,44 @@ export default {
 :deep(.tox-tinymce:focus-within) {
   border-color: #004680 !important;
   box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1) !important;
+}
+
+.tag-suggest-dropdown {
+  position: relative;
+  margin-bottom: 8px;
+}
+.tag-suggest-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  padding: 6px;
+}
+.tag-suggest-item {
+  display: inline-block;
+  margin: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 14px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+  cursor: pointer;
+}
+.tag-suggest-item:hover { filter: brightness(0.97); }
+.tag-suggest-empty {
+  padding: 8px;
+  color: #6b7280;
+  font-size: 12px;
+}
+.tag-suggest-item.selected {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.tag-suggest-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
