@@ -874,37 +874,41 @@ export default {
   margin-bottom: 8px;
 }
 .tag-suggest-list {
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-  padding: 6px;
+  padding: 4px 0;
+  z-index: 5;
 }
 .tag-suggest-item {
-  display: inline-block;
-  margin: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 14px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #1e40af;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 13px;
+  color: #1f2937;
   cursor: pointer;
 }
-.tag-suggest-item:hover { filter: brightness(0.97); }
+.tag-suggest-item:hover { background: #f3f4f6; }
 .tag-suggest-empty {
   padding: 8px;
   color: #6b7280;
   font-size: 12px;
 }
 .tag-suggest-item.selected {
-  opacity: 0.6;
+  color: #9ca3af;
+  background: #fafafa;
   cursor: not-allowed;
 }
 .tag-suggest-item:disabled {
-  opacity: 0.6;
+  color: #9ca3af;
+  background: #fafafa;
   cursor: not-allowed;
 }
 </style>

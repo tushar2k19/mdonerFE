@@ -118,21 +118,60 @@
               </div>
             </div>
 
-            <!-- Tags Filter (NEW) -->
-            <div class="filter-section">
-              <h4 class="filter-section-title">Tags</h4>
+            <!-- Tags Filter (Searchable dropdown like Tentative) -->
+            <div class="filter-section" ref="fdTagFilterField">
+              <div class="filter-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 12l-8 8-8-8 8-8 8 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Tags</span>
+              </div>
               <div v-if="isLoadingTags" style="color:#6b7280;font-size:0.9rem;">Loading tags...</div>
               <div v-else-if="!allTagsForFilter.length" style="color:#6b7280;font-size:0.9rem;">No tags yet</div>
-              <div v-else style="display:flex;flex-wrap:wrap;gap:8px;">
-                <button
-                  v-for="tag in allTagsForFilter"
-                  :key="tag.id"
-                  @click.stop="toggleTagFilter(tag.id)"
-                  class="tag-chip"
-                  :class="{ 'selected': selectedTagsFilter.includes(tag.id) }"
-                >
-                  {{ tag.name }}
-                </button>
+              <div v-else>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                  <input
+                    v-model="filterTagQuery"
+                    type="text"
+                    class="form-control fd-tag-search-input"
+                    placeholder="Search tags..."
+                    style="max-width:320px;"
+                    @focus="openFdFilterTagDropdown"
+                    @click="openFdFilterTagDropdown"
+                    @input="openFdFilterTagDropdown"
+                    @blur="onFdFilterTagBlur"
+                    @keydown.esc.prevent="closeFdFilterTagDropdown"
+                  >
+                </div>
+
+                <!-- Suggestions dropdown (stacked) -->
+                <div v-if="showFdFilterTagDropdown" class="fd-filter-tag-suggest-dropdown" :class="{ flip: fdFilterTagDropdownFlip }">
+                  <div v-if="!fdFilteredFilterTagSuggestions.length" class="fd-filter-tag-suggest-empty">No matching tags</div>
+                  <div v-else class="fd-filter-tag-suggest-list">
+                    <button
+                      v-for="t in fdFilteredFilterTagSuggestions"
+                      :key="t.id"
+                      class="fd-filter-tag-suggest-item"
+                      :class="{ selected: selectedTagsFilter.includes(t.id) }"
+                      :disabled="selectedTagsFilter.includes(t.id)"
+                      @click.stop.prevent="selectFdFilterTag(t)"
+                    >
+                      {{ t.name }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Selected tags summary chips -->
+                <div v-if="selectedTagsFilter.length" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+                  <span
+                    v-for="tid in selectedTagsFilter"
+                    :key="tid"
+                    class="tag-chip selected"
+                  >
+                    {{ (allTagsForFilter.find(t => t.id === tid) || {}).name || 'Tag' }}
+                    <button @click.stop="toggleTagFilter(tid)" class="remove-filter-btn" style="margin-left:6px;background:transparent;border:none;color:#fff;cursor:pointer;">×</button>
+                  </span>
+                </div>
               </div>
             </div>
             
@@ -210,25 +249,37 @@
           <td><strong>{{ task.sector_division }}</strong></td>
           <td>
             <strong>{{ task.description }}</strong>
-            <div v-if="task.tags && task.tags.length" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
-              <span v-for="t in task.tags" :key="t.id"
-                style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;">
-                {{ t.name }}
-              </span>
-            </div>
           </td>
           <td v-html="processActionContent(task.action_to_be_taken)" class="action-content-cell"></td>
-          <td class="original-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="original-date-cell tag-host" :style="pdfMode ? 'vertical-align: middle;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.original_date) }}</span>
+            <button v-if="task.tags && task.tags.length" type="button" class="tag-peek no-print" @mousedown.prevent.stop="openRowTagsPopover(task, $event)" @click.stop="openRowTagsPopover(task, $event)" title="View tags">
+              🏷️
+            </button>
           </td>
-          <td class="responsibility-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="responsibility-cell tag-host" :style="pdfMode ? 'vertical-align: middle;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ task.responsibility }}</span>
+            <button v-if="task.tags && task.tags.length" type="button" class="tag-peek no-print" @mousedown.prevent.stop="openRowTagsPopover(task, $event)" @click.stop="openRowTagsPopover(task, $event)" title="View tags">
+              🏷️
+            </button>
           </td>
-          <td class="review-date-cell" :style="pdfMode ? 'vertical-align: middle;' : ''">
+          <td class="review-date-cell tag-host" :style="pdfMode ? 'vertical-align: middle;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.review_date) }}</span>
+            <button v-if="task.tags && task.tags.length" type="button" class="tag-peek no-print" @mousedown.prevent.stop="openRowTagsPopover(task, $event)" @click.stop="openRowTagsPopover(task, $event)" title="View tags">
+              🏷️
+            </button>
           </td>
         </tr>
       </table>
+    </div>
+
+    <!-- Row Tags Popover (Vue-controlled) -->
+    <div v-if="showRowTagsPopover" class="fd-tags-popover no-print" :style="rowTagsPopoverStyle" @click.stop>
+      <div class="fd-tags-popover-header">Tags</div>
+      <div v-if="rowTagsPopoverTask && rowTagsPopoverTask.tags && rowTagsPopoverTask.tags.length" class="fd-tags-popover-list">
+        <button v-for="t in rowTagsPopoverTask.tags" :key="t.id" class="fd-tags-popover-item" disabled>{{ t.name }}</button>
+      </div>
+      <div v-else class="fd-tags-popover-empty">No tags</div>
     </div>
 
     <!-- Empty State -->
@@ -266,7 +317,16 @@ export default {
       // Tags filter (NEW)
       selectedTagsFilter: [],
       allTagsForFilter: [],
-      isLoadingTags: false
+      isLoadingTags: false,
+      // FinalDashboard tag filter (searchable)
+      filterTagQuery: '',
+      showFdFilterTagDropdown: false,
+      fdFilterTagDropdownFlip: false
+      ,
+      // Row tags popover
+      showRowTagsPopover: false,
+      rowTagsPopoverTask: null,
+      rowTagsPopoverStyle: {}
     }
   },
 
@@ -326,6 +386,13 @@ export default {
       if (this.filters.reviewDate !== 'all') count++
       if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) count++
       return count
+    },
+    fdFilteredFilterTagSuggestions () {
+      const q = (this.filterTagQuery || '').trim().toLowerCase()
+      if (!q) return this.allTagsForFilter.slice(0, 20)
+      const starts = this.allTagsForFilter.filter(t => t.name.toLowerCase().startsWith(q))
+      const contains = this.allTagsForFilter.filter(t => !t.name.toLowerCase().startsWith(q) && t.name.toLowerCase().includes(q))
+      return [...starts, ...contains].slice(0, 20)
     }
   },
 
@@ -401,6 +468,34 @@ export default {
   },
 
   methods: {
+    // Open read-only tags popover for a row (click-to-open, hover-stay)
+    openRowTagsPopover(task, event) {
+      if (!task || !Array.isArray(task.tags)) return
+      const triggerRect = event.currentTarget.getBoundingClientRect()
+      // Approximate popover size for positioning; will adjust after nextTick
+      const estimatedWidth = 240
+      const estimatedHeight = 160
+      const spaceBelow = window.innerHeight - triggerRect.bottom
+      const flip = spaceBelow < estimatedHeight + 12
+      const top = flip ? (triggerRect.top - estimatedHeight - 8) : (triggerRect.bottom + 8)
+      const left = Math.min(Math.max(triggerRect.left - 8, 8), window.innerWidth - estimatedWidth - 8)
+      this.rowTagsPopoverTask = task
+      this.rowTagsPopoverStyle = { top: Math.max(8, top) + 'px', left: left + 'px' }
+      this.showRowTagsPopover = true
+      // Outside click handler
+      this.$nextTick(() => {
+        // Close on outside click using capture phase to beat other handlers
+        const onDoc = (e) => {
+          const pop = document.querySelector('.fd-tags-popover')
+          if (!pop) { document.removeEventListener('click', onDoc, true); return }
+          if (!pop.contains(e.target)) {
+            this.showRowTagsPopover = false
+            document.removeEventListener('click', onDoc, true)
+          }
+        }
+        setTimeout(() => document.addEventListener('click', onDoc, true), 0)
+      })
+    },
     // Add toRoman helper method
     toRoman(num) {
       const roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
@@ -1109,6 +1204,56 @@ export default {
         .sort((a, b) => a.name.localeCompare(b.name))
     },
 
+    // Select from FD tag suggestions
+    selectFdFilterTag (tag) {
+      this.toggleTagFilter(tag.id)
+      this.filterTagQuery = ''
+      this.$nextTick(() => {
+        const input = this.$el.querySelector('.fd-tag-search-input')
+        if (input) input.focus()
+      })
+    },
+
+    // Open/close searchable dropdown with flip logic
+    openFdFilterTagDropdown () {
+      this.showFdFilterTagDropdown = true
+      this.$nextTick(() => {
+        const inputEl = this.$el.querySelector('.fd-tag-search-input')
+        if (inputEl) {
+          const rect = inputEl.getBoundingClientRect()
+          const viewportHeight = window.innerHeight
+          const estimatedDropdownHeight = 200
+          this.fdFilterTagDropdownFlip = (rect.bottom + estimatedDropdownHeight > viewportHeight - 10)
+        }
+      })
+      if (!this._onFdFilterTagOutside) {
+        this._onFdFilterTagOutside = (e) => {
+          const root = this.$refs.fdTagFilterField
+          if (root && !root.contains(e.target)) {
+            this.closeFdFilterTagDropdown()
+            document.removeEventListener('click', this._onFdFilterTagOutside)
+            this._onFdFilterTagOutside = null
+          }
+        }
+      }
+      document.addEventListener('click', this._onFdFilterTagOutside)
+    },
+    onFdFilterTagBlur () {
+      requestAnimationFrame(() => {
+        const root = this.$refs.fdTagFilterField
+        if (root && !root.contains(document.activeElement)) {
+          this.closeFdFilterTagDropdown()
+        }
+      })
+    },
+    closeFdFilterTagDropdown () {
+      this.showFdFilterTagDropdown = false
+      if (this._onFdFilterTagOutside) {
+        document.removeEventListener('click', this._onFdFilterTagOutside)
+        this._onFdFilterTagOutside = null
+      }
+    },
+
     toggleTagFilter (tagId) {
       const id = Number(tagId)
       if (this.selectedTagsFilter.includes(id)) {
@@ -1440,7 +1585,7 @@ export default {
   z-index: 50;
   margin-top: 8px;
   animation: dropdownSlide 0.2s ease-out;
-  overflow: hidden;
+  overflow: visible; /* allow tag suggestion list to extend beyond card if needed */
 }
 
 @keyframes dropdownSlide {
@@ -1470,6 +1615,16 @@ export default {
   color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Match TentativeDashboard filter section header (icon + text) */
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
 }
 
 .filter-options {
@@ -1522,6 +1677,33 @@ export default {
   color: #fff;
   border-color: #1e3a8a;
 }
+
+/* FD: Tag suggestions dropdown like Tentative */
+.fd-filter-tag-suggest-dropdown { position: relative; margin-bottom: 8px; }
+.fd-filter-tag-suggest-dropdown.flip .fd-filter-tag-suggest-list { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; }
+.fd-filter-tag-suggest-dropdown:not(.flip) .fd-filter-tag-suggest-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0; }
+.fd-filter-tag-suggest-list { max-height: 220px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 10px; background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.12); padding: 4px 0; overflow-x: hidden; }
+.fd-filter-tag-suggest-item { display: block; width: 100%; text-align: left; background: transparent; border: none; padding: 10px 14px; margin: 0; font-size: 13px; color: #1f2937; cursor: pointer; }
+.fd-filter-tag-suggest-item:hover { background: #f9fafb; }
+.fd-filter-tag-suggest-empty { padding: 8px; color: #6b7280; font-size: 12px; }
+.fd-tag-search-input { 
+  display: block; 
+  width: 100%; 
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 36px 10px 40px; /* left room for icon */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>') no-repeat 12px center;
+}
+.fd-tag-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+.fd-filter-tag-suggest-list::-webkit-scrollbar { width: 8px; }
+.fd-filter-tag-suggest-list::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 10px; }
+.fd-filter-tag-suggest-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
 
 .custom-date-picker {
   margin-top: 1rem;
@@ -2157,6 +2339,73 @@ export default {
   padding: 0.75rem !important;
   min-height: 50px;
   overflow: visible !important; /* Ensure badges are visible */
+}
+
+/* Hover-revealed tag icon inside cells */
+.tag-host { position: relative; }
+.tag-peek {
+  display: none;
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: #eef2ff;
+  color: #1e40af;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.tag-host:hover .tag-peek { display: inline-block; }
+.tag-peek:focus { display: inline-block; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.35); }
+
+/* Tags popover (read-only) */
+.fd-tags-popover {
+  position: fixed;
+  width: 240px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.18);
+  padding: 0;
+  overflow: hidden;
+  z-index: 1000;
+}
+.fd-tags-popover-header {
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+}
+.fd-tags-popover-list {
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #c7d2fe #f1f5f9;
+}
+.fd-tags-popover-list::-webkit-scrollbar { width: 8px; }
+.fd-tags-popover-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.fd-tags-popover-list::-webkit-scrollbar-thumb { background-color: #c7d2fe; border-radius: 4px; border: 2px solid #f1f5f9; }
+.fd-tags-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #111827;
+  background: #ffffff;
+  border: none;
+  white-space: normal;
+  word-break: break-word;
+}
+.fd-tags-popover-item + .fd-tags-popover-item { border-top: 1px solid #f3f4f6; }
+.fd-tags-popover-empty { color:#6b7280; font-size:12px; padding:8px 12px; }
+
+/* Hide icons and popover in print/PDF/Word exports */
+@media print {
+  .no-print { display: none !important; }
 }
 
 /* Highlight connection class for hover effects */

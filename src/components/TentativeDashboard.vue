@@ -148,8 +148,8 @@
               </div>
             </div>
             
-            <!-- Tags Filter (NEW) -->
-            <div class="filter-section">
+            <!-- Tags Filter (Searchable dropdown, no creation) -->
+            <div class="filter-section" ref="tagFilterField">
               <div class="filter-section-header">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M20 12l-8 8-8-8 8-8 8 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -159,17 +159,50 @@
 
               <div v-if="isLoadingTags" style="color:#6b7280;font-size:0.9rem;">Loading tags...</div>
               <div v-else-if="!allTagsForFilter.length" style="color:#6b7280;font-size:0.9rem;">No tags yet</div>
-              <div v-else style="display:flex;flex-wrap:wrap;gap:8px;">
-                <button
-                  v-for="tag in allTagsForFilter"
-                  :key="tag.id"
-                  @click.stop="toggleTagFilter(tag.id)"
-                  class="tag-chip"
-                  :class="{ 'selected': selectedTagsFilter.includes(tag.id) }"
-                  title="Toggle tag filter"
-                >
-                  {{ tag.name }}
-                </button>
+              <div v-else>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                  <input
+                    v-model="filterTagQuery"
+                    type="text"
+                    class="form-control tag-search-input"
+                    placeholder="Search tags..."
+                    style="max-width:320px;"
+                    @focus="openFilterTagDropdown"
+                    @click="openFilterTagDropdown"
+                    @input="openFilterTagDropdown"
+                    @blur="onFilterTagBlur"
+                    @keydown.esc.prevent="closeFilterTagDropdown"
+                  >
+                </div>
+
+                <!-- Suggestions dropdown (stacked) -->
+                <div v-if="showFilterTagDropdown" class="filter-tag-suggest-dropdown" :class="{ flip: filterTagDropdownFlip }">
+                  <div v-if="!filteredFilterTagSuggestions.length" class="filter-tag-suggest-empty">No matching tags</div>
+                  <div v-else class="filter-tag-suggest-list">
+                    <button
+                      v-for="t in filteredFilterTagSuggestions"
+                      :key="t.id"
+                      class="filter-tag-suggest-item"
+                      :class="{ selected: selectedTagsFilter.includes(t.id) }"
+                      :disabled="selectedTagsFilter.includes(t.id)"
+                      @click.stop.prevent="selectFilterTag(t)"
+                    >
+                      {{ t.name }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Selected tags summary chips -->
+                <div v-if="selectedTagsFilter.length" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+                  <span
+                    v-for="tid in selectedTagsFilter"
+                    :key="tid"
+                    class="active-filter-tag"
+                  >
+                    {{ (allTagsForFilter.find(t => t.id === tid) || {}).name || 'Tag' }}
+                    <button @click.stop="clearOneTagFilter(tid)" class="remove-filter-btn">×</button>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -265,12 +298,6 @@
           <td><strong>{{ task.sector_division }}</strong></td>
           <td>
             <strong>{{ task.description }}</strong>
-            <div v-if="task.tags && task.tags.length" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
-              <span v-for="t in task.tags" :key="t.id"
-                style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;">
-                {{ t.name }}
-              </span>
-            </div>
           </td>
           <td v-html="task.action_to_be_taken" class="action-content-cell" 
               @click="debugContent(task)"></td>
@@ -317,6 +344,19 @@
       <button v-if="canApprove(getCurrentTask())"
               @click="approveTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Approve</button>
+      <button @click="openTagsPopover(getCurrentTask(), $event)" class="menu-item tags">Tags</button>
+    </div>
+
+    <!-- Tags popover positioned near the global action menu -->
+    <div v-if="showTagsForTaskId && activeMenuId === showTagsForTaskId"
+         class="tags-popover"
+         :style="getTagsPopoverPosition()"
+         @mouseenter="keepMenuOpen"
+         @mouseleave="hideActionMenu(activeMenuId)">
+      <div v-if="getCurrentTask() && getCurrentTask().tags && getCurrentTask().tags.length" class="tags-popover-list">
+        <button v-for="t in getCurrentTask().tags" :key="t.id" class="tags-popover-item" disabled>{{ t.name }}</button>
+      </div>
+      <div v-else class="tags-popover-empty">No tags</div>
     </div>
 
     <!-- Modals remain unchanged -->
@@ -406,7 +446,14 @@ export default {
       // Tags filter (NEW)
       selectedTagsFilter: [],
       allTagsForFilter: [],
-      isLoadingTags: false
+      isLoadingTags: false,
+      // Searchable dropdown state (filter panel)
+      filterTagQuery: '',
+      showFilterTagDropdown: false,
+      filterTagDropdownFlip: false,
+      // Tags popover state (action menu)
+      showTagsForTaskId: null,
+      tagsPopoverPosition: null
     }
   },
   watch: {
@@ -428,6 +475,20 @@ export default {
     }
   },
   computed: {
+    // Filter tag suggestions: prefix match first, then contains, limit 20
+    filteredFilterTagSuggestions () {
+      const list = Array.isArray(this.allTagsForFilter) ? this.allTagsForFilter : []
+      const q = (this.filterTagQuery || '').trim().toLowerCase()
+      if (!q) return list.slice(0, 20)
+      const prefix = []
+      const contains = []
+      list.forEach(t => {
+        const name = (t.name || '').toLowerCase()
+        if (name.startsWith(q)) prefix.push(t)
+        else if (name.includes(q)) contains.push(t)
+      })
+      return prefix.concat(contains).slice(0, 20)
+    },
     userRole () {
       let abc = this.getCookie('user_info')
       if (abc) {
@@ -547,6 +608,7 @@ export default {
       return uniqueSuggestions.slice(0, 8)
     }
   },
+  
 
   created () {
     console.log('Route Query:', this.$route.query)
@@ -817,6 +879,9 @@ export default {
         })
       // Recompute tags in-use every time filter opens
       this.loadTagsForFilter()
+      // prepare dropdown query each open
+      this.filterTagQuery = ''
+      this.showFilterTagDropdown = false
       } else {
         document.removeEventListener('click', this.handleFilterClickOutside)
       }
@@ -826,6 +891,49 @@ export default {
       if (this.$refs.filterContainer && !this.$refs.filterContainer.contains(event.target)) {
         this.showFilterDropdown = false
         document.removeEventListener('click', this.handleFilterClickOutside)
+      }
+    },
+
+    // Open/close tag suggestions within filter
+    openFilterTagDropdown () {
+      this.showFilterTagDropdown = true
+      // Decide whether to flip above based on viewport space
+      this.$nextTick(() => {
+        const inputEl = this.$el.querySelector('.tag-search-input')
+        if (inputEl) {
+          const rect = inputEl.getBoundingClientRect()
+          const viewportHeight = window.innerHeight
+          const estimatedDropdownHeight = 200
+          this.filterTagDropdownFlip = (rect.bottom + estimatedDropdownHeight > viewportHeight - 10)
+        }
+      })
+      // Close when clicking outside of the tag area
+      if (!this._onFilterTagOutside) {
+        this._onFilterTagOutside = (e) => {
+          const root = this.$refs.tagFilterField
+          if (root && !root.contains(e.target)) {
+            this.showFilterTagDropdown = false
+            document.removeEventListener('click', this._onFilterTagOutside)
+            this._onFilterTagOutside = null
+          }
+        }
+      }
+      document.addEventListener('click', this._onFilterTagOutside)
+    },
+    onFilterTagBlur (e) {
+      // Defer closing to allow click selection inside dropdown
+      requestAnimationFrame(() => {
+        const root = this.$refs.tagFilterField
+        if (root && !root.contains(document.activeElement)) {
+          this.closeFilterTagDropdown()
+        }
+      })
+    },
+    closeFilterTagDropdown () {
+      this.showFilterTagDropdown = false
+      if (this._onFilterTagOutside) {
+        document.removeEventListener('click', this._onFilterTagOutside)
+        this._onFilterTagOutside = null
       }
     },
     
@@ -878,6 +986,15 @@ export default {
         .sort((a, b) => a.name.localeCompare(b.name))
     } finally {
       this.isLoadingTags = false
+    }
+  },
+
+  // Select a tag from suggestions
+  selectFilterTag (tag) {
+    if (!tag || typeof tag.id !== 'number') return
+    if (!this.selectedTagsFilter.includes(tag.id)) {
+      this.selectedTagsFilter = [...this.selectedTagsFilter, tag.id]
+      this.applyFilters()
     }
   },
 
@@ -1385,6 +1502,8 @@ export default {
         clearTimeout(this.menuHideTimeout);
         this.menuHideTimeout = null;
       }
+      // Reset tags popover whenever menu is opened/hovered
+      this.showTagsForTaskId = null;
 
       // Calculate global position for the dropdown
       const trigger = event ? event.target : document.querySelector(`[data-task-id="${taskId}"]`);
@@ -1423,6 +1542,7 @@ export default {
       this.menuHideTimeout = setTimeout(() => {
       if (this.activeMenuId === taskId) {
         this.activeMenuId = null;
+        this.showTagsForTaskId = null;
       }
       }, 300); // 300ms delay
     },
@@ -1442,6 +1562,7 @@ export default {
         this.menuHideTimeout = null;
       }
       this.activeMenuId = null;
+      this.showTagsForTaskId = null;
     },
 
     handleClickOutside(event) {
@@ -1453,6 +1574,7 @@ export default {
         if (menu && !menu.contains(event.target) && 
             trigger && !trigger.contains(event.target)) {
           this.forceHideMenu();
+          this.showTagsForTaskId = null;
         }
       }
     },
@@ -1462,6 +1584,41 @@ export default {
         return null;
       }
       return this.activeTasks.find(task => task && task.id === this.activeMenuId) || null;
+    },
+
+    // Open a tags popover from the action menu
+    openTagsPopover(task, event) {
+      if (!task) return
+      // Position the popover directly under the clicked Tags button
+      if (event && event.target) {
+        const rect = event.target.getBoundingClientRect()
+        const belowTop = rect.bottom + 6
+        const aboveTopCandidate = rect.top - 6
+        const left = rect.left
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
+        const popoverWidth = 240
+        const popoverHeight = 180 // estimated max height
+
+        // Choose below by default, but flip above if not enough space
+        let top = belowTop
+        if (belowTop + popoverHeight > viewportHeight - 10) {
+          top = Math.max(10, aboveTopCandidate - popoverHeight)
+        }
+
+        this.tagsPopoverPosition = {
+          position: 'fixed',
+          top: `${top}px`,
+          left: `${Math.max(10, Math.min(left, viewportWidth - popoverWidth - 10))}px`,
+          zIndex: '100000'
+        }
+      } else {
+        this.tagsPopoverPosition = this.menuPosition
+      }
+      this.showTagsForTaskId = task.id
+    },
+    getTagsPopoverPosition() {
+      return this.tagsPopoverPosition || {}
     },
 
     getHighlightClass(reviewDate) {
@@ -2526,6 +2683,47 @@ export default {
   padding: 0.25rem 0;
 }
 
+/* Tags popover styles */
+.tags-popover {
+  position: fixed;
+  width: 240px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+  padding: 6px 0;
+  overflow: hidden; /* clip inner overflow */
+}
+.tags-popover-list {
+  max-height: 144px; /* about 3 items */
+  overflow-y: auto;
+  /* Match filter dropdown scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #c7d2fe #f1f5f9;
+  overflow-x: hidden; /* prevent horizontal scroll */
+}
+.tags-popover-list::-webkit-scrollbar { width: 8px; }
+.tags-popover-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.tags-popover-list::-webkit-scrollbar-thumb { background-color: #c7d2fe; border-radius: 4px; border: 2px solid #f1f5f9; }
+.tags-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #1f2937;
+  background: transparent;
+  border: none;
+  white-space: normal; /* allow wrap */
+  word-break: break-word; /* break long tokens */
+}
+.tags-popover-item + .tags-popover-item { border-top: 1px solid #f3f4f6; }
+.tags-popover-empty {
+  color:#6b7280;
+  font-size:12px;
+  padding:8px 12px;
+}
+
 .global-action-menu.show {
   opacity: 1;
   visibility: visible;
@@ -2582,6 +2780,14 @@ export default {
 .menu-item:nth-child(4) {
   color: #8B5CF6;
   font-weight: bold;
+}
+.menu-item.tags {
+  color: #1E40AF; /* indigo-800 */
+  font-weight: bold;
+}
+.menu-item.tags:hover {
+  background: #E0E7FF; /* indigo-100 */
+  color: #3730A3; /* indigo-800 darker */
 }
 .pdf-capture-mode ul {
   list-style: none !important;
@@ -3183,6 +3389,87 @@ td.action-content-cell .action-node.level-4 {
   width: calc(100% - 12px) !important;
   text-align: left !important;
   box-sizing: border-box !important;
+}
+
+/* Tag suggestions (Filter -> Tags) */
+.filter-tag-suggest-dropdown {
+  position: relative;
+  margin-bottom: 8px;
+}
+.filter-tag-suggest-dropdown.flip .filter-tag-suggest-list {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+}
+.filter-tag-suggest-dropdown:not(.flip) .filter-tag-suggest-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+}
+.filter-tag-suggest-list {
+  /* ~3 items visible; rest scroll */
+  max-height: 156px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+  padding: 4px 0;
+  overflow-x: hidden;
+}
+.filter-tag-suggest-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  margin: 0;
+  font-size: 13px;
+  color: #1f2937;
+  cursor: pointer;
+}
+.filter-tag-suggest-item:hover { background: #f9fafb; }
+.filter-tag-suggest-empty {
+  padding: 8px;
+  color: #6b7280;
+  font-size: 12px;
+}
+.filter-tag-suggest-item.selected,
+.filter-tag-suggest-item:disabled {
+  color: #9ca3af;
+  background: #fafafa;
+  cursor: not-allowed;
+}
+
+/* Subtle custom scrollbar just for the dropdown */
+.filter-tag-suggest-list::-webkit-scrollbar {
+  width: 8px;
+}
+.filter-tag-suggest-list::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 10px;
+}
+.filter-tag-suggest-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+/* Styled search input for Tags filter */
+.tag-search-input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 36px 10px 40px; /* left room for icon */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>') no-repeat 12px center;
+}
+.tag-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 </style>
 
