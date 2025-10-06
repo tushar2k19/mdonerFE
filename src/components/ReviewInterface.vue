@@ -90,7 +90,12 @@
             :task-version-id="review.task_version.id"
             :hide-sort-by-date="true"
             :hide-sort-button="true"
+            :current-reviewer-id="review.reviewer.id"
+            :reviewer-type="review.reviewer_type"
+            :assigned-node-ids="parseAssignedNodeIds(review.assigned_node_ids)"
+            :permission-mode="true"
             @nodes-changed="onNodesChanged"
+            ref="nodeEditor"
           />
         </div>
       </div>
@@ -413,46 +418,46 @@ export default {
     // Add user role and permission checks - using cookies like other components
     currentUserInfo() {
       const userInfoCookie = this.getCookie('user_info')
-      console.log('🍪 Raw user_info cookie:', userInfoCookie)
+      // console.log('🍪 Raw user_info cookie:', userInfoCookie)
       
       if (userInfoCookie) {
         try {
           // The cookie might be URL encoded, so decode it first
           const decodedCookie = decodeURIComponent(userInfoCookie)
-          console.log('🔓 Decoded cookie:', decodedCookie)
+          // console.log('🔓 Decoded cookie:', decodedCookie)
           
           // The user_info cookie contains a JSON string, so we need to parse it twice
           // First parse gets us the JSON string, second parse gets us the actual object
           let parsed = JSON.parse(decodedCookie)
-          console.log('🔄 First parse result:', parsed, typeof parsed)
+          // console.log('🔄 First parse result:', parsed, typeof parsed)
           
           // If it's still a string, parse it again
           if (typeof parsed === 'string') {
             parsed = JSON.parse(parsed)
-            console.log('🔄 Second parse result:', parsed)
+            // console.log('🔄 Second parse result:', parsed)
           }
           
-          console.log('✅ Final parsed user info:', parsed)
+          // console.log('✅ Final parsed user info:', parsed)
           return parsed
         } catch (error) {
           console.error('❌ Error parsing user_info cookie:', error)
-          console.log('🔍 Cookie content:', userInfoCookie)
+          // console.log('🔍 Cookie content:', userInfoCookie)
           return null
         }
       }
-      console.log('❌ No user_info cookie found')
+      // console.log('❌ No user_info cookie found')
       return null
     },
 
     currentUserRole() {
       const role = this.currentUserInfo ? this.currentUserInfo.role : 'editor'
-      console.log('👤 Current user role:', role)
+      // console.log('👤 Current user role:', role)
       return typeof role === 'string' ? role.toLowerCase() : 'editor'
     },
 
     currentUserId() {
       const userId = this.currentUserInfo ? this.currentUserInfo.id : null
-      console.log('🆔 Current user ID:', userId)
+      // console.log('🆔 Current user ID:', userId)
       return userId
     },
 
@@ -488,11 +493,11 @@ export default {
     // Check if current user can edit/delete a specific comment
     canEditComment() {
       return (commentUserId) => {
-        console.log('🔍 Debug canEditComment:', {
-          currentUserId: this.currentUserId,
-          commentUserId: commentUserId,
-          canEdit: this.currentUserId && this.currentUserId === commentUserId
-        })
+        // console.log('🔍 Debug canEditComment:', {
+        //   currentUserId: this.currentUserId,
+        //   commentUserId: commentUserId,
+        //   canEdit: this.currentUserId && this.currentUserId === commentUserId
+        // })
         return this.currentUserId && this.currentUserId === commentUserId
       }
     },
@@ -503,17 +508,17 @@ export default {
   },
 
   async created() {
-    console.log('ReviewInterface created with reviewId:', this.reviewId)
+    // console.log('ReviewInterface created with reviewId:', this.reviewId)
     await this.loadReviewData()
   },
 
   // Add watcher for route changes to handle navigation between different reviews
   watch: {
     '$route'(to, from) {
-      console.log('Route changed from', from.params.id, 'to', to.params.id)
+      // console.log('Route changed from', from.params.id, 'to', to.params.id)
       // Only reload if the review ID actually changed
       if (to.params.id !== from.params.id) {
-        console.log('Review ID changed, reloading data...')
+        // console.log('Review ID changed, reloading data...')
         this.loadReviewData()
       }
     }
@@ -523,11 +528,11 @@ export default {
     async loadReviewData () {
       try {
         this.loading = true
-        console.log('Loading review data for ID:', this.reviewId)
+        // console.log('Loading review data for ID:', this.reviewId)
         
         const response = await this.$http.secured.get(`/review/${this.reviewId}`)
         
-        console.log('Review API response:', response.data)
+        // console.log('Review API response:', response.data)
         
         if (response.data.success) {
           const data = response.data.data
@@ -542,38 +547,38 @@ export default {
           // Load comments for this review
           await this.loadComments()
           
-          console.log('Review data loaded successfully:', {
-            review: this.review,
-            task: this.task,
-            nodes: this.reviewNodes,
-            diff: this.diffData
-          })
+          // console.log('Review data loaded successfully:', {
+          //   review: this.review,
+          //   task: this.task,
+          //   nodes: this.reviewNodes,
+          //   diff: this.diffData
+          // })
           
           // Debug user roles and permissions
-          console.log('🔍 Debug user permissions:', {
-            currentUserRole: this.currentUserRole,
-            currentUserInfo: this.currentUserInfo,
-            userId: this.currentUserId,
-            reviewerId: this.review.reviewer ? this.review.reviewer.id : null,
-            editorId: this.review.task_version ? this.review.task_version.editor_id : null,
-            isReviewer: this.isReviewer,
-            isEditor: this.isEditor,
-            canApprove: this.canApprove,
-            canSendForReReview: this.canSendForReReview
-          })
+          // console.log('🔍 Debug user permissions:', {
+          //   currentUserRole: this.currentUserRole,
+          //   currentUserInfo: this.currentUserInfo,
+          //   userId: this.currentUserId,
+          //   reviewerId: this.review.reviewer ? this.review.reviewer.id : null,
+          //   editorId: this.review.task_version ? this.review.task_version.editor_id : null,
+          //   isReviewer: this.isReviewer,
+          //   isEditor: this.isEditor,
+          //   canApprove: this.canApprove,
+          //   canSendForReReview: this.canSendForReReview
+          // })
           
           // Debug diff data
-          console.log('🎨 Debug diff data:', {
-            diffData: this.diffData,
-            addedNodes: this.diffData && this.diffData.added_nodes ? this.diffData.added_nodes.length : 0,
-            modifiedNodes: this.diffData && this.diffData.modified_nodes ? this.diffData.modified_nodes.length : 0,
-            removedNodes: this.diffData && this.diffData.removed_nodes ? this.diffData.removed_nodes.length : 0
-          })
+          // console.log('🎨 Debug diff data:', {
+          //   diffData: this.diffData,
+          //   addedNodes: this.diffData && this.diffData.added_nodes ? this.diffData.added_nodes.length : 0,
+          //   modifiedNodes: this.diffData && this.diffData.modified_nodes ? this.diffData.modified_nodes.length : 0,
+          //   removedNodes: this.diffData && this.diffData.removed_nodes ? this.diffData.removed_nodes.length : 0
+          // })
           
           // Debug each node's diff status
-          this.reviewNodes.forEach(node => {
-            console.log(`📝 Node ${node.id}: "${node.content ? node.content.substring(0, 50) : 'no content'}..." - diff_status: ${node.diff_status}`)
-          })
+          // this.reviewNodes.forEach(node => {
+          //   console.log(`📝 Node ${node.id}: "${node.content ? node.content.substring(0, 50) : 'no content'}..." - diff_status: ${node.diff_status}`)
+          // })
         } else {
           console.error('API returned success: false')
           this.$toast.error('Failed to load review data')
@@ -770,25 +775,25 @@ export default {
 
     async loadComments () {
       try {
-        console.log('🔄 Loading comments for review:', this.reviewId)
+        // console.log('🔄 Loading comments for review:', this.reviewId)
         const response = await this.$http.secured.get(`/review/${this.reviewId}/comments`)
-        console.log('📥 Comments API response:', response.data)
+        // console.log('📥 Comments API response:', response.data)
         
         if (response.data.success) {
           this.comments = response.data.comments || []
-          console.log('✅ Comments loaded successfully:', this.comments.length, 'comments')
-          console.log('📋 Comments data:', this.comments)
+          // console.log('✅ Comments loaded successfully:', this.comments.length, 'comments')
+          // console.log('📋 Comments data:', this.comments)
           
           // Debug each comment's user_id for permission checking
           this.comments.forEach((comment, index) => {
-            console.log(`💬 Comment ${index + 1}:`, {
-              id: comment.id,
-              content: comment.content ? comment.content.substring(0, 50) + '...' : 'no content',
-              user_id: comment.user_id,
-              user_name: comment.user_name,
-              canEdit: this.canEditComment(comment.user_id),
-              currentUserId: this.currentUserId
-            })
+            // console.log(`💬 Comment ${index + 1}:`, {
+            //   id: comment.id,
+            //   content: comment.content ? comment.content.substring(0, 50) + '...' : 'no content',
+            //   user_id: comment.user_id,
+            //   user_name: comment.user_name,
+            //   canEdit: this.canEditComment(comment.user_id),
+            //   currentUserId: this.currentUserId
+            // })
           })
         } else {
           console.error('❌ Failed to load comments:', response.data)
@@ -824,15 +829,15 @@ export default {
           action_node_id: this.commentForSpecificNode ? this.selectedNodeId : null
         }
 
-        console.log('💬 Adding new comment:', commentData)
+        // console.log('💬 Adding new comment:', commentData)
         const response = await this.$http.secured.post(`/review/${this.reviewId}/comments`, commentData)
-        console.log('📤 Add comment response:', response.data)
+        // console.log('📤 Add comment response:', response.data)
         
         if (response.data.success) {
           this.$toast.success('Comment added successfully')
           // Add the new comment to the list
           this.comments.push(response.data.comment)
-          console.log('✅ Comment added to list. Total comments:', this.comments.length)
+          // console.log('✅ Comment added to list. Total comments:', this.comments.length)
           // Clear the form
           this.clearComment()
         } else {
@@ -1027,6 +1032,28 @@ export default {
         }, 2000)
       }
     },
+    parseAssignedNodeIds(assignedNodeIds) {
+      // Handle the case where assignedNodeIds might be a string or array
+      if (!assignedNodeIds) {
+        return []
+      }
+      
+      if (Array.isArray(assignedNodeIds)) {
+        return assignedNodeIds
+      }
+      
+      if (typeof assignedNodeIds === 'string') {
+        try {
+          const parsed = JSON.parse(assignedNodeIds)
+          return Array.isArray(parsed) ? parsed : []
+        } catch (error) {
+          console.error('Error parsing assigned_node_ids:', error)
+          return []
+        }
+      }
+      
+      return []
+    }
   }
 }
 </script>
