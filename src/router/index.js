@@ -133,7 +133,7 @@ router.beforeEach((to, from, next) => {
     }
   } else if (to.name === 'Signin' || to.name === 'LandingPage') {
     if (isSignedIn) {
-      next({ name: 'Dashboard' })
+      next({ name: 'Home' })
     } else {
       next()
     }

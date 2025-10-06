@@ -90,8 +90,7 @@ export default {
       if (this.isAuthenticated !== newAuthStatus) {
         this.isAuthenticated = newAuthStatus
         this.$nextTick(() => {
-          window.scrollTo(0, 0)
-          console.log('Forced re-render and attempted scroll')
+          console.log('Authentication status changed')
         })
       }
     },
