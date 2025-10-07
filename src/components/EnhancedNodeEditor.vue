@@ -44,26 +44,31 @@
          :class="{ 'context-menu-open': contextMenuOpen }"
          v-if="nodes.length > 0"
          ref="nodesContainer">
-      <EnhancedNodeItem
-        v-for="(node, index) in nodes"
-        :key="node.id"
-        :node="node"
-        :siblings="nodes"
-        :index="index"
-        :show-diff="showDiff"
-        :diff-data="diffData"
-        :readonly="readonly"
-        :task-version-id="taskVersionId"
-        @update-node="updateNode"
-        @delete-node="deleteNode"
-        @add-subpoint="addSubpoint"
-        @add-parent-level-point="addParentLevelPoint"
-        @add-point-same-level="addPointSameLevel"
-        @move-node="moveNode"
-        @duplicate-node="duplicateNode"
-        @reorder-nodes="handleReorderNodes"
-        @context-menu-opened="handleContextMenuToggle"
-      />
+          <EnhancedNodeItem
+            v-for="(node, index) in nodes"
+            :key="node.id"
+            :node="node"
+            :siblings="nodes"
+            :index="index"
+            :show-diff="showDiff"
+            :diff-data="diffData"
+            :readonly="!canEditNode(node)"
+            :task-version-id="taskVersionId"
+            :permission-mode="permissionMode"
+            :current-reviewer-id="currentReviewerId"
+            :reviewer-type="reviewerType"
+            :assigned-node-ids="assignedNodeIds"
+            @update-node="updateNode"
+            @delete-node="deleteNode"
+            @add-subpoint="addSubpoint"
+            @add-parent-level-point="addParentLevelPoint"
+            @add-point-same-level="addPointSameLevel"
+            @move-node="moveNode"
+            @duplicate-node="duplicateNode"
+            @reorder-nodes="handleReorderNodes"
+            @reviewer-assigned="onReviewerAssigned"
+            @context-menu-opened="handleContextMenuToggle"
+          />
     </div>
 
     <div class="empty-state" v-else>
@@ -107,6 +112,22 @@ export default {
       default: () => []
     },
     readonly: {
+      type: Boolean,
+      default: false
+    },
+    currentReviewerId: {
+      type: [Number, String],
+      default: null
+    },
+    reviewerType: {
+      type: String,
+      default: 'task_level' // 'task_level' or 'node_level'
+    },
+    assignedNodeIds: {
+      type: Array,
+      default: () => []
+    },
+    permissionMode: {
       type: Boolean,
       default: false
     },
@@ -837,6 +858,120 @@ export default {
       }
     },
 
+    // Permission checking methods
+    canEditNode(node) {
+      if (!this.permissionMode) return !this.readonly
+      
+      // If not in permission mode, use regular readonly logic
+      if (this.readonly) return false
+      
+      // Get current user info to check if they're an editor
+      const currentUser = this.getCurrentUserInfo()
+      const isEditor = currentUser && currentUser.role === 'editor'
+      
+      // DEBUG: Log permission check details
+      console.log('🔍 PERMISSION DEBUG for node:', node.id, {
+        nodeContent: node.content ? node.content.substring(0, 50) + '...' : 'No content',
+        nodeReviewerId: node.reviewer_id,
+        currentUserId: currentUser ? currentUser.id : null,
+        currentUserRole: currentUser ? currentUser.role : null,
+        isEditor: isEditor,
+        reviewerType: this.reviewerType,
+        assignedNodeIds: this.assignedNodeIds,
+        permissionMode: this.permissionMode,
+        readonly: this.readonly
+      })
+      
+      // Editors can edit all nodes regardless of reviewer assignment
+      if (isEditor) {
+        console.log('✅ EDITOR: Can edit all nodes')
+        return true
+      }
+      
+      // Convert assigned_node_ids to array if it's a string
+      let assignedIds = this.assignedNodeIds
+      if (typeof assignedIds === 'string') {
+        try {
+          assignedIds = JSON.parse(assignedIds)
+        } catch (e) {
+          console.error('Error parsing assigned_node_ids:', e)
+          assignedIds = []
+        }
+      }
+      if (!Array.isArray(assignedIds)) {
+        assignedIds = []
+      }
+      
+      console.log('📋 Processed assignedIds:', assignedIds)
+      
+      // Task-level reviewers can edit ONLY unassigned nodes
+      if (this.reviewerType === 'task_level') {
+        const canEdit = !node.reviewer_id
+        console.log(`🎯 TASK-LEVEL REVIEWER: Node ${node.id} has reviewer_id=${node.reviewer_id}, canEdit=${canEdit}`)
+        return canEdit
+      }
+      
+      // Node-level reviewers can only edit their assigned nodes
+      if (this.reviewerType === 'node_level') {
+        // Check if this node is assigned to the current reviewer
+        const currentReviewerId = this.currentReviewerId
+        const canEdit = node.reviewer_id && (node.reviewer_id === currentReviewerId)
+        console.log(`🎯 NODE-LEVEL REVIEWER: Node ${node.id} has reviewer_id=${node.reviewer_id}, currentReviewerId=${currentReviewerId}, canEdit=${canEdit}`)
+        return canEdit
+      }
+      
+      console.log('❌ UNKNOWN REVIEWER TYPE:', this.reviewerType)
+      return false
+    },
+
+    isNodeAssignedToCurrentReviewer(node) {
+      if (!this.permissionMode) return true
+      if (this.reviewerType === 'task_level') return !node.reviewer_id // Task-level handles unassigned nodes
+      
+      // Convert assigned_node_ids to array if it's a string
+      let assignedIds = this.assignedNodeIds
+      if (typeof assignedIds === 'string') {
+        try {
+          assignedIds = JSON.parse(assignedIds)
+        } catch (e) {
+          console.error('Error parsing assigned_node_ids:', e)
+          assignedIds = []
+        }
+      }
+      if (!Array.isArray(assignedIds)) {
+        assignedIds = []
+      }
+      
+      return assignedIds.includes(node.id)
+    },
+
+    // Helper method to get current user info
+    getCurrentUserInfo() {
+      const userInfoCookie = this.getCookie('user_info')
+      if (userInfoCookie) {
+        try {
+          const decodedCookie = decodeURIComponent(userInfoCookie)
+          let parsed = JSON.parse(decodedCookie)
+          if (typeof parsed === 'string') {
+            parsed = JSON.parse(parsed)
+          }
+          return parsed
+        } catch (e) {
+          console.error('Error parsing user info:', e)
+          return null
+        }
+      }
+      return null
+    },
+
+    // Helper method to get cookie value
+    getCookie(name) {
+      const value = `; ${document.cookie}`
+      const parts = value.split(`; ${name}=`)
+      if (parts.length === 2) return parts.pop().split(';').shift()
+      return null
+    },
+
     handleContextMenuToggle(isOpen) {
       this.contextMenuOpen = isOpen
       console.log('🎯 Context menu state changed:', isOpen ? 'opened' : 'closed')
@@ -858,6 +993,40 @@ export default {
           container.style.scrollBehavior = 'auto'
         }
       }
+    },
+
+    // Handle reviewer assignment from child nodes
+    onReviewerAssigned(data) {
+      const { nodeId, reviewerId } = data
+      
+      // Find and update the node in our local data
+      const node = this.findNodeById(nodeId)
+      if (node) {
+        node.reviewer_id = reviewerId
+        this.hasChanges = true
+        
+        // Emit the change to parent component
+        this.$emit('nodes-changed', this.getNodesData())
+        
+        console.log(`✅ Reviewer ${reviewerId} assigned to node ${nodeId}`)
+      }
+    },
+
+    // Helper method to find a node by ID in the hierarchy
+    findNodeById(nodeId) {
+      const findInNodes = (nodes) => {
+        for (const node of nodes) {
+          if (node.id === nodeId) {
+            return node
+          }
+          if (node.children && node.children.length > 0) {
+            const found = findInNodes(node.children)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      return findInNodes(this.nodes)
     }
   }
 }

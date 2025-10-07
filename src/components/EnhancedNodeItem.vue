@@ -3,7 +3,10 @@
     { 'completed': node.completed },
     { 'has-reviewer': node.reviewer_id },
     showDiff ? `diff-${node.diff_status || 'unchanged'}` : '',
-    { 'dragging': isDragging, 'drag-over': isDragOver }
+    { 'dragging': isDragging, 'drag-over': isDragOver },
+    { 'permission-readonly': permissionMode && readonly },
+    { 'permission-assigned': permissionMode && isNodeAssignedToCurrentReviewer() },
+    { 'permission-unassigned': permissionMode && !isNodeAssignedToCurrentReviewer() }
   ]" :draggable="!readonly" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
@@ -119,6 +122,18 @@
                       :title="color.name"
                     ></button>
                   </div>
+                </div>
+              </div>
+
+              <div class="context-menu-divider"></div>
+
+              <!-- Reviewer Assignment Section -->
+              <div class="context-menu-group" v-if="!readonly">
+                <button @click="openReviewerModal" class="context-menu-item">
+                  👤 {{ node.reviewer_id ? 'Change Reviewer' : 'Assign Reviewer' }}
+                </button>
+                <div v-if="node.reviewer_id" class="current-reviewer">
+                  Current: {{ getReviewerName(node.reviewer_id) }}
                 </div>
               </div>
 
@@ -342,6 +357,22 @@ export default {
       type: Boolean,
       default: false
     },
+    permissionMode: {
+      type: Boolean,
+      default: false
+    },
+    currentReviewerId: {
+      type: [Number, String],
+      default: null
+    },
+    reviewerType: {
+      type: String,
+      default: 'task_level'
+    },
+    assignedNodeIds: {
+      type: Array,
+      default: () => []
+    },
     taskVersionId: {
       type: [Number, String],
       required: true
@@ -468,7 +499,9 @@ export default {
     }
   },
 
+
   methods: {
+
     startEdit () {
       if (this.readonly) return
       
@@ -1158,17 +1191,36 @@ export default {
     },
     async assignReviewer () {
       if (!this.selectedReviewerId) return
+      
+      console.log('🔧 ASSIGNING REVIEWER:', {
+        nodeId: this.node.id,
+        taskVersionId: this.taskVersionId,
+        selectedReviewerId: this.selectedReviewerId,
+        url: `/task_versions/${this.taskVersionId}/nodes/${this.node.id}`
+      })
+      
       try {
         const response = await this.$http.secured.put(`/task_versions/${this.taskVersionId}/nodes/${this.node.id}`, {
           action_node: { reviewer_id: this.selectedReviewerId }
         })
+        
+        console.log('✅ REVIEWER ASSIGNMENT SUCCESS:', response.data)
+        
         const updatedNodeData = response.data.data
         this.$emit('update-node', this.node.id, {
           reviewer_id: updatedNodeData.reviewer_id,
           reviewer_name: updatedNodeData.reviewer_name
         })
         this.closeReviewerModal()
+        
+        console.log('✅ NODE UPDATED WITH REVIEWER:', {
+          nodeId: this.node.id,
+          reviewerId: updatedNodeData.reviewer_id,
+          reviewerName: updatedNodeData.reviewer_name
+        })
+        
       } catch (error) {
+        console.error('❌ REVIEWER ASSIGNMENT FAILED:', error)
         this.$toast && this.$toast.error('Failed to assign reviewer')
       }
     },
@@ -1186,6 +1238,68 @@ export default {
       } catch (error) {
         this.$toast && this.$toast.error('Failed to remove reviewer')
       }
+    },
+
+    getReviewerName(reviewerId) {
+      const reviewer = this.reviewers.find(r => r.id === reviewerId)
+      return reviewer ? reviewer.full_name : 'Unknown'
+    },
+
+    // Permission checking methods
+    isNodeAssignedToCurrentReviewer() {
+      if (!this.permissionMode) return true
+      if (this.reviewerType === 'task_level') return !this.node.reviewer_id // Task-level handles unassigned nodes
+      
+      // For node-level reviewers, check if this node is assigned to the current reviewer
+      if (this.reviewerType === 'node_level') {
+        const currentReviewerId = this.currentReviewerId
+        return this.node.reviewer_id && (this.node.reviewer_id === currentReviewerId)
+      }
+      
+      return false
+    },
+
+    canEditThisNode() {
+      if (!this.permissionMode) return !this.readonly
+      if (this.readonly) return false
+      
+      // Get current user info to check if they're an editor
+      const currentUser = this.getCurrentUserInfo()
+      const isEditor = currentUser && currentUser.role === 'editor'
+      
+      // Editors can edit all nodes regardless of reviewer assignment
+      if (isEditor) {
+        return true
+      }
+      
+      return this.isNodeAssignedToCurrentReviewer()
+    },
+
+    // Helper method to get current user info
+    getCurrentUserInfo() {
+      const userInfoCookie = this.getCookie('user_info')
+      if (userInfoCookie) {
+        try {
+          const decodedCookie = decodeURIComponent(userInfoCookie)
+          let parsed = JSON.parse(decodedCookie)
+          if (typeof parsed === 'string') {
+            parsed = JSON.parse(parsed)
+          }
+          return parsed
+        } catch (e) {
+          console.error('Error parsing user info:', e)
+          return null
+        }
+      }
+      return null
+    },
+
+    // Helper method to get cookie value
+    getCookie(name) {
+      const value = `; ${document.cookie}`
+      const parts = value.split(`; ${name}=`)
+      if (parts.length === 2) return parts.pop().split(';').shift()
+      return null
     }
   }
 }
@@ -1786,6 +1900,45 @@ export default {
 /* Color Picker Styles */
 .color-picker-section {
   padding: 0.5rem 0;
+}
+
+/* Reviewer Assignment Styles */
+.reviewer-assignment-section {
+  padding: 0.5rem 0;
+}
+
+.reviewer-assignment-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.reviewer-select {
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background-color: white;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.reviewer-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.current-reviewer {
+  font-size: 0.75rem;
+  color: #059669;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  background-color: #ecfdf5;
+  border-radius: 4px;
+  border: 1px solid #d1fae5;
 }
 
 .color-picker-label {

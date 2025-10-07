@@ -1376,11 +1376,16 @@ export default {
         
         if (response.data.success) {
           this.$toast.success(response.data.message)
-        this.closeReviewModal()
-        await this.fetchTasksByDate()
+          this.closeReviewModal()
+          await this.fetchTasksByDate()
           
-          // Navigate to the review page
-          this.$router.push(`/review/${response.data.review_id}`)
+          // Navigate to the first review page (for now, we'll enhance this later)
+          if (response.data.review_ids && response.data.review_ids.length > 0) {
+            this.$router.push(`/review/${response.data.review_ids[0]}`)
+          } else {
+            // Fallback: navigate to task list
+            this.$toast.info('Task sent for review successfully')
+          }
         }
       } catch (error) {
         console.error('Error sending for review:', error)
