@@ -34,6 +34,67 @@
           >
         </div>
 
+        <!-- Phase 1: Simple tag add/remove (no dropdown yet) - placed below Responsibility -->
+        <div class="form-group" ref="tagField">
+          <label>Tags</label>
+
+          <!-- Add-by-name input (placed first) -->
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <input
+              v-model="newTagName"
+              type="text"
+              class="form-control"
+              placeholder="Type a tag and click Add"
+              style="max-width:320px;"
+              @focus="openTagDropdown"
+              @click="openTagDropdown"
+              @input="openTagDropdown"
+            >
+            <button class="btn" @click="addTagByName" style="background:#1e3a8a;color:white;">Add</button>
+          </div>
+
+          <!-- Tag suggestions dropdown (Task 1) -->
+          <div v-if="showTagDropdown" class="tag-suggest-dropdown">
+            <div v-if="isLoadingTags" class="tag-suggest-empty">Loading tags…</div>
+            <!-- Show first 20 tags for now (sorting and filtering come in later tasks) -->
+            <div v-else-if="filteredTagSuggestions && filteredTagSuggestions.length" class="tag-suggest-list">
+              <button
+                v-for="t in filteredTagSuggestions"
+                :key="t.id"
+                class="tag-suggest-item"
+                :class="{ selected: isTagSelected(t.id) }"
+                :disabled="isTagSelected(t.id)"
+                @click.prevent="!isTagSelected(t.id) && selectExistingTag(t)"
+              >
+                {{ t.name }}
+              </button>
+            </div>
+            <div v-else class="tag-suggest-empty">
+              No matching tags. Use Add to create "{{ newTagName }}".
+            </div>
+          </div>
+
+          <!-- Selected tag chips (now below the input) -->
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <span
+              v-for="tag in selectedTags"
+              :key="tag.id"
+              style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;display:inline-flex;align-items:center;gap:6px;"
+            >
+              {{ tag.name }}
+              <button
+                @click.prevent="removeTag(tag.id)"
+                title="Remove"
+                style="background:transparent;border:none;color:#1e40af;cursor:pointer;font-weight:bold;"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+
+          <small style="color:#6b7280;">Add multiple tags by repeating Add. Use × to remove.</small>
+        </div>
+
         <div class="form-group">
           <label>Review Date</label>
           <datepicker
@@ -59,6 +120,7 @@
             @nodes-changed="onNodesChanged"
           />
         </div>
+
       </div>
 
       <div class="modal-footer">
@@ -117,6 +179,15 @@ export default {
       taskVersionId: null,
       showMergeInterface: false,
       mergeConflictData: null,
+      // Tags (Phase 1)
+      selectedTags: [],
+      newTagName: '',
+      // Tag suggestions dropdown (Task 1)
+      allTags: [],
+      isTagsLoaded: false,
+      showTagDropdown: false,
+      isLoadingTags: false,
+      tagSearch: '',
       oldEditorConfig: {
         height: 425,
         menubar: true,
@@ -210,6 +281,24 @@ export default {
       }
     }
   },
+  computed: {
+    filteredTagSuggestions () {
+      const list = Array.isArray(this.allTags) ? this.allTags : []
+      const q = (this.newTagName || '').trim().toLowerCase()
+      if (!q) return list
+      const prefix = []
+      const contains = []
+      list.forEach(t => {
+        const name = (t.name || '').toLowerCase()
+        if (name.startsWith(q)) {
+          prefix.push(t)
+        } else if (name.includes(q)) {
+          contains.push(t)
+        }
+      })
+      return prefix.concat(contains).slice(0, 20)
+    }
+  },
   async created () {
     // If editing existing task, populate form
     if (this.task) {
@@ -227,13 +316,32 @@ export default {
         this.taskVersionId = this.task.current_version_id
         await this.loadActionNodes()
       }
+
+      // Initialize tags when editing existing task
+      if (Array.isArray(this.task.tags)) {
+        this.selectedTags = this.task.tags.map(t => ({ id: t.id, name: t.name }))
+      }
     } else {
       // For new tasks, initialize with empty array
       this.actionNodes = []
       this.taskVersionId = 1 // Temporary ID for new tasks
     }
   },
-
+  mounted() {
+    this._onDocClick = (e) => {
+      const root = this.$refs.tagField
+      if (root && !root.contains(e.target)) {
+        this.closeTagDropdown()
+      }
+    }
+    document.addEventListener('click', this._onDocClick)
+  },
+  beforeDestroy() {
+    if (this._onDocClick) {
+      document.removeEventListener('click', this._onDocClick)
+    }
+  },
+  
   methods: {
     async loadActionNodes () {
       try {
@@ -293,11 +401,18 @@ export default {
         }
       }
 
-      // Check if we have at least one action node with content
-      const hasContent = this.flatActionNodes && this.flatActionNodes.length > 0 &&
-                        this.flatActionNodes.some(node => node.content && node.content.trim())
+      // Check for content in any of the following sources:
+      // 1) flatActionNodes (live edits)
+      // 2) actionNodes loaded from backend (when editor hasn’t touched the editor yet)
+      // 3) fallback: action_to_be_taken text (if present)
+      const hasFlatContent = Array.isArray(this.flatActionNodes) &&
+        this.flatActionNodes.some(node => node && node.content && node.content.trim())
 
-      if (!hasContent) {
+      const hasLoadedNodes = Array.isArray(this.actionNodes) && this.actionNodes.length > 0
+
+      const hasPlainText = this.formData.action_to_be_taken && this.formData.action_to_be_taken.toString().trim().length > 0
+
+      if (!hasFlatContent && !hasLoadedNodes && !hasPlainText) {
         this.$toast.error('At least one action item is required')
         return false
       }
@@ -309,16 +424,32 @@ export default {
       if (!this.validateForm()) return
 
       try {
+        const tagIds = this.selectedTags.map(t => t.id)
+
+        // Decide whether to send content updates
+        const filteredNodes = Array.isArray(this.flatActionNodes)
+          ? this.flatActionNodes.filter(node => node && node.content && node.content.trim())
+          : []
+
+        // Clone form data and remove action_to_be_taken if we are not changing content
+        const taskBody = {
+          ...this.formData,
+          original_date: this.formatDate(this.formData.original_date),
+          review_date: this.formatDate(this.formData.review_date),
+          tag_ids: tagIds
+        }
+
+        if (!filteredNodes.length) {
+          // Avoid triggering backend content rewrite when editor made no changes
+          delete taskBody.action_to_be_taken
+        }
+
         const taskData = {
-          task: {
-            ...this.formData,
-            original_date: this.formatDate(this.formData.original_date),
-            review_date: this.formatDate(this.formData.review_date)
-          },
-          // Send flat nodes array to backend
-          action_nodes: this.flatActionNodes
-            ? this.flatActionNodes.filter(node => node.content && node.content.trim())
-            : []
+          task: taskBody
+        }
+
+        if (filteredNodes.length) {
+          taskData.action_nodes = filteredNodes
         }
 
         let response
@@ -339,8 +470,89 @@ export default {
         this.$toast.success(`Task ${this.mode === 'edit' ? 'updated' : 'created'} successfully`)
       } catch (error) {
         console.error('Error saving task:', error)
-        this.$toast.error('Error saving task')
+        if (error && error.response && error.response.data) {
+          const msg = error.response.data.error || error.response.data.message || 'Error saving task'
+          this.$toast.error(msg)
+        } else {
+          this.$toast.error('Error saving task')
+        }
       }
+    },
+
+    async addTagByName () {
+      const name = (this.newTagName || '').trim()
+      if (!name) {
+        this.$toast.error('Enter a tag name')
+        return
+      }
+
+      // Prevent duplicate by name
+      const existsByName = this.selectedTags.some(t => t.name.toLowerCase() === name.toLowerCase())
+      if (existsByName) {
+        this.$toast.info('Tag already added')
+        this.newTagName = ''
+        return
+      }
+
+      try {
+        const res = await this.$http.secured.post('/tags', { name })
+        const tag = res.data // { id, name }
+        if (!this.selectedTags.some(t => t.id === tag.id)) {
+          this.selectedTags.push(tag)
+        }
+        this.newTagName = ''
+      } catch (e) {
+        console.error('Failed to add tag:', e)
+        this.$toast.error('Failed to add tag')
+      }
+    },
+
+    removeTag (id) {
+      this.selectedTags = this.selectedTags.filter(t => t.id !== id)
+    },
+
+    // Task 1: open/close dropdown and load tag suggestions once
+    async openTagDropdown () {
+      await this.loadTagsIfNeeded()
+      this.showTagDropdown = true
+    },
+    closeTagDropdown () {
+      this.showTagDropdown = false
+    },
+    async loadTagsIfNeeded () {
+      if (this.isTagsLoaded || this.isLoadingTags) return
+      try {
+        this.isLoadingTags = true
+        const res = await this.$http.secured.get('/tags', { params: { include_usage: true } })
+        const list = Array.isArray(res.data) ? res.data : []
+        // Task 2: sort by usage_count desc, then name asc; keep top 20
+        const sorted = list
+          .map(t => ({ id: t.id, name: t.name, usage_count: t.usage_count || 0 }))
+          .sort((a, b) => {
+            if ((b.usage_count || 0) !== (a.usage_count || 0)) {
+              return (b.usage_count || 0) - (a.usage_count || 0)
+            }
+            return a.name.localeCompare(b.name)
+          })
+        this.allTags = sorted.slice(0, 20)
+        this.isTagsLoaded = true
+      } catch (e) {
+        console.error('Failed to load tags:', e)
+        this.$toast.error('Failed to load tag suggestions')
+      } finally {
+        this.isLoadingTags = false
+      }
+    },
+    selectExistingTag (tag) {
+      if (!tag || typeof tag.id !== 'number') return
+      const exists = this.selectedTags.some(t => t.id === tag.id)
+      if (!exists) {
+        this.selectedTags.push({ id: tag.id, name: tag.name })
+      }
+      // Keep dropdown open to allow multiple selections
+    },
+    isTagSelected (id) {
+      return this.selectedTags.some(t => t.id === id)
     },
 
     handleMergeConflict (conflictData) {
@@ -655,5 +867,48 @@ export default {
 :deep(.tox-tinymce:focus-within) {
   border-color: #004680 !important;
   box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1) !important;
+}
+
+.tag-suggest-dropdown {
+  position: relative;
+  margin-bottom: 8px;
+}
+.tag-suggest-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  padding: 4px 0;
+  z-index: 5;
+}
+.tag-suggest-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 13px;
+  color: #1f2937;
+  cursor: pointer;
+}
+.tag-suggest-item:hover { background: #f3f4f6; }
+.tag-suggest-empty {
+  padding: 8px;
+  color: #6b7280;
+  font-size: 12px;
+}
+.tag-suggest-item.selected {
+  color: #9ca3af;
+  background: #fafafa;
+  cursor: not-allowed;
+}
+.tag-suggest-item:disabled {
+  color: #9ca3af;
+  background: #fafafa;
+  cursor: not-allowed;
 }
 </style>
