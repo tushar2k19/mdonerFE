@@ -7,6 +7,10 @@
       </span>
     </div>
 
+    <!-- Backdrop overlay -->
+    <div v-if="showNotifications" class="notification-backdrop" @click="closeNotifications"></div>
+    
+    <!-- Notification panel -->
     <div v-if="showNotifications" class="notification-panel">
       <div class="notification-header">
         <h3>Notifications</h3>
@@ -254,16 +258,32 @@ export default {
   }
 }
 
+.notification-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.1);
+  z-index: 9998;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .notification-panel {
-  position: absolute;
-  top: calc(100% + 0.75rem);
-  right: 0;
+  position: fixed;
+  top: 80px;
+  right: 20px;
   width: 380px;
   max-height: 480px;
   background: white;
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
   overflow: hidden;
   animation: slideIn 0.3s ease;
   border: 1px solid rgba(0, 70, 128, 0.1);
@@ -407,5 +427,24 @@ export default {
 
 .notification-item.unread:first-child {
   animation: highlight 1s ease;
+}
+
+/* Responsive positioning */
+@media (max-width: 768px) {
+  .notification-panel {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 480px) {
+  .notification-panel {
+    top: 70px;
+    right: 5px;
+    left: 5px;
+    max-width: calc(100vw - 10px);
+  }
 }
 </style>

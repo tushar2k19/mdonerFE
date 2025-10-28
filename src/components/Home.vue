@@ -1,188 +1,255 @@
 <template>
-  <div class="govt-dashboard">
-    <!-- Government Header Bar -->
-    <div class="govt-header">
-      <div class="govt-emblem">
-        <div class="emblem-circle">
-          <span class="emblem-text">NE</span>
-      </div>
-              </div>
-      <div class="govt-title">
-        <h1>Task Management Dashboard</h1>
-        <p class="dept-subtitle">Ministry of Development of North Eastern Region</p>
-                    </div>
-      <div class="today-date">
-        <div class="date-display">{{ getCurrentDate() }}</div>
-                  </div>
-                </div>
-
-    <!-- Quick Statistics Panel -->
-    <div class="stats-panel">
-      <div class="stat-card primary">
-        <div class="stat-icon">📊</div>
-        <div class="stat-content">
-          <div class="stat-number">{{ totalTasks }}</div>
-          <div class="stat-label">Total Tasks</div>
-          <div class="stat-desc">Active approved tasks</div>
-          </div>
-        </div>
-
-      <div class="stat-card secondary">
-        <div class="stat-icon">📝</div>
-        <div class="stat-content">
-          <div class="stat-number">{{ totalSubtasks }}</div>
-          <div class="stat-label">Action Items</div>
-          <div class="stat-desc">Total sub-items</div>
-      </div>
+  <!-- Orange Gradient Background with Texture - Matching Signin Page -->
+  <div class="dashboard-background">
+    <div class="floating-shapes" aria-hidden="true">
+      <div class="floating-circle circle-1"></div>
+      <div class="floating-circle circle-2"></div>
+      <div class="floating-circle circle-3"></div>
+      <div class="floating-triangle triangle-1"></div>
+      <div class="floating-triangle triangle-2"></div>
+      <div class="floating-square square-1"></div>
+      <div class="floating-square square-2"></div>
     </div>
-
-      <div class="stat-card success">
-        <div class="stat-icon">✅</div>
-        <div class="stat-content">
-          <div class="stat-number">{{ overallProgress }}%</div>
-                <div class="stat-label">Overall Progress</div>
-          <div class="stat-desc">{{ totalCompletedSubtasks }}/{{ totalSubtasks }} completed</div>
-              </div>
-                    </div>
-                    </div>
-
-    <!-- Analytics Section -->
-    <div class="analytics-grid">
-      <!-- Task Progress Chart -->
-      <div class="chart-container">
-        <div class="chart-header">
-          <h3>Task Completion Progress</h3>
-          <div class="chart-info">Real-time progress tracking</div>
-                    </div>
-        <div class="progress-list">
-          <div v-for="task in progressTasks" :key="task.id" class="progress-entry">
-            <div class="progress-info">
-              <div class="task-name">{{ task.description }}</div>
-              <div class="task-sector">{{ task.sector_division }}</div>
-                  </div>
-            <div class="progress-track">
-              <div class="progress-bar-bg">
-                <div class="progress-bar-fill" :style="{ width: task.progress + '%' }"></div>
-                </div>
-              <span class="progress-percent">{{ task.progress }}%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-      <!-- Overall Completion -->
-      <div class="completion-container">
-        <div class="chart-header">
-          <h3>Overall Completion</h3>
-          <div class="chart-info">System-wide progress</div>
-            </div>
-        <div class="circular-progress">
-          <div class="circle-chart" :style="getCircleStyle()">
-            <div class="circle-inner">
-              <div class="progress-text">{{ overallProgress }}%</div>
-              <div class="progress-label">Complete</div>
+    
+    <!-- Main Content -->
+    <main class="main-content pt-5 pb-6 md:pt-6 md:pb-8 relative z-10">
+      <!-- Header Box with Orange Gradient and Depth -->
+      <div class="dashboard-header-box mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div class="flex items-center gap-4">
+            <!-- National Emblem PNG Image with Spinning Animation -->
+            <img src="@/assets/logo.png" alt="National Emblem" style="width: 50px; height: 50px; animation: rotate 3s linear infinite; object-fit: contain;" />
+            <div>
+              <h1 class="text-3xl font-bold tricolor-text">Task Management Dashboard</h1>
+              <p class="text-orange-100">Ministry of Development of North Eastern Region</p>
             </div>
           </div>
-        </div>
-        <div class="completion-summary">
-          <div class="summary-item">
-            <span class="summary-number">{{ totalCompletedSubtasks }}</span>
-            <span class="summary-label">Completed</span>
-    </div>
-          <div class="summary-item">
-            <span class="summary-number">{{ totalSubtasks - totalCompletedSubtasks }}</span>
-            <span class="summary-label">Remaining</span>
+          <div class="bg-white bg-opacity-20 backdrop-blur-sm border border-white border-opacity-30 rounded-xl p-4 text-center shadow-lg date-card-header">
+            <p class="font-semibold text-white today-text">Today</p>
+            <p class="text-sm text-orange-100 date-text">{{ getCurrentDate() }}</p>
           </div>
         </div>
       </div>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white p-5 rounded-xl shadow-sm stat-card-orange transition-all duration-300 hover:-translate-y-1 border-l-4 border-orange-500">
+          <div class="flex justify-between items-start">
+            <div class="flex flex-col">
+              <p class="text-gray-500 font-medium text-base">Total Tasks</p>
+              <p class="text-5xl font-bold text-gray-900 my-3">{{ totalTasks }}</p>
+              <p class="text-sm text-gray-400">Active approved tasks</p>
+        </div>
+            <div class="p-3 rounded-full bg-orange-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+      </div>
+          </div>
+          <div class="mt-4 text-right">
+            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-700">ACTIVE</span>
+        </div>
+      </div>
+
+        <div class="bg-white p-5 rounded-xl shadow-sm stat-card-blue transition-all duration-300 hover:-translate-y-1 border-l-4 border-blue-500">
+          <div class="flex justify-between items-start">
+            <div class="flex flex-col">
+              <p class="text-gray-500 font-medium text-base">Action Items</p>
+              <p class="text-5xl font-bold text-gray-900 my-3">{{ totalSubtasks }}</p>
+              <p class="text-sm text-gray-400">Total sub-items</p>
+        </div>
+            <div class="p-3 rounded-full bg-blue-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            </div>
+          </div>
+          <div class="mt-4 text-right">
+            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-700">IN PROGRESS</span>
+      </div>
     </div>
 
-    <!-- Search Section -->
-    <div class="search-section">
-      <div class="search-box">
-        <div class="search-icon">🔍</div>
+        <div class="bg-white p-5 rounded-xl shadow-sm stat-card-green transition-all duration-300 hover:-translate-y-1 border-l-4 border-green-500">
+          <div class="flex justify-between items-start">
+            <div class="flex flex-col">
+              <p class="text-gray-500 font-medium text-base">Overall Progress</p>
+              <p class="text-5xl font-bold text-gray-900 my-3">{{ overallProgress }}%</p>
+              <p class="text-sm text-gray-400">{{ totalCompletedSubtasks }}/{{ totalSubtasks }} completed</p>
+        </div>
+            <div class="p-3 rounded-full bg-green-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+              </div>
+          <div class="mt-4 text-right">
+            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-700">ON TRACK</span>
+            </div>
+          </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col">
+          <h2 class="text-xl font-semibold text-gray-800 mb-1">Task Completion Progress</h2>
+          <p class="text-gray-500 text-sm mb-4">Real-time progress tracking</p>
+          
+          <div v-if="loading" class="text-center border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center flex-1">
+            <div class="flex flex-col items-center">
+              <div class="loading-spinner-new"></div>
+              <p class="text-gray-500 mt-4">Loading tasks...</p>
+        </div>
+      </div>
+
+          <div v-else-if="progressTasks.length === 0" class="text-center border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center flex-1">
+            <p class="text-gray-500">No active tasks to display</p>
+        </div>
+          
+          <div v-else class="flex-1">
+            <div v-for="task in progressTasks" :key="task.id" class="progress-entry-new mb-4">
+              <div class="flex justify-between items-center mb-2">
+                <div class="flex-1">
+                  <div class="font-semibold text-gray-800 text-sm">{{ task.description }}</div>
+                  <div class="text-xs text-gray-500">{{ task.sector_division }}</div>
+            </div>
+                <span class="text-sm font-semibold text-blue-600 ml-4">{{ task.progress }}%</span>
+          </div>
+              <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" :style="{ width: task.progress + '%' }"></div>
+        </div>
+          </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col">
+          <h2 class="text-xl font-semibold text-gray-800 mb-1">Overall Completion</h2>
+          <p class="text-gray-500 text-sm mb-4">System-wide progress</p>
+          <div class="flex flex-col items-center justify-center my-4">
+            <div class="relative flex items-center justify-center">
+              <svg height="160" width="160">
+                <circle stroke="#e6e6e6" fill="transparent" stroke-width="12" r="65" cx="80" cy="80"></circle>
+                <circle 
+                  stroke="#22c55e" 
+                  fill="transparent" 
+                  stroke-width="12" 
+                  :stroke-dasharray="circumference" 
+                  :style="{ strokeDashoffset: strokeDashoffset, strokeLinecap: 'round' }" 
+                  r="65" 
+                  cx="80" 
+                  cy="80" 
+                  transform="rotate(-90 80 80)"
+                  class="transition-all duration-1000"
+                ></circle>
+              </svg>
+              <span class="absolute text-3xl font-bold text-gray-700">{{ overallProgress }}%</span>
+            </div>
+            <p class="mt-4 text-lg text-gray-600 font-medium">Complete</p>
+          </div>
+          <div class="flex justify-around pt-4 border-t border-gray-200 text-center">
+            <div>
+              <p class="flex items-center justify-center gap-2 font-bold text-lg text-green-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {{ totalCompletedSubtasks }}
+              </p>
+              <p class="text-sm text-gray-500">Completed</p>
+            </div>
+            <div>
+              <p class="flex items-center justify-center gap-2 font-bold text-lg text-orange-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {{ totalSubtasks - totalCompletedSubtasks }}
+              </p>
+              <p class="text-sm text-gray-500">Remaining</p>
+            </div>
+      </div>
+    </div>
+
+        <div class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                Approved Tasks 
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </h2>
+              <p class="text-sm text-gray-500">🔥 {{ approvedTasks.length }} Active Tasks</p>
+            </div>
+            <div class="relative w-full md:w-auto md:max-w-xs">
         <input 
           v-model="searchQuery" 
           type="text" 
-          placeholder="Search tasks by description, sector, or responsibility..."
-          class="search-input"
-        >
+                placeholder="Search tasks by description, sector..." 
+                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-400" 
+              />
+              <span class="absolute left-3 top-1/2 text-gray-400 pointer-events-none" style="transform: translateY(-50%); display: flex; align-items: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </span>
       </div>
     </div>
 
-    <!-- Tasks Grid -->
-    <div class="tasks-section">
-      <div class="section-header">
-        <h2>Approved Tasks</h2>
-        <div class="task-count">{{ approvedTasks.length }} Active Tasks</div>
+          <div v-if="loading" class="text-center py-20 border-2 border-dashed border-gray-200 rounded-lg">
+            <div class="flex flex-col items-center">
+              <div class="loading-spinner-new"></div>
+              <p class="text-gray-500 mt-4">Loading tasks...</p>
+            </div>
       </div>
       
-      <div class="loading-state" v-if="loading">
-        <div class="loading-spinner"></div>
-        <p>Loading tasks...</p>
+          <div v-else-if="approvedTasks.length === 0" class="text-center py-20 border-2 border-dashed border-gray-200 rounded-lg">
+            <p class="text-gray-500">No approved tasks found</p>
       </div>
 
-      <div class="tasks-grid" v-else>
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div 
           v-for="task in approvedTasks" 
           :key="task.id"
-          @click="openTaskDetails(task)"
-          class="task-card"
-        >
-          <!-- Task Header -->
-          <div class="task-header">
-            <div class="task-code">{{ generateTaskCode(task) }}</div>
-            <div class="task-status">Approved</div>
+              class="task-card-new bg-white border border-gray-200 rounded-xl p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+            >
+              <div class="flex justify-between items-start mb-3">
+                <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">{{ generateTaskCode(task) }}</span>
+                <span class="text-xs font-semibold text-green-600 bg-green-50 px-3 py-1 rounded-full">Approved</span>
           </div>
 
-          <!-- Task Content -->
-          <div class="task-content">
-            <h4 class="task-title">{{ task.description }}</h4>
-            
-            <div class="task-details">
-              <div class="detail-row">
-                <span class="detail-label">Sector:</span>
-                <span class="detail-value">{{ task.sector_division }}</span>
+              <h3 class="font-semibold text-gray-800 mb-3 line-clamp-2">{{ task.description }}</h3>
+              
+              <div class="space-y-2 text-sm mb-4">
+                <div class="flex items-start">
+                  <span class="text-gray-500 font-medium w-24 flex-shrink-0">Sector:</span>
+                  <span class="text-gray-700">{{ task.sector_division }}</span>
+              </div>
+                <div class="flex items-start">
+                  <span class="text-gray-500 font-medium w-24 flex-shrink-0">Review:</span>
+                  <span class="text-gray-700">{{ formatDate(task.review_date) }}</span>
+              </div>
+                <div class="flex items-start">
+                  <span class="text-gray-500 font-medium w-24 flex-shrink-0">Owner:</span>
+                  <span class="text-gray-700">{{ task.responsibility }}</span>
+              </div>
             </div>
-              <div class="detail-row">
-                <span class="detail-label">Review Date:</span>
-                <span class="detail-value">{{ formatDate(task.review_date) }}</span>
-            </div>
-              <div class="detail-row">
-                <span class="detail-label">Responsibility:</span>
-                <span class="detail-value">{{ task.responsibility }}
-                  <span v-if="task.reviewer_info" class="reviewer-info">
-                    <br>
-                    <span class="reviewer-badge">
-                      👤 {{ task.reviewer_info }}
-                    </span>
-                  </span>
-                </span>
-            </div>
+
+              <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs text-gray-500">Progress</span>
+                  <span class="text-xs font-semibold text-gray-700">{{ getTaskProgress(task) }}%</span>
+              </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                  <div class="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500" :style="{ width: getTaskProgress(task) + '%' }"></div>
+              </div>
+                <p class="text-xs text-gray-500 mt-1">{{ getCompletedSubtasks(task) }}/{{ getTotalSubtasks(task) }} items completed</p>
           </div>
 
-            <!-- Progress Bar -->
-            <div class="task-progress">
-              <div class="progress-header">
-                <span class="progress-label">Progress: {{ getTaskProgress(task) }}%</span>
-                <span class="progress-count">({{ getCompletedSubtasks(task) }}/{{ getTotalSubtasks(task) }} items)</span>
-            </div>
-              <div class="progress-bar">
-                <div class="progress-fill" :style="{ width: getTaskProgress(task) + '%' }"></div>
-            </div>
-          </div>
-        </div>
-
-          <!-- Task Footer -->
-          <div class="task-footer">
-            <button @click.stop="viewTask(task)" class="action-btn view">
-              <span class="btn-icon">👁️</span>
+              <button @click="openTaskDetails(task)" class="relative z-10 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-300">
               View Details
             </button>
+          </div>
+        </div>
       </div>
     </div>
-    </div>
-    </div>
+    </main>
 
     <!-- Task Details Modal -->
     <div v-if="selectedTask" class="modal-overlay" @click="closeTaskDetails">
@@ -293,6 +360,17 @@ export default {
       }))
     },
 
+    // Circular progress calculations
+    circumference() {
+      const radius = 65;
+      return 2 * Math.PI * radius;
+    },
+
+    strokeDashoffset() {
+      const progress = this.overallProgress || 0;
+      return this.circumference - (progress / 100) * this.circumference;
+    },
+
     recentTaskDescriptions() {
       return this.tasks.slice(0, 5).map(task => ({
           id: task.id,
@@ -318,6 +396,15 @@ export default {
 
   async created() {
     await this.loadTasks()
+  },
+
+  mounted() {
+    // Ensure scrolling is enabled when Home component mounts
+    // This fixes the issue where signin page disables scrolling
+    document.documentElement.style.overflow = 'auto'
+    document.body.style.overflow = 'auto'
+    document.body.style.height = 'auto'
+    document.documentElement.style.height = 'auto'
   },
 
   methods: {
@@ -507,583 +594,807 @@ export default {
 }
 </script>
 
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Tailwind CSS CDN utility classes */
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .container { 
+    max-width: 100%;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .container { 
+    max-width: 100%;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container { 
+    max-width: 100%;
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container { 
+    max-width: 100%;
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .container { 
+    max-width: 100%;
+    padding-left: 5rem;
+    padding-right: 5rem;
+  }
+}
+
+/* Tailwind utilities */
+.mx-auto { margin-left: auto; margin-right: auto; }
+.p-6 { padding: 1.5rem; }
+.p-4 { padding: 1rem; }
+.p-3 { padding: 0.75rem; }
+.p-5 { padding: 1.25rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.py-20 { padding-top: 5rem; padding-bottom: 5rem; }
+.pl-10 { padding-left: 2.5rem; }
+.pr-4 { padding-right: 1rem; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mt-1 { margin-bottom: 0.25rem; }
+.mt-4 { margin-top: 1rem; }
+.ml-4 { margin-left: 1rem; }
+.my-2 { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.my-3 { margin-top: 0.75rem; margin-bottom: 0.75rem; }
+.my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.gap-8 { gap: 2rem; }
+.grid { display: grid; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1 1 0%; }
+.flex-shrink-0 { flex-shrink: 0; }
+.flex-grow { flex-grow: 1; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-around { justify-content: space-around; }
+.space-y-2 > * + * { margin-top: 0.5rem; }
+.w-full { width: 100%; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+.w-24 { width: 6rem; }
+.w-5 { width: 1.25rem; }
+.w-6 { width: 1.5rem; }
+.w-8 { width: 2rem; }
+.h-2 { height: 0.5rem; }
+.h-5 { height: 1.25rem; }
+.h-6 { height: 1.5rem; }
+.h-7 { height: 1.75rem; }
+.h-8 { height: 2rem; }
+.h-full { height: 100%; }
+/* Removed min-h-screen utility to prevent scroll issues */
+.min-w-fit { min-width: fit-content; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.top-1\/2 { top: 50%; }
+.left-3 { left: 0.75rem; }
+.z-10 { z-index: 10; }
+.cursor-pointer { cursor: pointer; }
+.rounded-lg { border-radius: 0.5rem; }
+.rounded-xl { border-radius: 0.75rem; }
+.rounded-2xl { border-radius: 1rem; }
+.rounded-full { border-radius: 9999px; }
+.border { border-width: 1px; }
+.border-2 { border-width: 2px; }
+.border-l-4 { border-left-width: 4px; }
+.border-t { border-top-width: 1px; }
+.border-dashed { border-style: dashed; }
+.border-gray-200 { border-color: #e5e7eb; }
+.border-gray-300 { border-color: #d1d5db; }
+.border-orange-500 { border-color: #f97316; }
+.border-blue-500 { border-color: #3b82f6; }
+.border-green-500 { border-color: #22c55e; }
+.bg-white { background-color: #ffffff; }
+.bg-gray-200 { background-color: #e5e7eb; }
+.bg-orange-100 { background-color: #ffedd5; }
+.bg-orange-50 { background-color: #fff7ed; }
+.bg-blue-100 { background-color: #dbeafe; }
+.bg-blue-50 { background-color: #eff6ff; }
+.bg-green-50 { background-color: #f0fdf4; }
+.bg-green-100 { background-color: #dcfce7; }
+.bg-indigo-50 { background-color: #eef2ff; }
+.bg-indigo-600 { background-color: #4f46e5; }
+.bg-gradient-to-br { background-image: linear-gradient(to bottom right, var(--tw-gradient-stops)); }
+.bg-gradient-to-r { background-image: linear-gradient(to right, var(--tw-gradient-stops)); }
+.from-blue-500 { --tw-gradient-from: #3b82f6; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(59, 130, 246, 0)); }
+.from-green-500 { --tw-gradient-from: #22c55e; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(34, 197, 94, 0)); }
+.to-indigo-600 { --tw-gradient-to: #4f46e5; }
+.to-emerald-600 { --tw-gradient-to: #059669; }
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+.text-5xl { font-size: 3rem; line-height: 1; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.text-white { color: #ffffff; }
+.text-gray-400 { color: #9ca3af; }
+.text-gray-500 { color: #6b7281; }
+.text-gray-700 { color: #374151; }
+.text-gray-800 { color: #1f2937; }
+.text-gray-900 { color: #111827; }
+.text-orange-500 { color: #f97316; }
+.text-orange-600 { color: #ea580c; }
+.text-orange-700 { color: #c2410c; }
+.text-orange-800 { color: #9a3412; }
+.text-blue-500 { color: #3b82f6; }
+.text-blue-600 { color: #2563eb; }
+.text-blue-700 { color: #1d4ed8; }
+.text-blue-800 { color: #1e40af; }
+.text-green-500 { color: #22c55e; }
+.text-green-600 { color: #16a34a; }
+.text-green-700 { color: #15803d; }
+.text-green-800 { color: #166534; }
+.text-indigo-600 { color: #4f46e5; }
+.text-center { text-align: center; }
+.whitespace-nowrap { white-space: nowrap; }
+/* Removed overflow-y-auto utility to prevent internal scrolling */
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); }
+.transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+.transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+.duration-300 { transition-duration: 300ms; }
+.duration-500 { transition-duration: 500ms; }
+.duration-1000 { transition-duration: 1000ms; }
+.transform { transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y)); }
+.-translate-y-1 { --tw-translate-y: -0.25rem; }
+.-translate-y-1\/2 { --tw-translate-y: -50%; }
+.hover\:bg-indigo-700:hover { background-color: #4338ca; }
+.hover\:shadow-lg:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); }
+.hover\:shadow-xl:hover { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+.hover\:-translate-y-1:hover { --tw-translate-y: -0.25rem; }
+.focus\:outline-none:focus { outline: 2px solid transparent; outline-offset: 2px; }
+.focus\:ring-2:focus { box-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color); }
+.focus\:ring-indigo-400:focus { --tw-ring-color: #818cf8; }
+
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+
+@media (min-width: 768px) {
+  .md\:p-8 { padding: 2rem; }
+  .md\:py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+  .md\:px-12 { padding-left: 3rem; padding-right: 3rem; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md\:flex-row { flex-direction: row; }
+  .md\:items-center { align-items: center; }
+  .md\:w-auto { width: auto; }
+  .md\:max-w-xs { max-width: 20rem; }
+}
+
+@media (min-width: 1024px) {
+  .lg\:px-16 { padding-left: 4rem; padding-right: 4rem; }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lg\:col-span-2 { grid-column: span 2 / span 2; }
+  .lg\:col-span-3 { grid-column: span 3 / span 3; }
+}
+
+@media (min-width: 1280px) {
+  .xl\:px-20 { padding-left: 5rem; padding-right: 5rem; }
+}
+</style>
+
+<!-- Unscoped styles to hide scrollbars globally on dashboard -->
+<style>
+html, body {
+  scroll-behavior: auto !important;
+  overflow-x: hidden;
+}
+
+.dashboard-background,
+.dashboard-background * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  scroll-behavior: auto !important;
+}
+
+.dashboard-background::-webkit-scrollbar,
+.dashboard-background *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+</style>
+
 <style scoped>
-.govt-dashboard {
-  width: 98%;
-  max-width: 1800px;
-  margin: 0 auto;
-  padding: 16px;
-  background: #f8f9fa;
+* {
+  font-family: 'Poppins', sans-serif;
+  scrollbar-width: none !important; /* Remove scrollbars in Firefox */
+  -ms-overflow-style: none !important; /* Remove scrollbars in IE/Edge */
+  scroll-behavior: auto !important; /* Disable smooth scrolling */
 }
 
-.govt-header {
-  display: flex;
-  align-items: center;
-  padding: 20px;
-  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
-  color: white;
-  margin-bottom: 24px;
-  border-radius: 10px;
-  overflow: hidden;
+*::-webkit-scrollbar {
+  display: none !important; /* Remove scrollbars in Chrome/Safari/Opera */
+  width: 0 !important;
+  height: 0 !important;
 }
 
-.govt-emblem {
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-}
-
-.emblem-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.emblem-text {
-  font-weight: 600;
-  font-size: 1.2rem;
-  color: white;
-}
-
-.govt-title h1 {
+/* Dashboard background with animated gradient - Matching Signin Page */
+.dashboard-background {
+  background: linear-gradient(-45deg, #FFB366, #FFC78A, #FFD9A8, #FFE8C5);
+  background-size: 400% 400%;
+  animation: gradientShift 8s ease infinite;
+  position: static;
+  overflow-x: hidden !important; /* Prevent horizontal scroll */
+  overflow-y: visible !important; /* Allow vertical scroll */
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   margin: 0;
-  font-size: 1.8rem;
-  font-weight: 600;
+  padding: 0;
+  scroll-behavior: auto !important; /* Disable smooth scrolling */
 }
 
-.dept-subtitle {
-  margin: 4px 0 0;
-  font-size: 0.9rem;
-  opacity: 0.9;
-}
-
-.today-date {
-  padding: 0 24px;
-  font-size: 0.95rem;
-  opacity: 0.9;
-}
-
-.stats-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.analytics-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-  margin-bottom: 24px;
-  align-items: start;
-}
-
-/* Modern completion container styling */
-.completion-container {
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 18px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  position: relative;
-  overflow: hidden;
-  padding: 32px 28px;
-  height: 420px; /* Fixed height to match chart container */
-  max-height: 420px;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* Animated background for completion container */
-.completion-container::before {
+/* White dot texture overlay - matching signin page */
+.dashboard-background::before {
   content: '';
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle at 30% 70%, #22c55e33 0%, #16a34a33 60%, transparent 100%);
-  opacity: 0.6;
-  z-index: 0;
-  animation: completionBgFloat 7s ease-in-out infinite alternate;
-}
-
-@keyframes completionBgFloat {
-  0% { transform: translateY(0) scale(1) rotate(0deg); }
-  100% { transform: translateY(-15px) scale(1.1) rotate(10deg); }
-}
-
-/* Modern Circular Progress Styles */
-.circular-progress {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px 0;
-  z-index: 2;
-  position: relative;
-}
-
-.circle-chart {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  background: conic-gradient(
-    #22c55e var(--progress),
-    #e2e8f0 var(--progress)
-  );
-  transform: rotate(-90deg);
-  filter: drop-shadow(0 8px 16px rgba(34, 197, 94, 0.2));
-  transition: all 0.3s ease;
-}
-
-.circle-chart:hover {
-  transform: rotate(-90deg) scale(1.05);
-  filter: drop-shadow(0 12px 24px rgba(34, 197, 94, 0.3));
-}
-
-.circle-inner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(90deg);
-  width: 170px;
-  height: 170px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 
-    inset 0 4px 8px rgba(0, 0, 0, 0.08),
-    0 4px 16px rgba(255, 255, 255, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.8);
-}
-
-.progress-text {
-  font-size: 2.8rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 6px;
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-  letter-spacing: -0.02em;
-  text-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
-}
-
-.progress-label {
-  font-size: 0.95rem;
-  color: #64748b;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-}
-
-/* Completion stats below circle */
-.completion-stats {
-  margin-top: 20px;
-  text-align: center;
-  z-index: 2;
-  position: relative;
-}
-
-.completion-stats p {
-  font-size: 0.9rem;
-  color: #64748b;
-  font-weight: 500;
-  margin: 4px 0;
-  letter-spacing: 0.01em;
-}
-
-.tasks-section {
-  background: #fff;
-  border-radius: 10px;
-  padding: 24px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.tasks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
-  margin-top: 24px;
-}
-
-/* --- Modern Task Card Revamp --- */
-.task-card {
-  background: rgba(255,255,255,0.92);
-  border-radius: 18px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.13), 0 1.5px 8px 0 rgba(56,189,248,0.08);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1.5px solid rgba(56,189,248,0.18);
-  padding: 28px 22px 22px 22px;
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow 0.25s, transform 0.18s, border 0.18s;
-  cursor: pointer;
-  z-index: 1;
-  animation: cardFadeIn 0.7s cubic-bezier(0.4,0,0.2,1);
-}
-.task-card:hover {
-  box-shadow: 0 12px 32px 0 rgba(56,189,248,0.18), 0 4px 16px 0 rgba(31,38,135,0.13);
-  border: 2.5px solid #38bdf8;
-  transform: translateY(-4px) scale(1.012);
-}
-@keyframes cardFadeIn {
-  0% { opacity: 0; transform: translateY(20px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Animated border effect */
-.task-card::before {
-  content: '';
-  position: absolute;
-  top: -2px; left: -2px; right: -2px; bottom: -2px;
-  border-radius: 22px;
-  background: linear-gradient(120deg, #38bdf8 0%, #6366f1 100%);
-  opacity: 0.13;
-  z-index: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.57) 4.5px, transparent 4.5px),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.54) 3.5px, transparent 3.5px),
+    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.55) 4px, transparent 4px),
+    radial-gradient(circle at 60% 30%, rgba(255, 255, 255, 0.53) 3.5px, transparent 3.5px),
+    radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.54) 3.5px, transparent 3.5px);
+  background-size: 50px 50px, 80px 80px, 70px 70px, 100px 100px, 75px 75px;
+  animation: float 20s ease-in-out infinite;
   pointer-events: none;
-  transition: opacity 0.3s;
-  filter: blur(2px);
-}
-.task-card:hover::before {
-  opacity: 0.22;
+  z-index: 1;
 }
 
-/* Floating action button (View Details) */
-.task-footer {
-  margin-top: 16px;
-  text-align: right;
-  position: relative;
-  z-index: 2;
-}
-.action-btn.view {
-  background: linear-gradient(90deg, #6366f1 0%, #38bdf8 100%);
-  color: white;
-  border: none;
-  border-radius: 50px;
-  font-size: 1rem;
-  font-weight: 600;
-  padding: 12px 28px;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.13);
-  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-  position: relative;
-  overflow: hidden;
-}
-.action-btn.view:hover {
-  background: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
-  box-shadow: 0 6px 18px rgba(56,189,248,0.18);
-  transform: scale(1.04);
+/* Soft glow overlay - matching signin page */
+.dashboard-background::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 10% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+  animation: wave 25s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
 }
 
-/* Modern Card Headings and Typography */
-.task-title, .section-header h2, .govt-title h1, .chart-header h3 {
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
+.main-content {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  box-sizing: border-box;
+  overflow: visible !important;
+  position: relative;
+  z-index: 10;
+}
+
+/* Dashboard Header Box with Orange Gradient and Depth */
+.dashboard-header-box {
+  background: linear-gradient(135deg, rgba(255, 200, 160, 0.08), rgba(255, 210, 180, 0.08), rgba(255, 220, 195, 0.08), rgba(255, 230, 210, 0.08));
+  background-size: 200% 200%;
+  animation: headerGradientShift 10s ease infinite;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  padding: 1.25rem 2rem;
+  border-radius: 20px;
+  box-shadow: 
+    0 8px 25px rgba(255, 140, 66, 0.08),
+    0 4px 12px rgba(255, 140, 66, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  position: relative;
+  overflow: visible;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.dashboard-header-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 35px rgba(255, 140, 66, 0.12),
+    0 6px 18px rgba(255, 140, 66, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Indian Tricolor Text Gradient */
+.tricolor-text {
+  background: linear-gradient(to right, 
+    #FF9933 0%,
+    #FF9933 33%,
+    #FFFFFF 33%,
+    #FFFFFF 66%,
+    #138808 66%,
+    #138808 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 6px;
-  font-size: 1.25rem;
-  text-shadow: 0 2px 8px rgba(56,189,248,0.07);
-}
-.section-header h2 {
-  font-size: 1.45rem;
-  margin-bottom: 0;
-}
-.govt-title h1 {
-  font-size: 2.1rem;
-  margin-bottom: 0;
+  -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.3);
+  text-stroke: 0.5px rgba(0, 0, 0, 0.3);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
-/* Card micro-interactions */
-.task-card:active {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(56,189,248,0.10);
+/* Subtle outline for Today text */
+.today-text {
+  text-shadow: 
+    -0.5px -0.5px 0 rgba(0, 0, 0, 0.2),
+    0.5px -0.5px 0 rgba(0, 0, 0, 0.2),
+    -0.5px 0.5px 0 rgba(0, 0, 0, 0.2),
+    0.5px 0.5px 0 rgba(0, 0, 0, 0.2);
 }
 
-/* Card badge for status */
-.task-status {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #38bdf8;
-  background: rgba(56,189,248,0.09);
-  border-radius: 8px;
-  padding: 2px 12px;
-  margin-left: 8px;
-  letter-spacing: 0.03em;
-  box-shadow: 0 1px 4px rgba(56,189,248,0.07);
-}
-
-/* Card code styling */
-.task-code {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #6366f1;
-  letter-spacing: 0.04em;
-  background: rgba(99,102,241,0.08);
-  border-radius: 6px;
-  padding: 2px 10px;
-  margin-right: 8px;
-  box-shadow: 0 1px 4px rgba(99,102,241,0.07);
-}
-
-/* Card content and details */
-.task-content {
-  margin-bottom: 16px;
-  z-index: 2;
-  position: relative;
-}
-.task-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 0;
-}
-.detail-row {
-  width: 50%;
-  margin-bottom: 8px;
-}
-.detail-label {
-  font-size: 0.93rem;
-  font-weight: 600;
-  color: #64748b;
-}
-.detail-value {
-  font-size: 1.01rem;
-  font-weight: 400;
-  color: #1e293b;
-  margin-left: 8px;
-}
-
-/* Card progress bar */
-.task-progress {
-  margin-top: 16px;
-}
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.progress-label {
-  font-size: 0.93rem;
-  font-weight: 600;
-  color: #64748b;
-}
-.progress-count {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: #64748b;
-}
-.progress-bar {
-  height: 16px;
-  background: #e0e7ef;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 4px;
-  box-shadow: 0 1px 4px rgba(56,189,248,0.08);
-}
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
-  border-radius: 8px;
-  transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
-  box-shadow: 0 2px 8px rgba(99,102,241,0.13);
-}
-
-/* Responsive for task-card */
-@media (max-width: 768px) {
-  .task-card {
-    padding: 14px 8px 14px 8px;
-  }
-  .task-title, .section-header h2, .govt-title h1 {
-  font-size: 1.1rem;
-  }
-  .section-header h2 {
-    font-size: 1.2rem;
-  }
-  .govt-title h1 {
-    font-size: 1.3rem;
-  }
-}
-
-/* --- Modern Stat Cards with Glassmorphism --- */
-.stat-card {
-  background: rgba(255, 255, 255, 0.88);
-  border-radius: 18px;
-  padding: 28px 24px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15), 0 2px 8px 0 rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  animation: statCardFadeIn 0.6s ease-out;
-}
-
-.stat-card::before {
+/* Texture overlay for header box */
+.dashboard-header-box::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--card-gradient-start), var(--card-gradient-end));
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.15) 2px, transparent 2px),
+    radial-gradient(circle at 75% 65%, rgba(255, 255, 255, 0.12) 1.5px, transparent 1.5px),
+    radial-gradient(circle at 45% 80%, rgba(255, 255, 255, 0.13) 2px, transparent 2px),
+    radial-gradient(circle at 85% 35%, rgba(255, 255, 255, 0.11) 1.5px, transparent 1.5px);
+  background-size: 60px 60px, 90px 90px, 75px 75px, 110px 110px;
+  pointer-events: none;
   z-index: 1;
 }
 
-.stat-card::after {
+/* Subtle glow effect */
+.dashboard-header-box::after {
   content: '';
   position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 70% 30%, var(--card-bg-gradient) 0%, transparent 70%);
-  opacity: 0.6;
-  z-index: 0;
-  animation: statCardBgFloat 8s ease-in-out infinite alternate;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 20% 30%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 1;
 }
 
-@keyframes statCardFadeIn {
-  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes statCardBgFloat {
-  0% { transform: translateY(0) scale(1); }
-  100% { transform: translateY(-10px) scale(1.05); }
-}
-
-.stat-card:hover {
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.22), 0 4px 16px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(-6px) scale(1.02);
-  border-color: rgba(255, 255, 255, 0.4);
-}
-
-.stat-card.primary {
-  --card-gradient-start: #3182ce;
-  --card-gradient-end: #4299e1;
-  --card-bg-gradient: rgba(49, 130, 206, 0.15);
-}
-
-.stat-card.secondary {
-  --card-gradient-start: #805ad5;
-  --card-gradient-end: #9f7aea;
-  --card-bg-gradient: rgba(128, 90, 213, 0.15);
-}
-
-.stat-card.success {
-  --card-gradient-start: #38a169;
-  --card-gradient-end: #48bb78;
-  --card-bg-gradient: rgba(56, 161, 105, 0.15);
-}
-
-.stat-icon {
-  font-size: 2.5rem;
-  margin-right: 20px;
-  background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-  z-index: 2;
+/* Ensure content is above overlays */
+.dashboard-header-box > div {
   position: relative;
-  transition: transform 0.3s ease;
-}
-
-.stat-card:hover .stat-icon {
-  transform: scale(1.1) rotate(5deg);
-}
-
-.stat-content {
-  flex: 1;
   z-index: 2;
+}
+
+/* Date card inside header */
+.date-card-header {
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.date-card-header:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: scale(1.02);
+}
+
+@keyframes headerGradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding-left: 1.75rem;
+    padding-right: 1.75rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .main-content {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-15px) rotate(2deg); }
+  66% { transform: translateY(8px) rotate(-1deg); }
+}
+
+@keyframes wave {
+  0%, 100% { 
+    transform: translateX(0px) translateY(0px) scale(1);
+    opacity: 0.3;
+  }
+  25% { 
+    transform: translateX(-20px) translateY(-10px) scale(1.1);
+    opacity: 0.5;
+  }
+  50% { 
+    transform: translateX(10px) translateY(-5px) scale(0.9);
+    opacity: 0.4;
+  }
+  75% { 
+    transform: translateX(-5px) translateY(5px) scale(1.05);
+    opacity: 0.6;
+  }
+}
+
+/* Stat Cards with colorful left borders */
+.stat-card-orange {
+  border-left: 5px solid #f97316;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.stat-card-blue {
+  border-left: 5px solid #3b82f6;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.stat-card-green {
+  border-left: 5px solid #22c55e;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.stat-card-orange:hover {
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+}
+
+.stat-card-blue:hover {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.stat-card-green:hover {
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+
+
+/* Floating Shapes Animation - Matching Signin Page */
+.floating-shapes {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+
+.floating-circle,
+.floating-triangle,
+.floating-square {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(2px);
+  animation: floatShape 20s ease-in-out infinite;
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.4);
+}
+
+.circle-1 {
+  width: 110px;
+  height: 110px;
+  top: 20%;
+  left: 10%;
+  animation-delay: 0s;
+  animation-duration: 25s;
+}
+
+.circle-2 {
+  width: 85px;
+  height: 85px;
+  top: 60%;
+  right: 15%;
+  animation-delay: -5s;
+  animation-duration: 30s;
+}
+
+.circle-3 {
+  width: 130px;
+  height: 130px;
+  top: 40%;
+  left: 80%;
+  animation-delay: -10s;
+  animation-duration: 35s;
+}
+
+.floating-triangle {
+  width: 70px;
+  height: 70px;
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.triangle-1 {
+  top: 30%;
+  right: 25%;
+  animation-delay: -15s;
+  animation-duration: 20s;
+}
+
+.triangle-2 {
+  top: 70%;
+  left: 60%;
+  animation-delay: -8s;
+  animation-duration: 28s;
+}
+
+.floating-square {
+  width: 95px;
+  height: 95px;
+  border-radius: 10px;
+}
+
+.square-1 {
+  top: 10%;
+  right: 30%;
+  animation-delay: -12s;
+  animation-duration: 32s;
+}
+
+.square-2 {
+  top: 85%;
+  left: 40%;
+  animation-delay: -18s;
+  animation-duration: 26s;
+}
+
+@keyframes floatShape {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+    opacity: 0.7;
+  }
+  25% {
+    transform: translateY(-30px) translateX(20px) rotate(90deg);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-10px) translateX(-15px) rotate(180deg);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(-25px) translateX(10px) rotate(270deg);
+    opacity: 1;
+  }
+}
+
+/* Date Card Styles */
+
+/* Ashok Chakra rotation animation */
+.ashok-chakra {
+  animation: rotate 3s linear infinite !important;
+  transform-origin: center !important;
+}
+
+.ashok-chakra-container {
   position: relative;
+  z-index: 10;
 }
 
-.stat-number {
-  font-size: 2.4rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
-  margin-bottom: 6px;
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-  letter-spacing: -0.02em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.stat-label {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #2d3748;
-  margin-bottom: 4px;
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-  letter-spacing: 0.01em;
+/* Hover shadows for cards */
+.hover-shadow-orange:hover {
+  box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.2), 0 4px 6px -4px rgba(249, 115, 22, 0.1);
 }
 
-.stat-desc {
-  font-size: 0.9rem;
-  color: #64748b;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+.hover-shadow-blue:hover {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.2), 0 4px 6px -4px rgba(59, 130, 246, 0.1);
 }
 
-.search-section {
-  margin-bottom: 24px;
+.hover-shadow-green:hover {
+  box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.2), 0 4px 6px -4px rgba(34, 197, 94, 0.1);
 }
 
-.search-box {
-  display: flex;
-  align-items: center;
-  background: #fff;
-  border-radius: 8px;
+/* New loading spinner */
+.loading-spinner-new {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Progress entry hover - NO HEIGHT CONSTRAINTS */
+.progress-entry-new {
   padding: 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  height: auto !important;
+  overflow: visible !important;
 }
 
-.search-icon {
-  font-size: 1.5rem;
-  margin-right: 12px;
-  opacity: 0.8;
+.progress-entry-new:hover {
+  background: #f1f5f9;
+  transform: translateX(4px);
 }
 
-.search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: 1rem;
+/* Task card hover effects - overflow visible for clickable buttons */
+.task-card-new {
+  position: relative;
+  overflow: visible; /* Allow buttons to be clickable */
+  height: auto !important;
 }
 
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+.task-card-new::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+  pointer-events: none; /* Prevent blocking clicks */
 }
 
+.task-card-new:hover::before {
+  left: 100%;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Date card responsive */
+.date-card {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .date-card {
+    width: auto;
+    min-width: 280px;
+  }
+}
+
+.date-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure all grid containers don't overflow */
+.grid {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Prevent any element from causing horizontal overflow */
+* {
+  box-sizing: border-box;
+}
+
+.dashboard-background * {
+  max-width: 100%;
+}
+
+/* Allow cards to stretch to match height in grid, but no max-height constraints */
+.grid > div {
+  max-height: none !important;
+}
+
+/* ABSOLUTELY NO INTERNAL SCROLLBARS - ONLY MAIN PAGE SCROLL */
+.dashboard-background > *,
+.dashboard-background > main,
+.dashboard-background > main > *,
+.dashboard-background > main > * > *,
+.dashboard-background > main > * > * > *,
+.dashboard-background > main > * > * > * > * {
+  overflow-y: visible !important;
+  overflow-x: hidden !important; /* Prevent horizontal overflow on all children */
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* Exception: Allow modal to have its own scroll */
+.modal-overlay,
+.task-modal {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Prevent horizontal scroll globally - use /deep/ to override scoped styles */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100%;
+}
+
+/* Force remove ALL internal scrollbars */
+.dashboard-background,
+.dashboard-background * {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.dashboard-background::-webkit-scrollbar,
+.dashboard-background *::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Modal styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1094,7 +1405,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10000; /* High z-index to ensure it's above all other content */
+  z-index: 10000;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -1105,13 +1416,14 @@ export default {
   padding: 32px;
   max-width: 90%;
   width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
+  max-height: 90vh;
+  margin: 2vh 0; /* Add vertical margin */
+  overflow-y: auto; /* Keep modal scroll for long content */
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 32px rgba(31, 38, 135, 0.2);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1.5px solid rgba(255, 255, 255, 0.3);
-  z-index: 10001; /* Even higher z-index for the modal content */
+  z-index: 10001;
   position: relative;
   animation: modalFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1260,27 +1572,7 @@ export default {
   padding: 24px;
   border-radius: 12px;
   border: 1px solid rgba(226, 232, 240, 0.8);
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-/* Custom scrollbar for action content */
-.action-content-display::-webkit-scrollbar {
-  width: 8px;
-}
-
-.action-content-display::-webkit-scrollbar-track {
-  background: rgba(226, 232, 240, 0.3);
-  border-radius: 4px;
-}
-
-.action-content-display::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
-  border-radius: 4px;
-}
-
-.action-content-display::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #0ea5e9, #1d4ed8);
+  /* Removed max-height and overflow-y to prevent internal scrolling */
 }
 
 /* Style for action content HTML formatting */
@@ -1304,470 +1596,5 @@ export default {
   color: #475569;
   font-style: italic;
 }
-
-/* 🎯 UNIFIED: Clean Action Node Hierarchical Styling with DEEP SELECTORS */
-.action-content-display /deep/ .action-node {
-  display: flex !important;
-  align-items: flex-start !important;
-  margin: 4px 0 !important;
-  padding: 2px 0 !important;
-  line-height: 1.4 !important;
-  font-size: inherit !important;
-}
-
-.action-content-display /deep/ .action-node .node-marker {
-  flex-shrink: 0 !important;
-  margin-right: 8px !important;
-  font-weight: bold !important;
-  min-width: 24px !important;
-  text-align: left !important;
-}
-
-.action-content-display /deep/ .action-node .node-content {
-  flex: 1 !important;
-  word-break: break-word !important;
-  color: #000 !important;
-}
-
-/* 📐 ENHANCED: Hierarchical indentation with DEEP SELECTORS - REDUCED SPACING! */
-.action-content-display /deep/ .action-node.level-1 { 
-  margin-left: 0px !important; 
-  /* background-color: rgba(59, 130, 246, 0.02) !important; */
-}
-.action-content-display /deep/ .action-node.level-2 { 
-  margin-left: 20px !important; 
-  /* background-color: rgba(16, 185, 129, 0.02) !important; */
-  border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 4px !important;
-}
-.action-content-display /deep/ .action-node.level-3 { 
-  margin-left: 40px !important; 
-  /* background-color: rgba(139, 92, 246, 0.02) !important; */
-  border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 6px !important;
-}
-.action-content-display /deep/ .action-node.level-4 { 
-  margin-left: 60px !important; 
-  /* background-color: rgba(245, 158, 11, 0.02) !important; */
-  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 6px !important;
-}
-.action-content-display /deep/ .action-node.level-5 { 
-  margin-left: 80px !important; 
-  /* background-color: rgba(239, 68, 68, 0.02) !important; */
-  border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-/* 🎨 UNIFIED: List style colors with DEEP SELECTORS */
-.action-content-display /deep/ .action-node.style-decimal .node-marker { 
-  /* color: #1e40af !important; */
-  font-weight: bold !important; 
-}
-.action-content-display /deep/ .action-node.style-lower-alpha .node-marker { 
-  /* color: #059669 !important; */
-  font-weight: bold !important; 
-}
-.action-content-display /deep/ .action-node.style-lower-roman .node-marker { 
-  /* color: #7C3AED !important; */
-  font-weight: bold !important; 
-}
-.action-content-display /deep/ .action-node.style-bullet .node-marker { 
-  /* color: #DC2626 !important; */
-  font-weight: bold !important; 
-}
-
-/* 📅 Review date styling with DEEP SELECTORS - yellow highlight */
-.action-content-display /deep/ .action-node .node-content .review-date {
-  font-size: 0.85em !important;
-  color: #333 !important;
-  font-weight: 500 !important;
-  margin-left: 8px !important;
-  background-color: #ffeb3b !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  display: inline-block !important;
-  line-height: 1.2 !important;
-}
-
-.action-content-display /deep/ .action-node .node-content .review-date.today {
-  color: #d32f2f !important; /* Red text for today */
-  font-weight: 600 !important;
-}
-
-/* ✅ Completed nodes styling with DEEP SELECTORS - GREEN COLOR */
-.action-content-display /deep/ .action-node.completed { 
-  background-color: rgba(16, 185, 129, 0.1) !important; /* Light green background */
-  border-left: 3px solid #10b981 !important; /* Green left border */
-  border-radius: 4px !important;
-  padding: 4px 8px !important;
-}
-.action-content-display /deep/ .action-node.completed .node-content { 
-  color: #059669 !important; /* Green text color */
-  font-weight: 500 !important; /* Slightly bold */
-}
-.action-content-display /deep/ .action-node.completed .node-marker { 
-  color: #10b981 !important; /* Green marker color */
-  font-weight: 600 !important;
-}
-
-/* 🔧 FALLBACK: Alternative deep selector syntaxes for maximum compatibility - REDUCED SPACING! */
-.action-content-display >>> .action-node.level-2 { 
-  margin-left: 20px !important; 
-  /* background-color: rgba(16, 185, 129, 0.02) !important; */
-  border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 4px !important;
-}
-.action-content-display >>> .action-node.level-3 { 
-  margin-left: 40px !important; 
-  /* background-color: rgba(139, 92, 246, 0.02) !important; */
-  border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 6px !important;
-}
-.action-content-display >>> .action-node.level-4 { 
-  margin-left: 60px !important; 
-  /* background-color: rgba(245, 158, 11, 0.02) !important; */
-  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 6px !important;
-}
-.action-content-display >>> .action-node.level-5 { 
-  margin-left: 80px !important; 
-  /* background-color: rgba(239, 68, 68, 0.02) !important; */
-  border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-/* 💪 NUCLEAR OPTION: Global styles that bypass scoping entirely - REDUCED SPACING! */
-.task-modal .action-content-display .action-node.level-2 { 
-  margin-left: 20px !important; 
-  /* background-color: rgba(16, 185, 129, 0.02) !important; */
-  border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 4px !important;
-}
-.task-modal .action-content-display .action-node.level-3 { 
-  margin-left: 40px !important; 
-  /* background-color: rgba(139, 92, 246, 0.02) !important; */
-  border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 6px !important;
-}
-.task-modal .action-content-display .action-node.level-4 { 
-  margin-left: 60px !important; 
-  /* background-color: rgba(245, 158, 11, 0.02) !important; */
-  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 6px !important;
-}
-.task-modal .action-content-display .action-node.level-5 { 
-  margin-left: 80px !important; 
-  /* background-color: rgba(239, 68, 68, 0.02) !important; */
-  border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-/* --- Modern Glassmorphism Card for .chart-container --- */
-.chart-container {
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 18px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  position: relative;
-  overflow: hidden;
-  padding: 32px 28px 20px 28px;
-  height: 420px; /* Fixed height to match completion container */
-  max-height: 420px;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Animated SVG background (waves/particles) */
-.chart-container::before {
-  content: '';
-  position: absolute;
-  top: -60px;
-  left: -60px;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle at 60% 40%, #60a5fa55 0%, #818cf855 60%, transparent 100%);
-  opacity: 0.5;
-  z-index: 0;
-  animation: floatWave 6s ease-in-out infinite alternate;
-}
-@keyframes floatWave {
-  0% { transform: translateY(0) scale(1); }
-  100% { transform: translateY(20px) scale(1.08); }
-}
-
-.chart-header h3 {
-  font-family: 'Poppins', 'Inter', Arial, sans-serif;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: 0.01em;
-  margin-bottom: 2px;
-  background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.chart-header .chart-info {
-  font-size: 0.98rem;
-  color: #64748b;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.progress-list {
-  margin-top: 18px;
-  z-index: 2;
-  position: relative;
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* Custom scrollbar for progress list */
-.progress-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.progress-list::-webkit-scrollbar-track {
-  background: rgba(226, 232, 240, 0.5);
-  border-radius: 3px;
-}
-
-.progress-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
-  border-radius: 3px;
-}
-
-.progress-list::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #0ea5e9, #1d4ed8);
-}
-
-.progress-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(236, 245, 255, 0.7);
-  border-radius: 10px;
-  margin-bottom: 16px;
-  padding: 14px 18px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.07);
-  transition: box-shadow 0.2s, transform 0.2s;
-  border: 1px solid #e0e7ef;
-}
-.progress-entry:hover {
-  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.13);
-  transform: translateY(-2px) scale(1.01);
-}
-
-.progress-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.task-name {
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 1.08rem;
-  letter-spacing: 0.01em;
-}
-.task-sector {
-  font-size: 0.92rem;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.progress-track {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 180px;
-}
-.progress-bar-bg {
-  width: 120px;
-  height: 12px;
-  background: #e0e7ef;
-  border-radius: 8px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.08);
-}
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
-  border-radius: 8px;
-  transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
-  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.13);
-}
-.progress-percent {
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: #2563eb;
-  min-width: 38px;
-  text-align: right;
-  letter-spacing: 0.01em;
-}
-
-/* Responsive for chart-container */
-@media (max-width: 768px) {
-  .chart-container {
-    padding: 18px 8px;
-    min-height: 220px;
-  }
-  .progress-bar-bg {
-    width: 80px;
-  }
-  .progress-track {
-    min-width: 110px;
-  }
-}
-
-.action-content-display >>> .action-node.has-reviewer {
-  background-color: rgba(59, 130, 246, 0.05);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.action-content-display >>> .action-node .node-marker {
-  display: flex;
-  align-items: center;
-  min-width: 32px;
-  font-weight: 600;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.action-content-display >>> .action-node .node-content {
-  flex: 1;
-  min-width: 0;
-  max-width: calc(100% - 200px);
-}
-
-.action-content-display >>> .action-node .reviewer-badge {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-.action-content-display >>> .action-node.level-2 { 
-  margin-left: 20px !important; 
-  border-left: 2px solid rgba(16, 185, 129, 0.3) !important;
-  padding-left: 4px !important;
-}
-
-.action-content-display >>> .action-node.level-3 { 
-  margin-left: 40px !important; 
-  border-left: 2px solid rgba(139, 92, 246, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-.action-content-display >>> .action-node.level-4 { 
-  margin-left: 60px !important; 
-  border-left: 2px solid rgba(245, 158, 11, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-.action-content-display >>> .action-node.level-5 { 
-  margin-left: 80px !important; 
-  border-left: 2px solid rgba(239, 68, 68, 0.3) !important;
-  padding-left: 6px !important;
-}
-
-.reviewer-info {
-  display: block;
-  margin-top: 4px;
-}
-/* 
-.reviewer-badge {
-  display: inline-block;
-  background: #3b82f6;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.8em;
-  margin-top: 4px;
-} */
-
-/* Reviewer Badge Styles */
-.action-content-display /deep/ .reviewer-badge-parallel {
-  display: inline-block !important;
-  background-color: #ffeb3b !important;
-  color: black !important;
-  padding: 2px 8px !important;
-  border-radius: 4px !important;
-  font-size: 0.75rem !important;
-  font-weight: 500 !important;
-  margin-left: 8px !important;
-  position: absolute !important;
-  right: 16px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  opacity: 0.9 !important;
-  transition: opacity 0.2s ease !important;
-}
-
-.action-content-display /deep/ .action-node {
-  position: relative !important;
-  padding-right: 120px !important; /* Make space for reviewer badge */
-}
-
-.action-content-display /deep/ .reviewer-badge-parallel:hover {
-  opacity: 1 !important;
-}
-
-/* Alternative deep selector syntax for maximum compatibility */
-.action-content-display >>> .reviewer-badge-parallel {
-  display: inline-block !important;
-  background-color: #ffeb3b !important;
-  color: black !important;
-  padding: 2px 8px !important;
-  border-radius: 4px !important;
-  font-size: 0.75rem !important;
-  font-weight: 500 !important;
-  margin-left: 8px !important;
-  position: absolute !important;
-  right: 16px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  opacity: 0.9 !important;
-  transition: opacity 0.2s ease !important;
-}
-
-.action-content-display >>> .action-node {
-  position: relative !important;
-  padding-right: 120px !important; /* Make space for reviewer badge */
-}
-
-.action-content-display >>> .reviewer-badge-parallel:hover {
-  opacity: 1 !important;
-}
-
-/* Nuclear option: Global styles that bypass scoping entirely */
-.task-modal .action-content-display .reviewer-badge-parallel {
-  display: inline-block !important;
-  background-color: #2563eb !important;
-  color: white !important;
-  padding: 2px 8px !important;
-  border-radius: 4px !important;
-  font-size: 0.75rem !important;
-  font-weight: 500 !important;
-  margin-left: 8px !important;
-  position: absolute !important;
-  right: 16px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  opacity: 0.9 !important;
-  transition: opacity 0.2s ease !important;
-}
-
-.task-modal .action-content-display .action-node {
-  position: relative !important;
-  padding-right: 120px !important; /* Make space for reviewer badge */
-}
-
-.task-modal .action-content-display .reviewer-badge-parallel:hover {
-  opacity: 1 !important;
-}
 </style>
+

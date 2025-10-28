@@ -1,6 +1,6 @@
 import Vue from 'vue'
 import Router from 'vue-router'
-import Signin from '../components/Signin.vue'
+import Signin from '../components/signin.vue'
 import Signup from '../components/Signup.vue'
 import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
@@ -133,7 +133,7 @@ router.beforeEach((to, from, next) => {
     }
   } else if (to.name === 'Signin' || to.name === 'LandingPage') {
     if (isSignedIn) {
-      next({ name: 'Dashboard' })
+      next({ name: 'Home' })
     } else {
       next()
     }
