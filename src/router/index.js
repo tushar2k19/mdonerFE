@@ -1,6 +1,6 @@
 import Vue from 'vue'
 import Router from 'vue-router'
-import Signin from '../components/signin.vue'
+import Signin from '../components/Signin.vue'
 import Signup from '../components/Signup.vue'
 import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
