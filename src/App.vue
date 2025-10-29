@@ -90,6 +90,11 @@ export default {
       if (this.isAuthenticated !== newAuthStatus) {
         this.isAuthenticated = newAuthStatus
         this.$nextTick(() => {
+          // Ensure scrolling is enabled after authentication change
+          document.documentElement.style.overflow = 'auto'
+          document.body.style.overflow = 'auto'
+          document.body.style.height = 'auto'
+          document.documentElement.style.height = 'auto'
           window.scrollTo(0, 0)
           console.log('Forced re-render and attempted scroll')
         })

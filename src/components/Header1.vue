@@ -1,25 +1,43 @@
 <template>
-  <header class="header">
-    <div class="header-container">
-      <router-link to="/" class="logo-section">
-        <div class="govt-logo">
-          <span class="ne">NE</span><span class="volve">volve</span>
+  <header class="header header-texture shadow-lg text-white">
+    <div class="header-container container mx-auto px-6 py-3 flex items-center">
+      
+      <!-- Logo and Title -->
+      <router-link to="/" class="logo-section flex items-center gap-3 flex-shrink-0">
+        <div class="ne-box bg-white text-indigo-700 font-bold text-xl rounded-md w-10 h-10 flex items-center justify-center shadow-md">
+          NE
         </div>
+        <h1 class="volve-text text-xl font-bold">volve</h1>
       </router-link>
 
-      <nav class="nav-center" v-if="isAuthenticated">
+      <!-- Navigation Links - Centered -->
+      <nav v-if="isAuthenticated" class="nav-center flex-1 flex justify-center items-center space-x-2 bg-black/20 p-1 rounded-full mx-8">
+        <!-- Debug info -->
+        <span v-if="filteredNavigationRoutes.length === 0" style="color: red; font-size: 12px;">
+          No routes found! Auth: {{ isAuthenticated }}, Role: {{ userRole }}
+        </span>
         <router-link
           v-for="route in filteredNavigationRoutes"
           :key="route.path"
           :to="route.path"
-          class="nav-link"
-          :class="{ active: $route.path === route.path }"
+          class="nav-link px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 relative overflow-hidden group"
+          :class="{ 
+            'active bg-white text-indigo-600 shadow-sm': $route.path === route.path,
+            'text-blue-200': $route.path !== route.path
+          }"
         >
+          <span class="relative z-10 transition-colors duration-300" :class="{ 'group-hover:text-white': $route.path !== route.path }">
           {{ route.label }}
+          </span>
+          <span 
+            v-if="$route.path !== route.path"
+            class="absolute inset-0 bg-white/10 rounded-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out origin-left z-0"
+          ></span>
         </router-link>
       </nav>
 
-      <div class="nav-right">
+      <!-- Action Buttons -->
+      <div class="nav-right flex items-center space-x-4 flex-shrink-0">
         <NotificationComponent
           v-if="isAuthenticated"
           class="notification-wrapper"
@@ -27,18 +45,20 @@
         />
         <button
           v-if="isAuthenticated"
-          class="btn-auth"
+          class="btn-auth flex items-center space-x-2 border border-blue-400 px-4 py-2 rounded-full text-sm font-medium text-blue-200 hover:bg-white/10 hover:text-white transition-colors duration-300"
           @click="handleSignOut"
         >
-          <span class="logout-icon">⟲</span>
-          <span class="auth-text">Log out</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>Log out</span>
         </button>
         <router-link
           v-else
           to="/login"
-          class="btn-auth"
+          class="btn-auth flex items-center space-x-2 border border-blue-400 px-4 py-2 rounded-full text-sm font-medium text-blue-200 hover:bg-white/10 hover:text-white transition-colors duration-300"
         >
-          <span class="auth-text">Login</span>
+          <span>Login</span>
         </router-link>
       </div>
     </div>
@@ -80,7 +100,7 @@ export default {
       const isSignedIn = localStorage.getItem('signedIn') !== null
       return hasUserInfo && isSignedIn
     },
-    
+
     userRole () {
       const userInfoCookie = document.cookie.split(';').find(cookie =>
         cookie.trim().startsWith('user_info=')
@@ -95,7 +115,7 @@ export default {
       }
       return null
     },
-    
+
     filteredNavigationRoutes () {
       // Custom logic for editor and reviewer roles
       if (this.userRole === 'editor') {
@@ -139,205 +159,396 @@ export default {
 }
 </script>
 
+<style>
+/* Global styles to prevent horizontal scroll */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+</style>
+
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+* {
+  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+}
+
+/* Custom texture style for the header background */
+.header-texture {
+  background-color: #070e58;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
 .header {
-  background: #fff;
-  border-bottom: 3px solid #1e3a8a;
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(30,64,175,0.04);
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.container {
+  max-width: 100%;
+  width: 100%;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.px-6 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.items-center {
+  align-items: center;
 }
 
 .header-container {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0.75rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+/* Logo and Title */
 .logo-section {
-  display: flex;
-  align-items: center;
-  background: none;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0;
-  margin-right: 2rem;
-  position: relative;
-  overflow: visible;
   text-decoration: none;
 }
 
-.govt-logo {
-  display: flex;
-  align-items: center;
-  font-size: 2.1rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-  color: #1e3a8a;
-  background: none;
-  filter: none;
-  text-shadow: none;
-  position: relative;
+.gap-3 {
+  gap: 0.75rem;
 }
 
-.ne {
-  display: inline-flex;
+.ne-box {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 2em;
-  height: 1.8em;
-  border-radius: 90%;
-  background: #1e3a8a;
-  color: #fff;
-  font-size: 0.6em;
-  font-weight: 800;
-  margin-right: 0.15em;
-  box-shadow: 0 2px 8px rgba(30,64,175,0.08);
-  border: 2.5px solid #fbbf24;
-  letter-spacing: 0.01em;
-  padding: 6px 12px;
-  color:#fbbf24
+  border-radius: 0.375rem;
+  background-color: #ffffff;
+  color: #4f46e5;
+  font-weight: 700;
+  font-size: 1.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-.volve {
-  font-size: 0.9em;
-  font-weight: 800;
-  color: #1dc13b;
-  letter-spacing: 0.01em;
-  background: none;
-  text-shadow:#056b0c;
-  
+.volve-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
 }
 
-/* Simple underline for logo for authority */
-.govt-logo::after {
-  content: '';
-  display: block;
-  height: 5px;
-  width: 80%;
-  margin: 0.18em auto 0 auto;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #fbbf24 0%, #fff 100%);
-  opacity: 0.7;
-}
-
+/* Navigation */
 .nav-center {
+  gap: 0.5rem;
+}
+
+.mx-8 {
+  margin-left: 2rem;
+  margin-right: 2rem;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .md\:flex {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  background: none;
-  padding: 0;
-  border-radius: 0;
+  }
+}
+
+.space-x-2 > * + * {
+  margin-left: 0.5rem;
+}
+
+.space-x-4 > * + * {
+  margin-left: 0.75rem;
+}
+
+.bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.p-1 {
+  padding: 0.25rem;
+}
+
+.rounded-full {
+  border-radius: 9999px;
 }
 
 .nav-link {
   text-decoration: none;
-  color: #1e3a8a;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 20px;
-  height: 36px;
-  min-width: fit-content;
-  transition: all 0.18s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  border: none;
-  background: #f8fafc;
+  position: relative;
 }
 
-.nav-link:not(.active) {
-  background: #f8fafc;
-  color: #1e3a8a;
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
-.nav-link:hover:not(.active) {
-  background: #fbbf24;
-  color: #1e3a8a;
+.py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
-.nav-link.active {
-  background: #1e3a8a;
-  color: #fff;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(30,64,175,0.08);
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
+.font-medium {
+  font-weight: 500;
+}
+
+.transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+.relative {
+  position: relative;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.group:hover .group-hover\:text-white {
+  color: #ffffff;
+}
+
+.group:hover .group-hover\:scale-x-100 {
+  transform: scaleX(1);
+}
+
+.bg-white {
+  background-color: #ffffff;
+}
+
+.text-indigo-600 {
+  color: #4f46e5;
+}
+
+.text-blue-200 {
+  color: #bfdbfe;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.z-10 {
+  z-index: 10;
+}
+
+.z-0 {
+  z-index: 0;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.transform {
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+.scale-x-0 {
+  --tw-scale-x: 0;
+  transform: scaleX(0);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ease-out {
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+.origin-left {
+  transform-origin: left;
+}
+
+/* Action Buttons */
 .nav-right {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .notification-wrapper {
   position: relative;
   display: flex;
   align-items: center;
+  overflow: visible;
 }
 
 .btn-auth {
-  height: 36px;
-  padding: 8px 16px;
-  background: #fff;
-  border: 1.5px solid #1e3a8a;
-  border-radius: 6px;
-  text-decoration: none;
-  color: #1e3a8a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 0.18s, color 0.18s, border 0.18s;
+  text-decoration: none;
+  border-width: 1.5px;
+  border-style: solid;
+  background-color: transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.border-blue-400 {
+  border-color: #60a5fa;
 }
 
 .btn-auth:hover {
-  background: #fbbf24;
-  color: #1e3a8a;
-  border-color: #fbbf24;
+  background-color: #ffffff;
 }
 
-.logout-icon {
-  font-size: 16px;
-  color: #1e3a8a;
+.btn-auth:hover,
+.btn-auth:hover span,
+.btn-auth:hover svg {
+  color: #070e58;
+}
+
+.h-5 {
+  height: 1.25rem;
+}
+
+.w-5 {
+  width: 1.25rem;
+}
+
+.w-10 {
+  width: 2.5rem;
+}
+
+.h-10 {
+  height: 2.5rem;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.rounded-md {
+  border-radius: 0.375rem;
 }
 
 @media (max-width: 768px) {
   .header-container {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .px-6 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
   .nav-center {
-    gap: 4px;
+    display: none !important;
   }
-  .nav-link {
-    padding: 6px 10px;
-    font-size: 13px;
+  .mx-8 {
+    margin-left: 0;
+    margin-right: 0;
   }
   .logo-section {
-    margin-right: 0.7rem;
+    gap: 0.5rem;
   }
-  .govt-logo, .ne, .volve {
-    font-size: 1.1rem;
+  .ne-box {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1rem;
   }
-  .ne {
-    width: 1.5em;
-    height: 1.5em;
-    font-size: 1em;
+  .volve-text {
+    font-size: 1.125rem;
   }
   .nav-right {
-    gap: 1rem;
+    gap: 0.5rem;
+  }
+  .space-x-4 > * + * {
+    margin-left: 0.5rem;
   }
   .btn-auth {
-    padding: 6px 10px;
-    font-size: 13px;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+  }
+  .btn-auth svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .btn-auth span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .px-6 {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .nav-right {
+    gap: 0.25rem;
+  }
+  .space-x-4 > * + * {
+    margin-left: 0.25rem;
   }
 }
 </style>
