@@ -293,6 +293,23 @@
                 </div>
               </div>
             </div>
+
+            <!-- Tags meta box (right after Reviewed By) -->
+            <div class="meta-item tags-meta" @mouseenter="showAllTagsDropdown = true" @mouseleave="showAllTagsDropdown = false">
+              <span class="meta-label">Tags:</span>
+              <div class="tags-compact-row" ref="tagsCompactRow">
+                <template v-if="selectedTaskTags.length">
+                  <span v-for="t in visibleTags" :key="t.id" class="tag-chip">{{ t.name }}</span>
+                  <span v-if="hiddenTagsCount > 0" class="tag-chip more-chip">+{{ hiddenTagsCount }} more</span>
+
+                  <!-- Hover dropdown with all tags -->
+                  <div v-if="showAllTagsDropdown && hiddenTagsCount > 0" class="all-tags-popover">
+                    <span v-for="t in hiddenTags" :key="'hidden-' + t.id" class="tag-chip large">{{ t.name }}</span>
+                  </div>
+                </template>
+                <span v-else class="meta-value">No tags</span>
+              </div>
+            </div>
           </div>
 
           <!-- Action Items Section -->
@@ -316,7 +333,10 @@ export default {
       loading: true,
       searchQuery: '',
       selectedTask: null,
-      selectedTaskReviewers: []
+      selectedTaskReviewers: [],
+      showAllTagsDropdown: false,
+      visibleTagCount: 0,
+      _onResizeTags: null
     }
   },
   
@@ -391,6 +411,26 @@ export default {
       return allSubtasks.slice(0, 5).map(subtask => 
         subtask.length > 50 ? subtask.substring(0, 50) + '...' : subtask
       )
+    },
+
+    // Tags for selected task (safe fallback)
+    selectedTaskTags() {
+      if (!this.selectedTask || !Array.isArray(this.selectedTask.tags)) return []
+      return this.selectedTask.tags
+    },
+    visibleTags() {
+      const count = Math.max(0, Math.min(this.visibleTagCount, this.selectedTaskTags.length))
+      return this.selectedTaskTags.slice(0, count)
+    },
+    hiddenTagsCount() {
+      const count = Math.max(0, Math.min(this.visibleTagCount, this.selectedTaskTags.length))
+      const extra = this.selectedTaskTags.length - count
+      return extra > 0 ? extra : 0
+    },
+    hiddenTags() {
+      const count = Math.max(0, Math.min(this.visibleTagCount, this.selectedTaskTags.length))
+      if (this.selectedTaskTags.length <= count) return []
+      return this.selectedTaskTags.slice(count)
     }
   },
 
@@ -405,6 +445,19 @@ export default {
     document.body.style.overflow = 'auto'
     document.body.style.height = 'auto'
     document.documentElement.style.height = 'auto'
+
+    // Recompute tag fit on resize
+    this._onResizeTags = this.debounce(() => {
+      this.computeVisibleTags()
+    }, 150)
+    window.addEventListener('resize', this._onResizeTags)
+  },
+
+  beforeDestroy() {
+    if (this._onResizeTags) {
+      window.removeEventListener('resize', this._onResizeTags)
+      this._onResizeTags = null
+    }
   },
 
   methods: {
@@ -517,6 +570,11 @@ export default {
       } catch (error) {
         console.error('Error fetching reviewers:', error)
       }
+
+      // Compute how many tags fit after modal renders
+      this.$nextTick(() => {
+        setTimeout(() => this.computeVisibleTags(), 0)
+      })
     },
 
     closeTaskDetails() {
@@ -589,6 +647,99 @@ export default {
       // Use the same action_to_be_taken HTML that TentativeDashboard uses
       // This already contains the properly formatted action nodes with indentation
       return task.action_to_be_taken || 'No action items defined';
+    },
+
+    // Compute how many tag chips fit within the row, leaving room for "+N more" if needed
+    computeVisibleTags() {
+      if (!this.$refs.tagsCompactRow) {
+        this.visibleTagCount = this.selectedTaskTags.length
+        return
+      }
+      const container = this.$refs.tagsCompactRow
+      const maxWidth = container.clientWidth || 0
+      if (maxWidth === 0) {
+        this.visibleTagCount = this.selectedTaskTags.length
+        return
+      }
+
+      const gap = 8 // match CSS gap in .tags-compact-row
+      const safetyBuffer = 6 // px buffer to prevent off-by-one flicker
+      let used = 0
+      let count = 0
+
+      // Helper: measure chip width with same class
+      const measureChip = (text, extraClass = '') => {
+        const el = document.createElement('span')
+        el.className = `tag-chip${extraClass ? ' ' + extraClass : ''}`
+        el.style.visibility = 'hidden'
+        el.style.position = 'absolute'
+        el.style.pointerEvents = 'none'
+        el.textContent = text
+        container.appendChild(el)
+        const w = el.getBoundingClientRect().width
+        container.removeChild(el)
+        return Math.ceil(w)
+      }
+
+      const total = this.selectedTaskTags.length
+      if (total === 0) {
+        this.visibleTagCount = 0
+        return
+      }
+
+      // Pre-measure all tag widths once
+      const widths = this.selectedTaskTags.map(t => measureChip(t.name))
+
+      // Pass 1: reserve space for worst-case "+N more" (max remaining digits)
+      const maxRemaining = Math.max(0, total - 1)
+      const worstMoreWidth = maxRemaining > 0
+        ? gap + measureChip(`+${maxRemaining} more`, 'more-chip') + safetyBuffer
+        : 0
+
+      for (let i = 0; i < total; i++) {
+        const chipWidth = widths[i]
+        const nextUsed = used === 0 ? chipWidth : used + gap + chipWidth
+        const remaining = total - (i + 1)
+        const reserve = remaining > 0 ? worstMoreWidth : 0
+        if (nextUsed + reserve <= maxWidth) {
+          used = nextUsed
+          count = i + 1
+        } else {
+          break
+        }
+      }
+
+      // Pass 2: with the final remaining count, see if we can fit one more
+      // using the exact "+N more" width (which is <= worstMoreWidth)
+      let remaining = Math.max(0, total - count)
+      if (remaining === 0) {
+        this.visibleTagCount = count
+        return
+      }
+      const exactMoreWidth = gap + measureChip(`+${remaining} more`, 'more-chip') + safetyBuffer
+      // Try to add as many as possible with exact reservation
+      while (count < total) {
+        const chipWidth = widths[count]
+        const nextUsed = used === 0 ? chipWidth : used + gap + chipWidth
+        remaining = total - (count + 1)
+        const reserve = remaining > 0 ? exactMoreWidth : 0
+        if (nextUsed + reserve <= maxWidth) {
+          used = nextUsed
+          count += 1
+        } else {
+          break
+        }
+      }
+      this.visibleTagCount = count
+    },
+
+    // Simple debounce utility
+    debounce(fn, wait) {
+      let t
+      return (...args) => {
+        clearTimeout(t)
+        t = setTimeout(() => fn.apply(this, args), wait)
+      }
     }
   }
 }
@@ -1542,6 +1693,54 @@ html, body {
 .reviewer-badge:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Tags meta styles */
+.tags-meta {
+  position: relative;
+}
+.tags-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-height: 32px;
+}
+.tag-chip {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tag-chip.large {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.more-chip {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+.all-tags-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+  padding: 10px;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  z-index: 20000;
+  max-height: 180px;
+  overflow-y: auto;
 }
 
 .action-items-section {

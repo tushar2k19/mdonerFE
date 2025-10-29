@@ -344,19 +344,25 @@
       <button v-if="canApprove(getCurrentTask())"
               @click="approveTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Approve</button>
-      <button @click="openTagsPopover(getCurrentTask(), $event)" class="menu-item tags">Tags</button>
+      <button @click="openTagsModal(getCurrentTask())" class="menu-item tags">Tags</button>
     </div>
 
-    <!-- Tags popover positioned near the global action menu -->
-    <div v-if="showTagsForTaskId && activeMenuId === showTagsForTaskId"
-         class="tags-popover"
-         :style="getTagsPopoverPosition()"
-         @mouseenter="keepMenuOpen"
-         @mouseleave="hideActionMenu(activeMenuId)">
-      <div v-if="getCurrentTask() && getCurrentTask().tags && getCurrentTask().tags.length" class="tags-popover-list">
-        <button v-for="t in getCurrentTask().tags" :key="t.id" class="tags-popover-item" disabled>{{ t.name }}</button>
+    <!-- Centered Tags Modal -->
+    <div v-if="showTagsModal" class="tags-modal-overlay" @click.self="closeTagsModal">
+      <div class="tags-modal" role="dialog" aria-modal="true">
+        <div class="tags-modal-header">
+          <h3 class="tags-modal-title">Tags</h3>
+          <button class="tags-modal-close" @click="closeTagsModal" aria-label="Close">×</button>
+        </div>
+        <div class="tags-modal-body">
+          <template v-if="tagsModalTask && tagsModalTask.tags && tagsModalTask.tags.length">
+            <div class="tags-modal-grid">
+              <span v-for="t in tagsModalTask.tags" :key="t.id" class="tags-chip">{{ t.name }}</span>
+            </div>
+          </template>
+          <div v-else class="tags-empty-state">No tags for this task yet</div>
+        </div>
       </div>
-      <div v-else class="tags-popover-empty">No tags</div>
     </div>
 
     <!-- Modals remain unchanged -->
@@ -453,7 +459,11 @@ export default {
       filterTagDropdownFlip: false,
       // Tags popover state (action menu)
       showTagsForTaskId: null,
-      tagsPopoverPosition: null
+      tagsPopoverPosition: null,
+
+      // Tags modal state
+      showTagsModal: false,
+      tagsModalTask: null
     }
   },
   watch: {
@@ -678,6 +688,12 @@ export default {
     }
     if (this.resizeTimeout) {
       clearTimeout(this.resizeTimeout)
+    }
+
+    // Cleanup esc listener if modal was open
+    if (this._onEscKey) {
+      document.removeEventListener('keydown', this._onEscKey)
+      this._onEscKey = null
     }
   },
 
@@ -1624,6 +1640,34 @@ export default {
     },
     getTagsPopoverPosition() {
       return this.tagsPopoverPosition || {}
+    },
+
+    // Modal open/close handlers
+    openTagsModal(task) {
+      if (!task) return
+      this.tagsModalTask = task
+      this.showTagsModal = true
+      // ensure kebab closes
+      this.forceHideMenu()
+      // lock scroll
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+      // esc to close
+      if (!this._onEscKey) {
+        this._onEscKey = (e) => { if (e.key === 'Escape') this.closeTagsModal() }
+      }
+      document.addEventListener('keydown', this._onEscKey)
+    },
+    closeTagsModal() {
+      this.showTagsModal = false
+      this.tagsModalTask = null
+      // unlock scroll
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+      if (this._onEscKey) {
+        document.removeEventListener('keydown', this._onEscKey)
+        this._onEscKey = null
+      }
     },
 
     getHighlightClass(reviewDate) {
@@ -2727,6 +2771,64 @@ export default {
   color:#6b7280;
   font-size:12px;
   padding:8px 12px;
+}
+
+/* Tags Centered Modal */
+.tags-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+}
+.tags-modal {
+  width: min(560px, 92vw);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+.tags-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #fff;
+}
+.tags-modal-title { font-size: 1rem; font-weight: 600; }
+.tags-modal-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+.tags-modal-body {
+  padding: 16px;
+}
+.tags-modal-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tags-chip {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e40af;
+  border-radius: 9999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tags-empty-state {
+  color: #6b7280;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 24px 8px;
 }
 
 .global-action-menu.show {
