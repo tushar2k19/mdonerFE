@@ -774,6 +774,13 @@ export default {
             const reviewerMatch = hasReviewer ? li.textContent.match(/Reviewer:\s*([^,\n]+)/) : null
             const reviewerName = reviewerMatch ? reviewerMatch[1].trim() : null
             
+            // Remove reviewer information from the content text
+            let cleanContent = li.innerHTML
+            if (hasReviewer && reviewerMatch) {
+              // Remove the reviewer information from the content
+              cleanContent = cleanContent.replace(/Reviewer:\s*[^,\n]+/g, '').trim()
+            }
+            
             const marker = document.createElement('span')
             marker.className = 'list-marker'
             marker.style.width = '20px'
@@ -814,12 +821,12 @@ export default {
             
             const nodeContent = document.createElement('div')
             nodeContent.className = 'node-content'
-            nodeContent.innerHTML = li.innerHTML
+            nodeContent.innerHTML = cleanContent
             
             actionNode.appendChild(nodeMarker)
             actionNode.appendChild(nodeContent)
             
-            // Add reviewer information to action node if present
+            // Add reviewer information to action node if present (for badge positioning)
             if (hasReviewer && reviewerName) {
               actionNode.classList.add('has-reviewer')
               actionNode.dataset.reviewerName = reviewerName
@@ -2339,6 +2346,22 @@ export default {
   padding: 0.75rem !important;
   min-height: 50px;
   overflow: visible !important; /* Ensure badges are visible */
+}
+
+/* Hide reviewer badges in action content for FinalDashboard */
+.action-content-cell /deep/ .reviewer-badge-parallel {
+  display: none !important;
+}
+
+/* But keep the reviewer badges in the responsibility cell visible */
+.responsibility-cell .reviewer-badge-parallel {
+  display: inline-block !important;
+}
+
+/* Ensure action nodes with reviewers are properly marked */
+.action-content-cell /deep/ .action-node.has-reviewer {
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 /* Hover-revealed tag icon inside cells */
