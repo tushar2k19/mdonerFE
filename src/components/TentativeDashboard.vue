@@ -1263,6 +1263,15 @@ export default {
           tempDiv.appendChild(rowClone);
           document.body.appendChild(tempDiv);
 
+          // Wait for clone layout, then re-position reviewer badges so they appear correctly in PDF
+          await new Promise(resolve => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          });
+          this.positionReviewerBadgesForClone(rowClone);
+          await new Promise(resolve => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          });
+
           try {
             const canvas = await html2canvas(rowClone, {
               scale: 2,
@@ -1882,6 +1891,59 @@ export default {
       });
     },
 
+    /**
+     * Re-position reviewer badges on a cloned row for PDF capture.
+     * Uses the clone's layout so badge positions are correct when html2canvas runs.
+     */
+    positionReviewerBadgesForClone(rowClone) {
+      const actionCell = rowClone.querySelector('.action-content-cell');
+      const responsibilityCell = rowClone.querySelector('.responsibility-cell');
+      if (!actionCell || !responsibilityCell) return;
+
+      const existingBadges = responsibilityCell.querySelectorAll('.reviewer-badge-parallel');
+      existingBadges.forEach(badge => badge.remove());
+
+      responsibilityCell.style.position = 'relative';
+      responsibilityCell.style.overflow = 'visible';
+
+      const actionNodes = actionCell.querySelectorAll('.action-node');
+      actionNodes.forEach(node => {
+        if (node.classList.contains('has-reviewer')) {
+          const reviewerName = node.dataset.reviewerName;
+          if (!reviewerName) return;
+
+          const badge = document.createElement('div');
+          badge.className = 'reviewer-badge-parallel yellow-bg-bold';
+          badge.textContent = reviewerName;
+          Object.assign(badge.style, {
+            backgroundColor: '#ffeb3b',
+            fontWeight: 'bold',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            display: 'inline-block',
+            color: '#000000',
+            margin: '2px 0',
+            opacity: '1',
+            zIndex: '10',
+            position: 'absolute',
+            left: '6px',
+            width: 'calc(100% - 12px)',
+            textAlign: 'left',
+            boxSizing: 'border-box'
+          });
+
+          const nodeRect = node.getBoundingClientRect();
+          const cellRect = responsibilityCell.getBoundingClientRect();
+          let topOffset = nodeRect.top - cellRect.top;
+          const cellHeight = cellRect.height;
+          if (topOffset < 0) topOffset = 0;
+          if (topOffset > cellHeight - 16) topOffset = Math.max(0, cellHeight - 16);
+          badge.style.top = `${topOffset}px`;
+          responsibilityCell.appendChild(badge);
+        }
+      });
+    },
+
     // Add method to position reviewer badges
     positionReviewerBadges(taskId) {
       const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
@@ -2445,9 +2507,15 @@ export default {
   padding: 5px !important;
 }
 
-.pdf-capture-mode td:nth-child(4) * {
+/* Preserve block layout: table, p, div stay block so "heading above table, note below" is correct in PDF */
+.pdf-capture-mode td:nth-child(4) table,
+.pdf-capture-mode td:nth-child(4) p,
+.pdf-capture-mode td:nth-child(4) div {
+  display: block !important;
+}
+.pdf-capture-mode td:nth-child(4) *:not(table):not(p):not(div) {
   transform-origin: top left !important;
-  display: inline-block !important; /* Required for proper scaling */
+  display: inline-block !important;
 }
 
  /* Compact Government Style Table Headers */
@@ -3279,16 +3347,14 @@ td.action-content-cell .action-node.level-4 {
   max-width: none !important;
 }
 .pdf-capture-mode td:nth-child(4) {
-  /* Action to be Taken column: max width, strict wrapping */
+  /* Action to be Taken column: use JS-applied width (scaledColumnWidths[3]); strict wrapping */
   word-break: break-word !important;
   overflow-wrap: break-word !important;
   white-space: pre-line !important;
   font-size: 10px !important;
   line-height: 1.3 !important;
   vertical-align: top !important;
-  max-width: 90mm !important;
-  min-width: 90mm !important;
-  width: 90mm !important;
+  overflow: visible !important;
 }
 .pdf-capture-mode td * {
   word-break: break-word !important;
@@ -3398,7 +3464,7 @@ td.action-content-cell .action-node.level-4 {
   text-align: center !important;
 }
 
-/* PDF-specific: Remove all vertical gap between lines in action content for testing */
+/* PDF-specific: Tight vertical spacing but allow gap around tables so text above/below stays clear */
 .pdf-capture-mode .action-content-cell *,
 .pdf-capture-mode .action-node,
 .pdf-capture-mode .action-node * {
@@ -3407,6 +3473,12 @@ td.action-content-cell .action-node.level-4 {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   line-height: 1.1 !important;
+}
+
+/* Keep small gap above/below tables so "Expenditure status..." and "Aug-25 targets..." stay separated */
+.pdf-capture-mode .action-content-cell table {
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
 }
 
 .pdf-capture-mode p,
