@@ -239,6 +239,7 @@
     <div v-for="(task, index) in displayTasks"
          :key="task.id"
          :data-task-id="task.id"
+         :data-review-date="task.review_date != null && task.review_date !== '' ? String(task.review_date) : ''"
          class="table-row"
          :class="{ 
            'search-highlight': searchQuery.length > 0 && isTaskInSearchResults(task.id)
@@ -536,6 +537,9 @@ export default {
         responsibilityCell.style.position = 'relative';
       }
 
+      const rdAttr = (taskRow.getAttribute('data-review-date') || '').trim();
+      const highlightClasses = this.getHighlightClass(rdAttr || null);
+
       // Get all action nodes in this task
       const actionNodes = actionCell.querySelectorAll('.action-node');
       actionNodes.forEach(node => {
@@ -545,17 +549,12 @@ export default {
 
           // Create reviewer badge
           const badge = document.createElement('div');
-          badge.className = 'reviewer-badge-parallel yellow-bg-bold';
+          badge.className = 'reviewer-badge-parallel ' + highlightClasses.join(' ');
           badge.textContent = reviewerName;
 
           // Apply inline styles directly
           Object.assign(badge.style, {
-            backgroundColor: '#ffeb3b',
-            fontWeight: 'bold',
-            borderRadius: '4px',
-            padding: '2px 6px',
             display: 'inline-block',
-            color: '#000000',
             margin: '2px 0',
             opacity: '1',
             transition: 'all 0.2s ease',

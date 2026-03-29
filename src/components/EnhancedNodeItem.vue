@@ -2,12 +2,13 @@
   <div class="enhanced-node-item" :id="'action-node-' + node.id" :class="[
     { 'completed': node.completed },
     { 'has-reviewer': node.reviewer_id },
-    showDiff ? `diff-${node.diff_status || 'unchanged'}` : '',
+    diffHighlightClass,
+    { 'suppress-node-highlights': suppressDiffHighlights },
     { 'dragging': isDragging, 'drag-over': isDragOver },
     { 'permission-readonly': permissionMode && readonly },
     { 'permission-assigned': permissionMode && isNodeAssignedToCurrentReviewer() },
     { 'permission-unassigned': permissionMode && !isNodeAssignedToCurrentReviewer() }
-  ]" :draggable="!readonly" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
+  ]" :draggable="canEditThisNode()" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
       <!-- Counter/Marker -->
@@ -128,7 +129,7 @@
               <div class="context-menu-divider"></div>
 
               <!-- Reviewer Assignment Section -->
-              <div class="context-menu-group" v-if="!readonly">
+              <div class="context-menu-group" v-if="canEditThisNode()">
                 <button @click="openReviewerModal" class="context-menu-item">
                   👤 {{ node.reviewer_id ? 'Change Reviewer' : 'Assign Reviewer' }}
                 </button>
@@ -185,8 +186,8 @@
 
       <!-- Combined Date & Actions Section -->
       <div class="node-meta-section">
-        <!-- Review Date -->
-        <div class="node-date">
+        <!-- Review date: hidden when unset + reviewer assigned unless user opened the date editor (menu). -->
+        <div v-if="showNodeDateField || isEditingDate" class="node-date">
           <input
             v-if="isEditingDate"
             v-model="editDate"
@@ -201,16 +202,16 @@
             v-else
             @click="startDateEdit"
             class="date-display"
-            :class="{ 'no-date': !node.review_date }"
+            :class="[{ 'no-date': !node.review_date }, ...getReviewDateHighlightClassesIfSet(node.review_date)]"
           >
             {{ formatDate(node.review_date) || 'Set date' }}
           </div>
         </div>
 
         <!-- Node Actions -->
-        <div class="node-actions">
+        <div class="node-actions node-actions-row">
           <div class="action-dropdown" ref="actionDropdown">
-            <button @click="toggleActionDropdown" class="action-btn dropdown-toggle">
+            <button @click="toggleActionDropdown" class="action-btn dropdown-toggle" type="button" aria-label="More actions">
               ⋮
             </button>
 
@@ -245,20 +246,55 @@
               <button @click="deleteNode" class="action-item delete-item">
                 🗑 Delete
               </button>
+              <button
+                v-if="hasReviewerMeta && !hasValidReviewDate"
+                @click="startDateEditFromMenu"
+                class="action-item"
+              >
+                📅 Set review date
+              </button>
               <button @click="openReviewerModal" class="action-item">
                 <span v-if="!node.reviewer_id">👤 Assign Reviewer</span>
                 <span v-else>👤 Change Reviewer</span>
               </button>
             </div>
           </div>
+          <button
+            v-if="enableCommentShortcut"
+            type="button"
+            class="action-btn node-comment-shortcut-btn"
+            :title="'Comment on action item ' + (node.display_counter || node.id)"
+            :aria-label="'Open comments for action item ' + (node.display_counter || node.id)"
+            @click.stop="emitOpenCommentForNode"
+          >
+            <!-- Inline SVG (no FA subset dependency); Heroicons-style bubble, MIT -->
+            <svg
+              class="node-comment-shortcut-svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 10h8M8 14h5M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 3v-3H6a2 2 0 01-2-2V6z"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <!-- Reviewer Hover Display -->
-      <div v-if="node.reviewer_name" class="reviewer-hover-badge" @mouseenter="showReviewerHover = true" @mouseleave="showReviewerHover = false">
-        <span class="reviewer-badge">👤 {{ node.reviewer_name }}</span>
+      <!-- Reviewer: yellow ribbon when assigned; if no review date yet, still highlight as attention item. -->
+      <div v-if="hasReviewerMeta" class="reviewer-hover-badge" @mouseenter="showReviewerHover = true" @mouseleave="showReviewerHover = false">
+        <span
+          class="reviewer-badge"
+          :class="[{ 'no-date': !hasValidReviewDate }, ...reviewerRibbonClasses]"
+        >👤 {{ reviewerBadgeText }}</span>
         <div v-if="showReviewerHover" class="reviewer-hover-popup">
-          Reviewer: {{ node.reviewer_name }}
+          Reviewer: {{ reviewerBadgeText }}
         </div>
       </div>
     </div>
@@ -271,6 +307,7 @@
         :siblings="node.children"
         :index="childIndex"
         :show-diff="showDiff"
+        :view-mode="viewMode"
         :diff-data="diffData"
         :readonly="readonly"
         :task-version-id="taskVersionId"
@@ -282,6 +319,13 @@
         @move-node="$emit('move-node', $event, arguments[1])"
         @duplicate-node="$emit('duplicate-node', $event, arguments[1], arguments[2])"
         @reorder-nodes="$emit('reorder-nodes', $event)"
+        :permission-mode="permissionMode"
+        :current-reviewer-id="currentReviewerId"
+        :reviewer-type="reviewerType"
+        :assigned-node-ids="assignedNodeIds"
+        :suppress-diff-highlights="suppressDiffHighlights"
+        :enable-comment-shortcut="enableCommentShortcut"
+        @open-comment-for-node="$emit('open-comment-for-node', $event)"
       />
     </div>
 
@@ -329,6 +373,9 @@
 </template>
 
 <script>
+import { getReviewDateHighlightClasses, getReviewDateHighlightClassesIfSet } from '../utils/reviewDateHighlight'
+import { hasReviewerMetadata, reviewerIdKey, sanitizeReviewerName } from '../utils/reviewerDiffHint'
+
 export default {
   name: 'EnhancedNodeItem',
 
@@ -348,6 +395,10 @@ export default {
     showDiff: {
       type: Boolean,
       default: false
+    },
+    viewMode: {
+      type: String,
+      default: 'current'
     },
     diffData: {
       type: Object,
@@ -376,6 +427,14 @@ export default {
     taskVersionId: {
       type: [Number, String],
       required: true
+    },
+    suppressDiffHighlights: {
+      type: Boolean,
+      default: false
+    },
+    enableCommentShortcut: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -423,6 +482,64 @@ export default {
   computed: {
     indentLevel () {
       return (this.node.level - 1) * 32 // 32px per level for better visibility
+    },
+    computedDiffStatus() {
+      if (this.viewMode === 'current' || this.viewMode === 'diff') {
+        return this.node.diff_status || 'unchanged'
+      } else if (this.viewMode === 'old' && this.diffData && this.diffData.removed_nodes) {
+        // check if this node is in removed_nodes
+        const isRemoved = this.diffData.removed_nodes.some(n => 
+          (n.stable_node_id && n.stable_node_id === this.node.stable_node_id) ||
+          (!n.stable_node_id && n.id === this.node.id)
+        )
+        return isRemoved ? 'removed' : 'unchanged'
+      }
+      return 'unchanged'
+    },
+    diffHighlightClass () {
+      if (this.suppressDiffHighlights) return null
+      if (!(this.viewMode !== 'current' || this.node.diff_status)) return null
+      if (!this.canSeeDiffHighlights) return null
+      return `diff-${this.computedDiffStatus}`
+    },
+    canSeeDiffHighlights () {
+      if (!this.permissionMode) return true
+      
+      const currentUser = this.getCurrentUserInfo()
+      const isEditor = currentUser && currentUser.role === 'editor'
+      
+      if (isEditor) return true
+      
+      // For reviewers, only show highlights for their assigned nodes
+      return this.isNodeAssignedToCurrentReviewer()
+    },
+    hasValidReviewDate () {
+      if (!this.node.review_date) return false
+      const d = new Date(this.node.review_date)
+      return !isNaN(d.getTime())
+    },
+    hasReviewerMeta () {
+      return hasReviewerMetadata(this.node)
+    },
+    /** Show date control unless a reviewer is assigned and no date yet (avoid redundant "Set date"). */
+    showNodeDateField () {
+      return this.hasValidReviewDate || !this.hasReviewerMeta
+    },
+    reviewerRibbonClasses () {
+      if (this.hasValidReviewDate) {
+        return getReviewDateHighlightClassesIfSet(this.node.review_date)
+      }
+      if (this.hasReviewerMeta) {
+        return getReviewDateHighlightClasses(null)
+      }
+      return []
+    },
+    reviewerBadgeText () {
+      const name = sanitizeReviewerName(this.node.reviewer_name)
+      if (name) return name
+      const id = reviewerIdKey(this.node)
+      if (id != null) return `Reviewer #${id}`
+      return ''
     }
   },
 
@@ -501,10 +618,26 @@ export default {
 
 
   methods: {
+    getReviewDateHighlightClassesIfSet,
 
     startEdit () {
-      if (this.readonly) return
-      
+      if (!this.canEditThisNode()) {
+        if (this.permissionMode) {
+          const u = this.getCurrentUserInfo()
+          console.warn('[ReviewPerm] startEdit blocked', {
+            nodeId: this.node.id,
+            displayCounter: this.node.display_counter,
+            globalReadonly: this.readonly,
+            reviewerType: this.reviewerType,
+            currentReviewerId: this.currentReviewerId,
+            nodeReviewerId: this.node.reviewer_id,
+            userRole: u && u.role,
+            isAssignedToCurrentReviewer: this.isNodeAssignedToCurrentReviewer()
+          })
+        }
+        return
+      }
+
       this.isEditing = true
       this.editContent = this.node.content
       
@@ -538,6 +671,7 @@ export default {
     },
 
     startDateEdit () {
+      if (!this.canEditThisNode()) return
       this.isEditingDate = true
       this.editDate = this.node.review_date || ''
       this.originalDate = this.node.review_date || ''
@@ -547,6 +681,11 @@ export default {
           this.$refs.dateInput.focus()
         }
       })
+    },
+
+    startDateEditFromMenu () {
+      this.showActionDropdown = false
+      this.startDateEdit()
     },
 
     saveDate () {
@@ -562,11 +701,19 @@ export default {
     },
 
     toggleCompletion () {
+      if (!this.canEditThisNode()) return
       this.$emit('update-node', this.node.id, { completed: !this.node.completed })
     },
 
     toggleActionDropdown () {
+      if (!this.canEditThisNode()) return
       this.showActionDropdown = !this.showActionDropdown
+    },
+
+    emitOpenCommentForNode () {
+      if (!this.enableCommentShortcut) return
+      this.showActionDropdown = false
+      this.$emit('open-comment-for-node', this.node.id)
     },
 
     handleClickOutside (event) {
@@ -1248,12 +1395,18 @@ export default {
     // Permission checking methods
     isNodeAssignedToCurrentReviewer() {
       if (!this.permissionMode) return true
-      if (this.reviewerType === 'task_level') return !this.node.reviewer_id // Task-level handles unassigned nodes
       
-      // For node-level reviewers, check if this node is assigned to the current reviewer
+      const currentId = this.currentReviewerId ? String(this.currentReviewerId) : null
+      const nodeId = this.node.reviewer_id ? String(this.node.reviewer_id) : null
+      
+      // Task-level handles unassigned nodes OR nodes explicitly assigned to them
+      if (this.reviewerType === 'task_level') {
+        return !nodeId || nodeId === currentId
+      }
+      
+      // For node-level reviewers, check if this node is explicitly assigned to them
       if (this.reviewerType === 'node_level') {
-        const currentReviewerId = this.currentReviewerId
-        return this.node.reviewer_id && (this.node.reviewer_id === currentReviewerId)
+        return nodeId && nodeId === currentId
       }
       
       return false
@@ -1328,9 +1481,11 @@ export default {
   font-weight: 600;
 }
 
-.enhanced-node-item.has-reviewer .node-content {
-  background-color: rgba(59, 130, 246, 0.05);
-  border-color: rgba(59, 130, 246, 0.3);
+/* Distinct from diff-added (green): shows node-level reviewer assignment on THIS row only.
+   Use direct child (>) so nested subpoints do not inherit yellow from a parent's has-reviewer. */
+.enhanced-node-item.has-reviewer > .node-content {
+  background-color: rgba(255, 237, 180, 0.45);
+  border-color: rgba(217, 119, 6, 0.28);
 }
 
 .node-content {
@@ -1342,11 +1497,6 @@ export default {
   border-radius: 8px;
   transition: all 0.2s ease;
   min-height: 3rem; /* Ensure adequate height */
-}
-
-.node-content:hover {
-  background-color: #f9fafb;
-  border-color: #e5e7eb;
 }
 
 .node-marker {
@@ -1386,10 +1536,6 @@ export default {
   transition: border-color 0.2s ease;
   line-height: 1.6;
   word-wrap: break-word;
-}
-
-.rich-text-display:hover {
-  border-color: #d1d5db;
 }
 
 /* Table styles for display mode - using Vue 2 deep selectors for v-html content */
@@ -1645,6 +1791,26 @@ export default {
 /* Actions Styles */
 .node-actions {
   position: relative;
+}
+
+.node-actions-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Uses class action-btn; compact padding/font come from the second .action-btn block below */
+.node-comment-shortcut-btn {
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.node-comment-shortcut-svg {
+  width: 1em;
+  height: 1em;
+  display: block;
+  flex-shrink: 0;
 }
 
 .action-dropdown {
@@ -2002,24 +2168,47 @@ export default {
   border-color: rgba(245, 158, 11, 0.2);
 }
 
-.enhanced-node-item.diff-deleted {
+.enhanced-node-item.diff-removed {
   background: rgba(239, 68, 68, 0.08);
   border-left: 3px solid #ef4444;
   opacity: 0.7;
 }
 
-.enhanced-node-item.diff-deleted .node-content {
+.enhanced-node-item.diff-removed .node-content {
   border-color: rgba(239, 68, 68, 0.2);
   text-decoration: line-through;
 }
 
-.enhanced-node-item.diff-deleted .rich-text-display,
-.enhanced-node-item.diff-deleted .rich-editor {
+.enhanced-node-item.diff-removed .rich-text-display,
+.enhanced-node-item.diff-removed .rich-editor {
   text-decoration: line-through;
 }
 
 .enhanced-node-item.diff-unchanged {
   /* Default styling for unchanged content */
+}
+
+/* Review page: flat view without diff / reviewer / completion tint */
+.enhanced-node-item.suppress-node-highlights.has-reviewer > .node-content {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.enhanced-node-item.suppress-node-highlights.completed {
+  background-color: transparent;
+  border-left: none;
+  padding-left: 8px;
+  border-radius: 4px;
+}
+
+.enhanced-node-item.suppress-node-highlights.completed .node-content {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.enhanced-node-item.suppress-node-highlights.completed .node-marker {
+  color: #6b7280;
+  font-weight: 600;
 }
 
 /* Reduced font sizes for better space utilization */
@@ -2128,11 +2317,6 @@ export default {
   background: rgba(59, 130, 246, 0.3);
 }
 
-.enhanced-node-item[draggable="true"]:hover {
-  border-left: 3px solid #3b82f6;
-  background-color: rgba(59, 130, 246, 0.05);
-}
-
 .reviewer-modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -2174,14 +2358,17 @@ export default {
   align-items: center;
 }
 .reviewer-badge {
-  background: #ffeb3b;
-  color: black;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.8em;
   margin-left: 8px;
   cursor: pointer;
   white-space: nowrap;
+}
+.reviewer-badge.no-date:not(.yellow-bg-bold) {
+  color: #9ca3af;
+  font-style: italic;
+  background: transparent;
 }
 .reviewer-hover-popup {
   position: absolute;

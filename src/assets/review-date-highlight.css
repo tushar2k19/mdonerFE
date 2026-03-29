@@ -1,0 +1,17 @@
+/* Shared with TentativeDashboard / FinalDashboard task table review-date styling */
+.yellow-bg-bold {
+  background: #ffeb3b !important;
+  font-weight: bold !important;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.red-text {
+  color: #d32f2f !important;
+}
+
+.black-text {
+  color: #222 !important;
+}

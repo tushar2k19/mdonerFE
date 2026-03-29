@@ -17,6 +17,13 @@
           <div class="version-info">
             <span class="version-badge">Version {{ review.task_version.version_number }}</span>
             <span class="status-badge" :class="'status-' + review.status">{{ review.status }}</span>
+            <router-link
+              v-if="isEditor && task && task.id"
+              :to="{ name: 'TaskReviewHub', params: { taskId: String(task.id) } }"
+              class="review-hub-link"
+            >
+              Live review status
+            </router-link>
           </div>
         </div>
         
@@ -34,22 +41,48 @@
           <div class="meta-row">
           <div class="meta-item">
             <span class="meta-label">Review Date:</span>
-            <span class="meta-value">{{ formatDate(task.review_date) }}</span>
+            <span class="meta-value" :class="getReviewDateHighlightClasses(task.review_date)">{{ formatDate(task.review_date) }}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Reviewer:</span>
-            <span class="meta-value">{{ review.reviewer.name }}</span>
+            <span class="meta-value" :class="getReviewDateHighlightClasses(task.review_date)">{{ review.reviewer.name }}</span>
             </div>
           </div>
         </div>
 
         <div class="controls-section">
-          <button @click="toggleEdit" class="btn btn-secondary" v-if="!isReviewApproved">
+          <div class="view-toggle-group">
+            <button 
+              @click="currentViewMode = 'current'" 
+              :class="['btn btn-segment', { active: currentViewMode === 'current' }]"
+            >Current</button>
+            <button 
+              @click="currentViewMode = 'old'" 
+              :class="['btn btn-segment', { active: currentViewMode === 'old' }]"
+            >Old</button>
+            <button 
+              @click="currentViewMode = 'diff'" 
+              :class="['btn btn-segment', { active: currentViewMode === 'diff' }]"
+            >Diff</button>
+          </div>
+          
+          <button @click="toggleEdit" class="btn btn-secondary" v-if="!isReviewApproved && currentViewMode === 'current'">
             {{ editEnabled ? '🔒 Disable Edit' : '🔓 Enable Edit' }}
           </button>
-          <button @click="toggleDiff" class="btn btn-secondary">
-            {{ showDiff ? '👁️ Hide Diff' : '👁️ Show Diff' }}
+
+          <button
+            v-if="!isReviewApproved && currentViewMode !== 'diff'"
+            type="button"
+            class="btn btn-secondary"
+            @click="diffHighlightsEnabled = !diffHighlightsEnabled"
+          >
+            {{ diffHighlightsEnabled ? '🎨 Disable highlight colors' : '🎨 Enable highlight colors' }}
           </button>
+          
+          <button @click="showTextDiff = !showTextDiff" class="btn btn-secondary" v-if="currentViewMode === 'diff'">
+            {{ showTextDiff ? '👁️ Hide Text Diff' : '👁️ Show Text Diff' }}
+          </button>
+
           <!-- Forward Review button moved here -->
           <button @click="forwardReview" class="btn btn-primary" v-if="canForward && !isReviewApproved">
             📤 Forward Review
@@ -65,11 +98,17 @@
       <div class="review-content" :class="{ 'card-locked': isReviewApproved || !editEnabled }">
         <div class="content-header">
           <h3>Action Items to be Taken</h3>
-          <p v-if="showDiff && review.base_version" class="diff-description">
+          <p v-if="currentViewMode === 'diff' && review.base_version" class="diff-description">
             Showing changes between Version {{ review.base_version.version_number }} and Version {{ review.task_version.version_number }}
           </p>
-          <p v-else-if="showDiff && !review.base_version" class="diff-description">
+          <p v-else-if="currentViewMode === 'diff' && !review.base_version" class="diff-description">
             Showing first review - all content is new
+          </p>
+          <p v-else-if="currentViewMode === 'old' && review.base_version" class="diff-description">
+            Showing previous Version {{ review.base_version.version_number }}
+          </p>
+          <p v-else-if="currentViewMode === 'current'" class="diff-description">
+            Showing current Version {{ review.task_version.version_number }}
           </p>
         </div>
 
@@ -82,26 +121,48 @@
 
         <!-- Enhanced Node Editor - Single Scrollable Area -->
         <div class="editor-container">
-          <EnhancedNodeEditor
-            :initial-nodes="reviewNodes"
-            :readonly="!editEnabled || isReviewApproved"
-            :show-diff="showDiff"
-            :diff-data="diffData"
-            :task-version-id="review.task_version.id"
-            :hide-sort-by-date="true"
-            :hide-sort-button="true"
-            :current-reviewer-id="review.reviewer.id"
-            :reviewer-type="review.reviewer_type"
-            :assigned-node-ids="parseAssignedNodeIds(review.assigned_node_ids)"
-            :permission-mode="true"
-            @nodes-changed="onNodesChanged"
-            ref="nodeEditor"
-          />
+          <transition name="fade" mode="out-in">
+            <DiffView
+              v-if="currentViewMode === 'diff'"
+              key="diff-view"
+              :baseline-nodes="baselineNodes"
+              :current-nodes="reviewNodes"
+              :show-text-diff="showTextDiff"
+              :base-version-number="review.base_version ? review.base_version.version_number : 'N/A'"
+              :current-version-number="review.task_version ? review.task_version.version_number : 'N/A'"
+              :current-reviewer-id="review.reviewer.id"
+              :reviewer-type="review.reviewer_type"
+              :permission-mode="true"
+              :current-user-role="currentUserRole"
+              :suppress-diff-highlights="!diffHighlightsEnabled"
+            />
+            <EnhancedNodeEditor
+              v-else
+              key="node-editor"
+              :initial-nodes="displayedNodes"
+              :readonly="isEditorReadonly"
+              :view-mode="currentViewMode"
+              :show-diff="currentViewMode !== 'old'"
+              :diff-data="diffData"
+              :task-version-id="review.task_version.id"
+              :hide-sort-by-date="true"
+              :hide-sort-button="true"
+              :current-reviewer-id="review.reviewer.id"
+              :reviewer-type="review.reviewer_type"
+              :assigned-node-ids="parseAssignedNodeIds(review.assigned_node_ids)"
+              :permission-mode="true"
+              :suppress-diff-highlights="!diffHighlightsEnabled"
+              :enable-node-comment-shortcut="true"
+              @nodes-changed="onNodesChanged"
+              @open-comment-for-node="openCommentComposerForNode"
+              ref="nodeEditor"
+            />
+          </transition>
         </div>
       </div>
 
       <!-- Comments Section - Hidden by Default with Indicators -->
-      <div class="comment-section">
+      <div class="comment-section" ref="commentSection">
         <div class="comment-header" @click="toggleCommentSection">
           <h3>Comments & Discussion</h3>
           <div class="comment-status">
@@ -233,6 +294,7 @@
           <div class="add-comment-section" v-if="!isReviewApproved">
             <div class="comment-form">
               <textarea
+                ref="newCommentInput"
                 v-model="newComment"
                 placeholder="Add a comment about this review..."
                 class="comment-input"
@@ -248,7 +310,11 @@
                   <!-- Compact Node Dropdown -->
                   <div v-if="commentForSpecificNode" class="compact-node-dropdown-wrapper" ref="nodeDropdownWrapper">
                     <div class="compact-node-dropdown-selected" @click="toggleNodeDropdown">
-                      <span v-if="selectedNodeId">
+                      <span
+                        v-if="selectedNodeId !== '' && selectedNodeId != null"
+                        :key="'node-pick-' + selectedNodeId"
+                        class="node-picker-chip"
+                      >
                         <span class="node-counter">{{ getNodeDisplayCounter(selectedNodeId) }}</span>
                         <span class="node-preview">{{ getNodeFirstLine(selectedNodeId) }}</span>
                       </span>
@@ -259,7 +325,7 @@
                       <div
                         v-for="node in reviewNodes"
                         :key="node.id"
-                        :class="['compact-node-dropdown-item', { selected: selectedNodeId === node.id }]"
+                        :class="['compact-node-dropdown-item', { selected: String(selectedNodeId) === String(node.id) }]"
                         @click="selectNodeId(node.id)"
                       >
                         <div class="node-item-content">
@@ -267,7 +333,7 @@
                           <span class="node-preview">{{ getNodeFirstLine(node.id) }}</span>
                         </div>
                         <div class="node-item-indicator">
-                          <i v-if="selectedNodeId === node.id" class="fas fa-check"></i>
+                          <i v-if="String(selectedNodeId) === String(node.id)" class="fas fa-check"></i>
                         </div>
                       </div>
                     </div>
@@ -355,13 +421,16 @@
 <script>
 import EnhancedNodeEditor from './EnhancedNodeEditor.vue'
 import CommentTrail from './CommentTrail.vue'
+import DiffView from './DiffView.vue'
+import { getReviewDateHighlightClasses } from '../utils/reviewDateHighlight'
 
 export default {
   name: 'ReviewInterface',
   
   components: {
     EnhancedNodeEditor,
-    CommentTrail
+    CommentTrail,
+    DiffView
   },
 
   props: {
@@ -376,11 +445,14 @@ export default {
       review: null,
       task: null,
       reviewNodes: [],
+      baselineNodes: [],
       diffData: null,
       commentTrails: [],
       comments: [],
       editEnabled: true,
-      showDiff: true, // Show diff by default
+      diffHighlightsEnabled: true,
+      currentViewMode: 'current', // 'current' | 'old' | 'diff'
+      showTextDiff: true, // For toggling text diff highlights in Diff view
       showComments: false, // Hide comments by default
       loading: true,
       hasChanges: false,
@@ -404,6 +476,17 @@ export default {
   computed: {
     canForward() {
       return this.review && this.review.status === 'pending'
+    },
+    
+    displayedNodes() {
+      if (this.currentViewMode === 'old') {
+        return this.baselineNodes
+      }
+      return this.reviewNodes
+    },
+
+    isEditorReadonly() {
+      return !this.editEnabled || this.isReviewApproved || this.currentViewMode !== 'current'
     },
     
     isDataReady() {
@@ -525,6 +608,7 @@ export default {
   },
 
   methods: {
+    getReviewDateHighlightClasses,
     async loadReviewData () {
       try {
         this.loading = true
@@ -542,7 +626,8 @@ export default {
           this.commentTrails = data.comment_trails || []
           
           // Process nodes with diff status
-          this.reviewNodes = this.flattenNodesWithDiff(data.nodes)
+          this.reviewNodes = this.flattenNodesWithDiff(data.nodes || [])
+          this.baselineNodes = this.flattenNodesWithDiff(data.baseline_nodes || [])
           
           // Load comments for this review
           await this.loadComments()
@@ -970,12 +1055,51 @@ export default {
       this.showNodeDropdown = false
       document.removeEventListener('click', this.handleNodeDropdownClickOutside)
     },
+    /** From action row "comment" icon: expand comments, pre-select node, scroll + focus. */
+    openCommentComposerForNode (rawNodeId) {
+      if (this.isReviewApproved) return
+      const match = this.reviewNodes.find(n => String(n.id) === String(rawNodeId))
+      const resolvedId = match != null ? match.id : rawNodeId
+
+      this.showComments = true
+      this.commentForSpecificNode = true
+      this.showNodeDropdown = false
+      document.removeEventListener('click', this.handleNodeDropdownClickOutside)
+
+      // Reset then assign on next tick so switching rows always refreshes the chip + list
+      // (avoids stale label when jumping from one action item to another via icons).
+      const applySelection = () => {
+        this.selectedNodeId = resolvedId
+        this.$nextTick(() => {
+          const section = this.$refs.commentSection
+          if (section && typeof section.scrollIntoView === 'function') {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+          this.$nextTick(() => {
+            const ta = this.$refs.newCommentInput
+            if (ta && typeof ta.focus === 'function') {
+              ta.focus()
+            }
+          })
+        })
+      }
+
+      if (String(this.selectedNodeId) === String(resolvedId)) {
+        applySelection()
+        return
+      }
+
+      this.selectedNodeId = ''
+      this.$nextTick(() => {
+        applySelection()
+      })
+    },
     getNodeDisplayCounter(id) {
-      const node = this.reviewNodes.find(n => n.id === id)
+      const node = this.reviewNodes.find(n => String(n.id) === String(id))
       return node ? (node.display_counter || node.id) + '. ' : ''
     },
     getNodeFirstLine(id) {
-      const node = this.reviewNodes.find(n => n.id === id)
+      const node = this.reviewNodes.find(n => String(n.id) === String(id))
       if (!node) return ''
       
       // Strip HTML tags and get first line only
@@ -1458,6 +1582,25 @@ export default {
   gap: 0.75rem;
   align-items: center;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.review-hub-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e40af;
+  text-decoration: none;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(30, 64, 175, 0.35);
+  background: rgba(255, 255, 255, 0.95);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.review-hub-link:hover {
+  background: #eff6ff;
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.12);
 }
 
 .version-badge {
@@ -1507,6 +1650,7 @@ export default {
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0; /* Allow items to shrink */
+  align-items: flex-start;
 }
 
 .meta-label {
@@ -2579,6 +2723,48 @@ export default {
   gap: 2.2rem 2.5rem;
   margin-bottom: 0.7rem;
 }
+
+/* View Toggle Segmented Control */
+.view-toggle-group {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px;
+  margin-right: 15px;
+  border: 1px solid #e2e8f0;
+}
+
+.view-toggle-group .btn-segment {
+  background: transparent;
+  color: #64748b;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.view-toggle-group .btn-segment:hover {
+  color: #334155;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.view-toggle-group .btn-segment.active {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+
 .meta-item {
   display: flex;
   flex-direction: column;
@@ -2589,6 +2775,7 @@ export default {
   background: linear-gradient(90deg, #f8fafc 60%, #e0e7ff 100%);
   box-shadow: 0 1px 4px #1e3a8a0a;
   margin-bottom: 0.2rem;
+  align-items: flex-start;
 }
 .meta-label {
   font-size: 1.01rem;

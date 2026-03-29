@@ -11,6 +11,7 @@ import 'vue-toastification/dist/index.css'
 // import ActionCable from 'actioncable'
 // window.ActionCable = ActionCable
 
+import './assets/review-date-highlight.css'
 // import './main.css'
 
 Vue.config.productionTip = false

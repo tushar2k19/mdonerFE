@@ -8,6 +8,7 @@ import CompletedTasks from '../components/CompletedTasks.vue'
 import Home from '../components/Home.vue'
 import ReviewInterface from '../components/ReviewInterface.vue'
 import ReviewDashboard from '../components/ReviewDashboard.vue'
+import TaskReviewHub from '../components/TaskReviewHub.vue'
 import UnderDevelopment from '../components/UnderDevelopment.vue'
 
 Vue.use(Router)
@@ -110,6 +111,13 @@ const router = new Router({
       name: 'ReviewInterface',
       component: ReviewInterface,
       props: route => ({ reviewId: route.params.id }),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/task/:taskId/review-hub',
+      name: 'TaskReviewHub',
+      component: TaskReviewHub,
+      props: route => ({ taskId: route.params.taskId }),
       meta: { requiresAuth: true }
     }
     

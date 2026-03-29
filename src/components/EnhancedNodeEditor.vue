@@ -51,13 +51,17 @@
             :siblings="nodes"
             :index="index"
             :show-diff="showDiff"
+            :view-mode="viewMode"
             :diff-data="diffData"
-            :readonly="!canEditNode(node)"
+            :readonly="readonly"
             :task-version-id="taskVersionId"
             :permission-mode="permissionMode"
             :current-reviewer-id="currentReviewerId"
             :reviewer-type="reviewerType"
             :assigned-node-ids="assignedNodeIds"
+            :suppress-diff-highlights="suppressDiffHighlights"
+            :enable-comment-shortcut="enableNodeCommentShortcut"
+            @open-comment-for-node="$emit('open-comment-for-node', $event)"
             @update-node="updateNode"
             @delete-node="deleteNode"
             @add-subpoint="addSubpoint"
@@ -135,9 +139,21 @@ export default {
       type: Boolean,
       default: false
     },
+    viewMode: {
+      type: String,
+      default: 'current'
+    },
     diffData: {
       type: Object,
       default: null
+    },
+    suppressDiffHighlights: {
+      type: Boolean,
+      default: false
+    },
+    enableNodeCommentShortcut: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -858,91 +874,44 @@ export default {
       }
     },
 
-    // Permission checking methods
-    canEditNode(node) {
+    // Permission checking methods (mirrors EnhancedNodeItem — use for diagnostics only; per-node
+    // editability is enforced in EnhancedNodeItem via canEditThisNode + global `readonly` only.)
+    canEditNode (node) {
       if (!this.permissionMode) return !this.readonly
-      
-      // If not in permission mode, use regular readonly logic
       if (this.readonly) return false
-      
-      // Get current user info to check if they're an editor
       const currentUser = this.getCurrentUserInfo()
       const isEditor = currentUser && currentUser.role === 'editor'
-      
-      // DEBUG: Log permission check details
-      console.log('🔍 PERMISSION DEBUG for node:', node.id, {
-        nodeContent: node.content ? node.content.substring(0, 50) + '...' : 'No content',
-        nodeReviewerId: node.reviewer_id,
-        currentUserId: currentUser ? currentUser.id : null,
-        currentUserRole: currentUser ? currentUser.role : null,
-        isEditor: isEditor,
-        reviewerType: this.reviewerType,
-        assignedNodeIds: this.assignedNodeIds,
-        permissionMode: this.permissionMode,
-        readonly: this.readonly
-      })
-      
-      // Editors can edit all nodes regardless of reviewer assignment
-      if (isEditor) {
-        console.log('✅ EDITOR: Can edit all nodes')
-        return true
-      }
-      
-      // Convert assigned_node_ids to array if it's a string
-      let assignedIds = this.assignedNodeIds
-      if (typeof assignedIds === 'string') {
-        try {
-          assignedIds = JSON.parse(assignedIds)
-        } catch (e) {
-          console.error('Error parsing assigned_node_ids:', e)
-          assignedIds = []
-        }
-      }
-      if (!Array.isArray(assignedIds)) {
-        assignedIds = []
-      }
-      
-      console.log('📋 Processed assignedIds:', assignedIds)
-      
-      // Task-level reviewers can edit ONLY unassigned nodes
+      if (isEditor) return true
+      const currentId = this.currentReviewerId != null && this.currentReviewerId !== ''
+        ? String(this.currentReviewerId)
+        : null
+      const nodeId = node.reviewer_id != null && node.reviewer_id !== ''
+        ? String(node.reviewer_id)
+        : null
       if (this.reviewerType === 'task_level') {
-        const canEdit = !node.reviewer_id
-        console.log(`🎯 TASK-LEVEL REVIEWER: Node ${node.id} has reviewer_id=${node.reviewer_id}, canEdit=${canEdit}`)
-        return canEdit
+        return !nodeId || nodeId === currentId
       }
-      
-      // Node-level reviewers can only edit their assigned nodes
       if (this.reviewerType === 'node_level') {
-        // Check if this node is assigned to the current reviewer
-        const currentReviewerId = this.currentReviewerId
-        const canEdit = node.reviewer_id && (node.reviewer_id === currentReviewerId)
-        console.log(`🎯 NODE-LEVEL REVIEWER: Node ${node.id} has reviewer_id=${node.reviewer_id}, currentReviewerId=${currentReviewerId}, canEdit=${canEdit}`)
-        return canEdit
+        return !!(nodeId && currentId && nodeId === currentId)
       }
-      
-      console.log('❌ UNKNOWN REVIEWER TYPE:', this.reviewerType)
       return false
     },
 
-    isNodeAssignedToCurrentReviewer(node) {
+    isNodeAssignedToCurrentReviewer (node) {
       if (!this.permissionMode) return true
-      if (this.reviewerType === 'task_level') return !node.reviewer_id // Task-level handles unassigned nodes
-      
-      // Convert assigned_node_ids to array if it's a string
-      let assignedIds = this.assignedNodeIds
-      if (typeof assignedIds === 'string') {
-        try {
-          assignedIds = JSON.parse(assignedIds)
-        } catch (e) {
-          console.error('Error parsing assigned_node_ids:', e)
-          assignedIds = []
-        }
+      const currentId = this.currentReviewerId != null && this.currentReviewerId !== ''
+        ? String(this.currentReviewerId)
+        : null
+      const nodeId = node.reviewer_id != null && node.reviewer_id !== ''
+        ? String(node.reviewer_id)
+        : null
+      if (this.reviewerType === 'task_level') {
+        return !nodeId || nodeId === currentId
       }
-      if (!Array.isArray(assignedIds)) {
-        assignedIds = []
+      if (this.reviewerType === 'node_level') {
+        return !!(nodeId && currentId && nodeId === currentId)
       }
-      
-      return assignedIds.includes(node.id)
+      return false
     },
 
     // Helper method to get current user info

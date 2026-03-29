@@ -116,15 +116,18 @@ export default {
           redirectInfo = this.getRedirectInfo(notification)
         }
 
-        // UNIFIED ROUTING: Always navigate to ReviewInterface
         if (redirectInfo) {
           if (redirectInfo.type === 'review') {
             this.$router.push({
               name: 'ReviewInterface',
-              params: { id: redirectInfo.id }
+              params: { id: String(redirectInfo.id) }
+            })
+          } else if (redirectInfo.type === 'task_review_hub' && redirectInfo.task_id) {
+            this.$router.push({
+              name: 'TaskReviewHub',
+              params: { taskId: String(redirectInfo.task_id) }
             })
           } else {
-            // Fallback: if no review_id, navigate to review dashboard to find the review
             this.$router.push({
               name: 'ReviewTasks'
             })
@@ -138,13 +141,13 @@ export default {
     },
 
     getRedirectInfo (notification) {
-      // UNIFIED FALLBACK: Prioritize review routing for all notification types
+      if (notification.notification_type === 'partial_approval') {
+        return { type: 'task_review_hub', task_id: notification.task_id }
+      }
       if (notification.review_id) {
         return { type: 'review', id: notification.review_id }
-      } else {
-        // If no review_id, fallback to task but this should rarely happen
-        return { type: 'task', id: notification.task_id }
       }
+      return { type: 'task', id: notification.task_id }
     },
 
     async handleMarkAllAsRead () {
