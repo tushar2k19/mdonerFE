@@ -1273,6 +1273,52 @@ export default {
             requestAnimationFrame(() => requestAnimationFrame(resolve));
           });
 
+          // PRE-COMPUTE SAFE CUT BOUNDARIES
+          const cloneRect = rowClone.getBoundingClientRect();
+          const avoidCutIntervals = [];
+
+          const addRects = (elements) => {
+            elements.forEach(el => {
+              const rect = el.getBoundingClientRect();
+              if (rect.height > 0) {
+                avoidCutIntervals.push({
+                  top: rect.top - cloneRect.top,
+                  bottom: rect.bottom - cloneRect.top
+                });
+              }
+            });
+          };
+
+          // Protect nested table rows, images, and reviewer badges
+          addRects(rowClone.querySelectorAll('td:nth-child(4) table tr'));
+          addRects(rowClone.querySelectorAll('td:nth-child(4) img'));
+          addRects(rowClone.querySelectorAll('.reviewer-badge-parallel'));
+
+          // Protect individual text lines in the Action column
+          const actionTd = rowClone.querySelector('td:nth-child(4)');
+          if (actionTd) {
+            const walker = document.createTreeWalker(actionTd, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while ((node = walker.nextNode())) {
+              if (node.nodeValue.trim().length > 0) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                const rects = range.getClientRects();
+                for (let j = 0; j < rects.length; j++) {
+                  if (rects[j].height > 0) {
+                    avoidCutIntervals.push({
+                      top: rects[j].top - cloneRect.top,
+                      bottom: rects[j].bottom - cloneRect.top
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          // Sort top-to-bottom for the retraction algorithm
+          avoidCutIntervals.sort((a, b) => a.top - b.top);
+
           try {
             const canvas = await html2canvas(rowClone, {
               scale: 2,
@@ -1289,13 +1335,40 @@ export default {
               }
             });
 
-            // Page management (unchanged)
+            // Page management with layout-aware snapping
             let renderedHeight = 0;
+            const scaleY = canvas.height / cloneRect.height;
+            const maxAllowedGap = (((pageHeight - 10) * canvas.width) / usableWidth) * 0.3;
+
             while (renderedHeight < canvas.height) {
-              const sliceHeightPx = Math.min(
+              let sliceHeightPx = Math.min(
                 ((pageHeight - position - 10) * canvas.width) / usableWidth,
                 canvas.height - renderedHeight
               );
+
+              let targetCutY = renderedHeight + sliceHeightPx;
+
+              if (targetCutY < canvas.height) {
+                let bestCutY = targetCutY;
+                for (let k = 0; k < avoidCutIntervals.length; k++) {
+                  const interval = avoidCutIntervals[k];
+                  const topCanvas = interval.top * scaleY;
+                  const bottomCanvas = interval.bottom * scaleY;
+
+                  if (targetCutY > topCanvas + 1 && targetCutY < bottomCanvas - 1) {
+                    const gapCreated = targetCutY - topCanvas;
+                    if (gapCreated <= maxAllowedGap && topCanvas > renderedHeight + 2) {
+                      bestCutY = topCanvas;
+                      break; 
+                    }
+                  }
+                }
+                
+                if (bestCutY !== targetCutY) {
+                  targetCutY = bestCutY;
+                  sliceHeightPx = targetCutY - renderedHeight;
+                }
+              }
 
               const sliceCanvas = document.createElement('canvas');
               sliceCanvas.width = canvas.width;

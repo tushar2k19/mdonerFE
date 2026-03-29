@@ -129,10 +129,41 @@
               id="toggle-action-section-expand"
               @click="toggleActionSectionExpanded"
             >
-              <i
-                :class="actionSectionExpanded ? 'fas fa-compress-arrows-alt' : 'fas fa-expand-arrows-alt'"
+              <!-- Inline SVG: FA glyph names vary by kit/version; SVG always renders. -->
+              <svg
+                v-if="!actionSectionExpanded"
+                class="riv-expand-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
                 aria-hidden="true"
-              />
+              >
+                <polyline points="15 3 21 3 21 9" />
+                <polyline points="9 21 3 21 3 15" />
+                <line x1="21" y1="3" x2="14" y2="10" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
+              <svg
+                v-else
+                class="riv-expand-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="4 14 10 14 10 20" />
+                <polyline points="20 10 14 10 14 4" />
+                <line x1="14" y1="10" x2="21" y2="3" />
+                <line x1="3" y1="21" x2="10" y2="14" />
+              </svg>
               <span class="riv-sr-only">
                 {{ actionSectionExpanded ? 'Exit full view for action items' : 'Expand action items to full screen' }}
               </span>
@@ -1847,8 +1878,12 @@ export default {
   box-shadow: 0 6px 18px rgba(249, 115, 22, 0.18);
 }
 
-.riv-expand-action-btn i {
-  font-size: 1rem;
+.riv-expand-action-btn .riv-expand-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: block;
+  flex-shrink: 0;
+  color: inherit;
 }
 
 .riv-expanded-toolbar-wrap {
