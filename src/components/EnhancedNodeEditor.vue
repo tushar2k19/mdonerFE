@@ -1003,10 +1003,11 @@ export default {
 
 <style scoped>
 .enhanced-node-editor {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 252, 248, 0.95) 100%);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(249, 115, 22, 0.09), 0 2px 8px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
 
@@ -1014,9 +1015,10 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  padding: 0.85rem 1.2rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.75);
+  color: #1e293b;
 }
 
 .toolbar-section {
@@ -1027,8 +1029,10 @@ export default {
 
 .toolbar-section h4 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
 }
 
 .dropdown {
@@ -1114,27 +1118,30 @@ export default {
 }
 
 .btn-primary {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #fff;
+  border: 1px solid #4338ca;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
 }
 
 .btn-primary:hover {
-  background: rgba(255, 255, 255, 0.3);
+  filter: brightness(1.05);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #fff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 .nodes-container {
-  padding: 1.5rem;
+  
   max-height: 600px;
   overflow-y: auto;
   transition: max-height 0.3s ease;
@@ -1169,42 +1176,44 @@ export default {
 }
 
 .empty-state {
-  padding: 4rem 2rem;
+  padding: 3rem 1.5rem;
   text-align: center;
-  color: #6b7280;
+  color: #64748b;
+  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
 }
 
 .empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  color: #cbd5e1;
 }
 
 .empty-state h5 {
-  margin: 0 0 0.5rem 0;
-  color: #374151;
-  font-size: 1.25rem;
-  font-weight: 600;
+  margin: 0 0 0.35rem 0;
+  color: #334155;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .empty-state p {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 .editor-footer {
-  padding: 1rem 1.5rem;
-  background: #fef3cd;
-  border-top: 1px solid #fde68a;
+  padding: 0.85rem 1.15rem;
+  background: linear-gradient(90deg, #fff7ed 0%, #fffbeb 100%);
+  border-top: 1px solid #fed7aa;
 }
 
 .changes-indicator {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #92400e;
-  font-size: 0.875rem;
-  font-weight: 500;
+  color: #c2410c;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 /* Table Creator Modal */

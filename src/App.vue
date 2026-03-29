@@ -267,6 +267,7 @@ li {
   display: flex;
   width: 100%;
   min-height: calc(100vh - 60px);
+  align-items: stretch;
 }
 
 .router-view-container {

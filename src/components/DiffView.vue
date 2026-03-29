@@ -39,7 +39,10 @@
 
         <div class="diff-col baseline-col">
           <div v-if="pair.oldNode" class="diff-node-content" :style="{ paddingLeft: getIndent(pair.oldNode) }">
-            <span class="counter">{{ pair.oldNode.display_counter }}</span>
+            <div class="diff-node-marker">
+              <span class="counter">{{ pair.oldNode.display_counter }}</span>
+              <span v-if="pair.oldNode.list_style !== 'bullet'" class="counter-suffix">.</span>
+            </div>
             <div class="rich-text" v-html="pair.oldNode.content"></div>
           </div>
           <div v-else class="empty-node">Node added</div>
@@ -47,7 +50,10 @@
 
         <div class="diff-col current-col">
           <div v-if="pair.newNode" class="diff-node-content" :style="{ paddingLeft: getIndent(pair.newNode) }">
-            <span class="counter">{{ pair.newNode.display_counter }}</span>
+            <div class="diff-node-marker">
+              <span class="counter">{{ pair.newNode.display_counter }}</span>
+              <span v-if="pair.newNode.list_style !== 'bullet'" class="counter-suffix">.</span>
+            </div>
             <div class="rich-text diff-rich-text" v-html="getDiffContent(pair)"></div>
           </div>
           <div v-else class="empty-node">Node removed</div>
@@ -385,17 +391,19 @@ export default {
   display: flex;
   flex-direction: column;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 1rem;
   overflow: hidden;
-  background: white;
-  margin-top: 1rem;
+  background: #fff;
+  margin-top: 0.5rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 .diff-header {
   display: flex;
-  background: #f8fafc;
+  background: linear-gradient(180deg, #fafafa 0%, #f8fafc 100%);
   border-bottom: 1px solid #e2e8f0;
-  font-weight: 600;
-  color: #334155;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #1e293b;
   align-items: stretch;
 }
 .diff-header-spacer {
@@ -405,6 +413,7 @@ export default {
   background: #f1f5f9;
   border-right: 1px solid #e2e8f0;
   box-sizing: border-box;
+  color: #64748b;
 }
 .diff-header .diff-header-spacer:last-child {
   border-right: none;
@@ -551,16 +560,39 @@ export default {
 
 .diff-node-content {
   display: flex;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 1.25rem;
+  padding: 0.375rem 0;
 }
-.counter {
+
+/* Match EnhancedNodeItem .node-marker column for Current/Old parity */
+.diff-node-marker {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 3rem;
+  padding: 0.125rem 0.75rem 0 0;
   font-weight: 600;
-  color: #64748b;
-  min-width: 24px;
+  color: #6b7280;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: right;
 }
+
+.diff-node-marker .counter {
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  text-align: right;
+}
+
+.diff-node-marker .counter-suffix {
+  margin-left: 2px;
+}
+
 .rich-text {
   flex: 1;
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13px;
   color: #1e293b;
   line-height: 1.6;
 }

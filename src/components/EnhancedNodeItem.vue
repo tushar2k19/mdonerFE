@@ -1460,7 +1460,7 @@ export default {
 
 <style scoped>
 .enhanced-node-item {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   transition: all 0.2s ease;
 }
 
@@ -1491,8 +1491,8 @@ export default {
 .node-content {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  gap: 1.25rem;
+  padding: 0.875rem 1rem;
   border: 1px solid transparent;
   border-radius: 8px;
   transition: all 0.2s ease;
@@ -1501,19 +1501,25 @@ export default {
 
 .node-marker {
   display: flex;
-  align-items: center;
-  min-width: 32px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 3rem;
+  padding: 0.125rem 0.75rem 0 0;
   font-weight: 600;
   color: #6b7280;
   font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .counter {
   font-family: monospace;
+  text-align: right;
 }
 
 .counter-suffix {
-  margin-left: 1px;
+  margin-left: 2px;
 }
 
 .node-editor-container {
@@ -2217,12 +2223,14 @@ export default {
 }
 
 .node-content {
-  padding: 8px 10px; /* Reduced padding */
+  gap: 1.25rem;
+  padding: 12px 14px;
 }
 
 .node-marker {
-  font-size: 12px; /* Reduced marker size */
-  min-width: 28px; /* Slightly smaller */
+  font-size: 12px;
+  min-width: 3rem;
+  padding: 0.125rem 0.75rem 0 0;
 }
 
 .rich-text-display {
