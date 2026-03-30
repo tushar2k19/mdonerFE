@@ -172,6 +172,7 @@
                 class="drs-path-row"
                 :class="{ 
                   'drs-path-focus': idx === activeMode.nodes.length - 1,
+                  'drs-path-focus--primary': idx === activeMode.nodes.length - 1 && activeMode.nodes.length > 1,
                   'drs-path-standalone': activeMode.nodes.length === 1
                 }"
                 :style="{ marginLeft: activeMode.nodes.length === 1 ? '0' : `${idx * 1.5}rem` }"
@@ -179,6 +180,7 @@
                 <header class="drs-glass-h">
                   <span class="drs-counter-pill">{{ counterLabel(n) }}</span>
                   <span v-if="idx === activeMode.nodes.length - 1" class="drs-focus-tag">Focus</span>
+                  <span v-if="idx === activeMode.nodes.length - 1 && activeMode.nodes.length > 1" class="drs-focus-micro">Review date item</span>
                 </header>
                 <div class="drs-action-tree drs-rich rich-text-display" v-html="n.content" />
               </article>
@@ -186,7 +188,7 @@
           </div>
 
           <!-- Full task -->
-          <div v-else class="drs-scroll drs-full-wrap">
+          <div v-else class="drs-scroll drs-full-wrap" ref="fullScroller">
             <article class="drs-glass drs-glass-full">
               <header class="drs-glass-h">
                 <span class="drs-full-title">Full task — action to be taken</span>
@@ -304,6 +306,14 @@ export default {
       if (this.viewIndex >= modes.length) {
         this.viewIndex = Math.max(0, modes.length - 1)
       }
+    },
+    activeMode: {
+      handler (newMode) {
+        if (newMode && newMode.type === 'full') {
+          this.afterFullViewPaint()
+        }
+      },
+      deep: true
     }
   },
 
@@ -321,6 +331,30 @@ export default {
   },
 
   methods: {
+    afterFullViewPaint () {
+      if (!this.currentSlide || !this.currentSlide.focusNode) return
+      const focusId = this.currentSlide.focusNode.id
+      this.$nextTick(() => {
+        requestAnimationFrame(() => {
+          const container = this.$refs.fullScroller
+          if (!container) return
+          
+          // Cleanup existing highlights
+          const existing = container.querySelectorAll('.drs-daily-focus')
+          existing.forEach(el => el.classList.remove('drs-daily-focus'))
+          
+          // Find the focus node
+          let el = container.querySelector('#action-node-' + focusId)
+          if (!el) el = container.querySelector(`[data-node-id="${focusId}"]`)
+          
+          if (el) {
+            el.classList.add('drs-daily-focus')
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }
+        })
+      })
+    },
+
     counterLabel,
 
     isoDateLocal (d) {
@@ -1023,6 +1057,12 @@ export default {
   box-shadow: 1px 1px 8px rgba(15, 23, 42, 0.03);
 }
 
+.drs-path-focus--primary {
+  border-left-width: 3px;
+  background: linear-gradient(to right, #eef2ff, #f8fafc 80%);
+  box-shadow: -1px 1px 8px rgba(99, 102, 241, 0.1);
+}
+
 .drs-path-standalone {
   border-left: none;
   background: #fff;
@@ -1085,6 +1125,13 @@ export default {
   background: rgba(199, 210, 254, 0.5);
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
+}
+
+.drs-focus-micro {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 0.35rem;
 }
 
 .drs-rich {
@@ -1163,6 +1210,14 @@ export default {
 }
 .drs-full-html {
   max-width: none;
+}
+
+.drs-full-wrap /deep/ .action-node.drs-daily-focus {
+  background: rgba(238, 242, 255, 0.7) !important;
+  border-left: 3px solid #6366f1 !important;
+  border-radius: 4px;
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 120px;
 }
 
 /* -------------------------------------------------------------------------- */
