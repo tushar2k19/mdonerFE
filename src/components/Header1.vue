@@ -1,5 +1,12 @@
 <template>
   <header class="header header-texture shadow-lg text-white">
+    <div
+      v-if="mobileNavOpen && isAuthenticated"
+      class="nav-mobile-backdrop"
+      aria-hidden="true"
+      @click="mobileNavOpen = false"
+    />
+
     <div class="header-container container mx-auto px-6 py-3 flex items-center">
       
       <!-- Logo and Title -->
@@ -10,8 +17,8 @@
         <h1 class="volve-text text-xl font-bold">volve</h1>
       </router-link>
 
-      <!-- Navigation Links - Centered -->
-      <nav v-if="isAuthenticated" class="nav-center flex-1 flex justify-center items-center space-x-2 bg-black/20 p-1 rounded-full mx-8">
+      <!-- Navigation Links - Centered (desktop) -->
+      <nav v-if="isAuthenticated" class="nav-center nav-center--desktop flex-1 flex justify-center items-center space-x-2 bg-black/20 p-1 rounded-full mx-8">
         <!-- Debug info -->
         <span v-if="filteredNavigationRoutes.length === 0" style="color: red; font-size: 12px;">
           No routes found! Auth: {{ isAuthenticated }}, Role: {{ userRole }}
@@ -36,8 +43,30 @@
         </router-link>
       </nav>
 
-      <!-- Action Buttons -->
-      <div class="nav-right flex items-center space-x-4 flex-shrink-0">
+      <div class="header-trailing flex items-center flex-shrink-0 space-x-4">
+        <!-- Mobile: open navigation menu -->
+        <button
+          v-if="isAuthenticated && filteredNavigationRoutes.length"
+          type="button"
+          class="nav-mobile-toggle"
+          :aria-expanded="mobileNavOpen ? 'true' : 'false'"
+          aria-controls="header-mobile-nav"
+          :aria-label="mobileNavOpen ? 'Close menu' : 'Open menu'"
+          @click="mobileNavOpen = !mobileNavOpen"
+        >
+          <svg v-if="!mobileNavOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        <!-- Action Buttons -->
+        <div class="nav-right flex items-center space-x-4 flex-shrink-0">
         <NotificationComponent
           v-if="isAuthenticated"
           class="notification-wrapper"
@@ -60,8 +89,28 @@
         >
           <span>Login</span>
         </router-link>
+        </div>
       </div>
     </div>
+
+    <!-- Mobile navigation panel -->
+    <nav
+      v-show="isAuthenticated && mobileNavOpen && filteredNavigationRoutes.length"
+      id="header-mobile-nav"
+      class="nav-mobile-panel"
+      aria-label="Main navigation"
+    >
+      <router-link
+        v-for="route in filteredNavigationRoutes"
+        :key="'m-' + route.path"
+        :to="route.path"
+        class="nav-mobile-link"
+        :class="{ 'nav-mobile-link--active': $route.path === route.path }"
+        @click.native="mobileNavOpen = false"
+      >
+        {{ route.label }}
+      </router-link>
+    </nav>
   </header>
 </template>
 
@@ -81,9 +130,10 @@ export default {
   },
   data () {
     return {
+      mobileNavOpen: false,
       navigationRoutes: [
         { path: '/', label: 'Home' },
-        // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+        { path: '/daily-dashboard', label: 'Daily Dashboard' },
         { path: '/tentative', label: 'Editor Dashboard', requiresEditor: true }, // Renamed from 'Illustrative Dashboard'
         { path: '/final', label: 'Full Dashboard' },
         // { path: '/completed-tasks', label: 'Completed Tasks', requiresEditor: true }, // COMMENTED OUT
@@ -121,7 +171,7 @@ export default {
       if (this.userRole === 'editor') {
         return [
           { path: '/', label: 'Home' },
-          // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+          { path: '/daily-dashboard', label: 'Daily Dashboard' },
           { path: '/tentative', label: 'Editor Dashboard' },
           { path: '/final', label: 'Full Dashboard' },
           // { path: '/completed-tasks', label: 'Completed Tasks' }, // COMMENTED OUT
@@ -131,7 +181,7 @@ export default {
       } else if (this.userRole === 'reviewer') {
         return [
           { path: '/', label: 'Home' },
-          // { path: '/daily-dashboard', label: 'Daily Dashboard' }, // COMMENTED OUT
+          { path: '/daily-dashboard', label: 'Daily Dashboard' },
           { path: '/final', label: 'Full Dashboard' },
           { path: '/review-tasks', label: 'Review Tasks' }
         ]
@@ -143,6 +193,13 @@ export default {
       }
     }
   },
+
+  watch: {
+    '$route' () {
+      this.mobileNavOpen = false
+    }
+  },
+
   methods: {
     async handleSignOut () {
       try {
@@ -186,8 +243,68 @@ html, body {
   position: sticky;
   top: 0;
   z-index: 1000;
-  overflow-x: hidden;
+  overflow-x: visible;
   width: 100%;
+}
+
+/* Full-screen tap target to close mobile menu */
+.nav-mobile-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 0;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.header-trailing {
+  margin-left: auto;
+}
+
+.nav-mobile-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+.nav-mobile-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-mobile-panel {
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0.85rem;
+  background-color: #070e58;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.nav-mobile-link {
+  display: block;
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  color: #bfdbfe;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-mobile-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.nav-mobile-link--active {
+  background: #fff;
+  color: #4f46e5;
 }
 
 .shadow-lg {
@@ -431,7 +548,6 @@ html, body {
 .nav-right {
   position: relative;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .notification-wrapper {
@@ -502,8 +618,17 @@ html, body {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
-  .nav-center {
+  .nav-center--desktop {
     display: none !important;
+  }
+  .nav-mobile-toggle {
+    display: inline-flex;
+  }
+  .nav-mobile-backdrop {
+    display: block;
+  }
+  .nav-mobile-panel {
+    display: flex;
   }
   .mx-8 {
     margin-left: 0;
@@ -536,6 +661,18 @@ html, body {
   }
   .btn-auth span:last-child {
     display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .nav-mobile-toggle {
+    display: none !important;
+  }
+  .nav-mobile-backdrop {
+    display: none !important;
+  }
+  .nav-mobile-panel {
+    display: none !important;
   }
 }
 

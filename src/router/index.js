@@ -10,6 +10,7 @@ import ReviewInterface from '../components/ReviewInterface.vue'
 import ReviewDashboard from '../components/ReviewDashboard.vue'
 import TaskReviewHub from '../components/TaskReviewHub.vue'
 import UnderDevelopment from '../components/UnderDevelopment.vue'
+import DailyReviewSlideshow from '../components/DailyReviewSlideshow.vue'
 
 Vue.use(Router)
 
@@ -35,18 +36,7 @@ const router = new Router({
     {
       path: '/daily-dashboard',
       name: 'DailyDashboard',
-      component: UnderDevelopment,
-      props: {
-        pageTitle: 'Daily Dashboard',
-        progressPercentage: 15,
-        upcomingFeatures: [
-          'Real-time task status updates',
-          'Daily performance metrics',
-          'Interactive charts and graphs',
-          'Task completion trends',
-          'Priority-based task sorting'
-        ]
-      },
+      component: DailyReviewSlideshow,
       meta: { requiresAuth: true }
     },
     {
