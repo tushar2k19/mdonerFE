@@ -335,7 +335,7 @@
          @mouseleave="hideActionMenu(activeMenuId)">
       <button @click="editTask(getCurrentTask()); forceHideMenu()" class="menu-item">Edit</button>
       <button v-if="canDelete(getCurrentTask())"
-              @click="deleteTask(activeMenuId); forceHideMenu()"
+              @click="deleteTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Delete</button>
       <button v-if="canSendForReview(getCurrentTask())"
               @click="openReviewModal(getCurrentTask()); forceHideMenu()"
@@ -1603,7 +1603,9 @@ export default {
       this.$toast.success('Task saved successfully')
     },
 
-    async deleteTask (taskId) {
+    async deleteTask (task) {
+      const taskId = task && task.id
+      if (!taskId) return
       if (confirm('Are you sure you want to delete this task?')) {
         try {
           await this.$http.secured.delete(`/task/${taskId}`)
@@ -1842,7 +1844,8 @@ export default {
       if (!this.activeMenuId || !this.activeTasks || !Array.isArray(this.activeTasks)) {
         return null;
       }
-      return this.activeTasks.find(task => task && task.id === this.activeMenuId) || null;
+      const menuId = Number(this.activeMenuId)
+      return this.activeTasks.find(task => task && Number(task.id) === menuId) || null;
     },
 
     // Open a tags popover from the action menu
