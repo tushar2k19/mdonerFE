@@ -88,6 +88,120 @@
           </div>
       </div>
 
+      <!-- Delay Analytics -->
+      <section class="delay-analytics-shell mb-8">
+        <div class="delay-analytics-head">
+          <div>
+            <h2 class="delay-analytics-title">Review Delay Analytics</h2>
+            <p class="delay-analytics-subtitle">
+              Captured postponements where editors selected a delay reason.
+              <span v-if="analyticsRangeLabel">Range: {{ analyticsRangeLabel }}</span>
+            </p>
+          </div>
+          <div class="delay-window-toggle">
+            <button
+              v-for="days in [30, 90, 180]"
+              :key="days"
+              class="delay-window-pill"
+              :class="{ 'delay-window-pill--active': selectedAnalyticsWindowDays === days }"
+              :disabled="analyticsLoading"
+              @click="onChangeAnalyticsWindow(days)"
+            >
+              {{ days }}D
+            </button>
+          </div>
+        </div>
+
+        <div v-if="analyticsLoading" class="delay-analytics-state">
+          <div class="loading-spinner-new"></div>
+          <p>Loading delay analytics...</p>
+        </div>
+
+        <div v-else-if="analyticsError" class="delay-analytics-state delay-analytics-state--error">
+          <p>{{ analyticsError }}</p>
+        </div>
+
+        <div v-else>
+          <p v-if="delayAnalytics.scope_note" class="delay-analytics-note">{{ delayAnalytics.scope_note }}</p>
+
+          <div class="delay-kpi-grid">
+            <article v-for="kpi in analyticsKpiCards" :key="kpi.id" class="delay-kpi-card">
+              <p class="delay-kpi-label">{{ kpi.label }}</p>
+              <p class="delay-kpi-value">{{ kpi.value }}<span v-if="kpi.suffix">{{ kpi.suffix }}</span></p>
+              <p class="delay-kpi-hint">{{ kpi.hint }}</p>
+            </article>
+          </div>
+
+          <div class="delay-chart-grid">
+            <article class="delay-chart-card">
+              <div class="delay-chart-head">
+                <h3>Reason Mix</h3>
+                <p>Distribution of captured delay reasons</p>
+              </div>
+              <div class="delay-chart-canvas-wrap">
+                <canvas ref="reasonChartCanvas"></canvas>
+              </div>
+            </article>
+
+            <article class="delay-chart-card">
+              <div class="delay-chart-head">
+                <h3>Sector vs Delay Days</h3>
+                <p>Which sectors carry the highest slippage</p>
+              </div>
+              <div class="delay-chart-canvas-wrap">
+                <canvas ref="sectorChartCanvas"></canvas>
+              </div>
+            </article>
+
+            <article class="delay-chart-card">
+              <div class="delay-chart-head">
+                <h3>Delay Trend</h3>
+                <p>Attributed delay events by month</p>
+              </div>
+              <div class="delay-chart-canvas-wrap">
+                <canvas ref="trendChartCanvas"></canvas>
+              </div>
+            </article>
+
+            <article class="delay-chart-card">
+              <div class="delay-chart-head">
+                <h3>Repeat Delays per Action Point</h3>
+                <p>How often the same stable node was delayed</p>
+              </div>
+              <div class="delay-chart-canvas-wrap">
+                <canvas ref="repeatDelayChartCanvas"></canvas>
+              </div>
+            </article>
+          </div>
+
+          <div class="delay-table-card">
+            <div class="delay-chart-head">
+              <h3>Most Delayed Tasks</h3>
+              <p>Top tasks ranked by total attributed delay days</p>
+            </div>
+            <div v-if="topDelayTasks.length === 0" class="delay-table-empty">No delayed tasks in selected period.</div>
+            <table v-else class="delay-table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Sector</th>
+                  <th>Delay Days</th>
+                  <th>Events</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="task in topDelayTasks" :key="task.task_id">
+                  <td class="delay-table-title">{{ task.description }}</td>
+                  <td>{{ task.sector }}</td>
+                  <td>{{ task.delay_days }}</td>
+                  <td>{{ task.event_count }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col">
           <h2 class="text-xl font-semibold text-gray-800 mb-1">Task Completion Progress</h2>
@@ -324,6 +438,8 @@
 </template>
 
 <script>
+import Chart from 'chart.js'
+
 export default {
   name: 'Home',
   
@@ -336,7 +452,38 @@ export default {
       selectedTaskReviewers: [],
       showAllTagsDropdown: false,
       visibleTagCount: 0,
-      _onResizeTags: null
+      resizeTagsHandler: null,
+      analyticsLoading: false,
+      analyticsError: '',
+      selectedAnalyticsWindowDays: 180,
+      delayAnalytics: {
+        scope_note: '',
+        range: { from: null, to: null },
+        kpis: {
+          total_events: 0,
+          total_delay_days: 0,
+          distinct_tasks: 0,
+          distinct_nodes: 0,
+          avg_delay_days_per_event: 0,
+          completed_with_attributed_delay_count: 0,
+          avg_delay_events_per_completed_delayed_task: 0
+        },
+        charts: {
+          reasons: [],
+          sectors: [],
+          trend: [],
+          repeat_delay_histogram: []
+        },
+        tables: {
+          top_tasks_by_delay_days: []
+        }
+      },
+      charts: {
+        reasons: null,
+        sectors: null,
+        trend: null,
+        repeat: null
+      }
     }
   },
   
@@ -380,6 +527,53 @@ export default {
       }))
     },
 
+    analyticsKpiCards() {
+      return [
+        {
+          id: 'events',
+          label: 'Attributed Delay Events',
+          value: this.delayAnalytics.kpis.total_events,
+          hint: 'Review-date extensions with saved reasons'
+        },
+        {
+          id: 'days',
+          label: 'Total Delay Days',
+          value: this.delayAnalytics.kpis.total_delay_days,
+          hint: 'Sum of date shifts from captured events'
+        },
+        {
+          id: 'tasks',
+          label: 'Affected Tasks',
+          value: this.delayAnalytics.kpis.distinct_tasks,
+          hint: 'Tasks with at least one captured delay'
+        },
+        {
+          id: 'avg',
+          label: 'Avg Delay / Event',
+          value: this.delayAnalytics.kpis.avg_delay_days_per_event,
+          suffix: ' days',
+          hint: 'Average postponed days per event'
+        },
+        {
+          id: 'repeat',
+          label: 'Avg Delays Before Completion',
+          value: this.delayAnalytics.kpis.avg_delay_events_per_completed_delayed_task,
+          hint: 'For completed tasks that had attributed delays'
+        }
+      ]
+    },
+
+    analyticsRangeLabel() {
+      const from = this.delayAnalytics.range.from
+      const to = this.delayAnalytics.range.to
+      if (!from || !to) return ''
+      return `${this.formatShortDate(from)} - ${this.formatShortDate(to)}`
+    },
+
+    topDelayTasks() {
+      return (this.delayAnalytics.tables.top_tasks_by_delay_days || []).slice(0, 6)
+    },
+
     // Circular progress calculations
     circumference() {
       const radius = 65;
@@ -393,11 +587,11 @@ export default {
 
     recentTaskDescriptions() {
       return this.tasks.slice(0, 5).map(task => ({
-          id: task.id,
-        description: task.description.length > 40 ? 
-          task.description.substring(0, 40) + '...' : 
-          task.description
-        }))
+        id: task.id,
+        description: (task.description && task.description.length > 40)
+          ? `${task.description.substring(0, 40)}...`
+          : task.description
+      }))
     },
 
     sampleSubtasks() {
@@ -436,6 +630,7 @@ export default {
 
   async created() {
     await this.loadTasks()
+    await this.loadDelayAnalytics()
   },
 
   mounted() {
@@ -447,17 +642,18 @@ export default {
     document.documentElement.style.height = 'auto'
 
     // Recompute tag fit on resize
-    this._onResizeTags = this.debounce(() => {
+    this.resizeTagsHandler = this.debounce(() => {
       this.computeVisibleTags()
     }, 150)
-    window.addEventListener('resize', this._onResizeTags)
+    window.addEventListener('resize', this.resizeTagsHandler)
   },
 
   beforeDestroy() {
-    if (this._onResizeTags) {
-      window.removeEventListener('resize', this._onResizeTags)
-      this._onResizeTags = null
+    if (this.resizeTagsHandler) {
+      window.removeEventListener('resize', this.resizeTagsHandler)
+      this.resizeTagsHandler = null
     }
+    this.destroyDelayCharts()
   },
 
   methods: {
@@ -486,6 +682,201 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+
+    async loadDelayAnalytics() {
+      this.analyticsLoading = true
+      this.analyticsError = ''
+      try {
+        const params = this.getAnalyticsRangeParams(this.selectedAnalyticsWindowDays)
+        const response = await this.$http.secured.get('/tasks/review_delay_analytics', { params })
+        const payload = response.data || {}
+        this.delayAnalytics = {
+          scope_note: payload.scope_note || '',
+          range: payload.range || { from: null, to: null },
+          kpis: payload.kpis || this.delayAnalytics.kpis,
+          charts: payload.charts || this.delayAnalytics.charts,
+          tables: payload.tables || this.delayAnalytics.tables
+        }
+        this.$nextTick(() => {
+          this.renderDelayCharts()
+        })
+      } catch (error) {
+        console.error('Error loading delay analytics:', error)
+        this.analyticsError = 'Could not load delay analytics right now.'
+        this.destroyDelayCharts()
+      } finally {
+        this.analyticsLoading = false
+      }
+    },
+
+    getAnalyticsRangeParams(days) {
+      const safeDays = Number.isFinite(days) && days > 0 ? days : 180
+      const to = new Date()
+      const from = new Date()
+      from.setDate(from.getDate() - safeDays)
+      return {
+        from: from.toISOString().slice(0, 10),
+        to: to.toISOString().slice(0, 10)
+      }
+    },
+
+    async onChangeAnalyticsWindow(days) {
+      if (this.analyticsLoading || this.selectedAnalyticsWindowDays === days) return
+      this.selectedAnalyticsWindowDays = days
+      await this.loadDelayAnalytics()
+    },
+
+    destroyDelayCharts() {
+      Object.keys(this.charts).forEach((key) => {
+        if (this.charts[key]) {
+          this.charts[key].destroy()
+          this.charts[key] = null
+        }
+      })
+    },
+
+    renderDelayCharts() {
+      this.destroyDelayCharts()
+      this.renderReasonChart()
+      this.renderSectorChart()
+      this.renderTrendChart()
+      this.renderRepeatDelayChart()
+    },
+
+    renderReasonChart() {
+      if (!this.$refs.reasonChartCanvas) return
+      const rows = this.delayAnalytics.charts.reasons || []
+      const labels = rows.map(r => r.label)
+      const values = rows.map(r => Number(r.count || 0))
+      if (!labels.length) return
+      this.charts.reasons = new Chart(this.$refs.reasonChartCanvas, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#f97316', '#fb923c', '#f59e0b', '#6366f1', '#3b82f6', '#14b8a6'],
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } },
+            tooltip: {
+              callbacks: {
+                label: (tooltipItem, data) => {
+                  const label = (data.labels && data.labels[tooltipItem.index]) || ''
+                  const value = (data.datasets &&
+                    data.datasets[tooltipItem.datasetIndex] &&
+                    data.datasets[tooltipItem.datasetIndex].data &&
+                    data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index]) || 0
+                  return `${label}: ${value} events`
+                }
+              }
+            }
+          },
+          cutoutPercentage: 62
+        }
+      })
+    },
+
+    renderSectorChart() {
+      if (!this.$refs.sectorChartCanvas) return
+      const rows = (this.delayAnalytics.charts.sectors || []).slice(0, 8)
+      const labels = rows.map(r => r.sector)
+      const values = rows.map(r => Number(r.delay_days || 0))
+      if (!labels.length) return
+      this.charts.sectors = new Chart(this.$refs.sectorChartCanvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Delay days',
+            data: values,
+            backgroundColor: 'rgba(59, 130, 246, 0.78)',
+            borderColor: '#1d4ed8',
+            borderWidth: 1.5,
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.22)' } },
+            y: { grid: { display: false } }
+          }
+        }
+      })
+    },
+
+    renderTrendChart() {
+      if (!this.$refs.trendChartCanvas) return
+      const rows = this.delayAnalytics.charts.trend || []
+      const labels = rows.map(r => r.period)
+      const values = rows.map(r => Number(r.event_count || 0))
+      if (!labels.length) return
+      this.charts.trend = new Chart(this.$refs.trendChartCanvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Delay events',
+            data: values,
+            borderColor: '#0ea5e9',
+            backgroundColor: 'rgba(14, 165, 233, 0.16)',
+            pointBackgroundColor: '#0284c7',
+            pointBorderWidth: 0,
+            tension: 0.35,
+            fill: true
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.22)' } }
+          }
+        }
+      })
+    },
+
+    renderRepeatDelayChart() {
+      if (!this.$refs.repeatDelayChartCanvas) return
+      const rows = this.delayAnalytics.charts.repeat_delay_histogram || []
+      const labels = rows.map(r => r.bucket)
+      const values = rows.map(r => Number(r.count || 0))
+      if (!labels.length) return
+      this.charts.repeat = new Chart(this.$refs.repeatDelayChartCanvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Nodes',
+            data: values,
+            backgroundColor: ['#34d399', '#22d3ee', '#60a5fa', '#818cf8'],
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148, 163, 184, 0.22)' } }
+          }
+        }
+      })
     },
 
     processActionNodes(nodes) {
@@ -632,6 +1023,15 @@ export default {
 
     generateTaskCode(task) {
       return `TASK-${String(task.id).padStart(4, '0')}`;
+    },
+
+    formatShortDate(dateValue) {
+      if (!dateValue) return ''
+      return new Date(dateValue).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
     },
 
     formatDate(date) {
@@ -1794,6 +2194,231 @@ html, body {
 .action-content-display em {
   color: #475569;
   font-style: italic;
+}
+
+/* Delay analytics section */
+.delay-analytics-shell {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.95), rgba(255, 247, 237, 0.92));
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(6px);
+}
+
+.delay-analytics-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.delay-analytics-title {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.delay-analytics-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.delay-analytics-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(14, 165, 233, 0.08);
+  color: #0f172a;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+
+.delay-window-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delay-window-pill {
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #4338ca;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.delay-window-pill:hover {
+  background: #eef2ff;
+  transform: translateY(-1px);
+}
+
+.delay-window-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.delay-window-pill--active {
+  background: linear-gradient(90deg, #4f46e5, #6366f1);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.24);
+}
+
+.delay-analytics-state {
+  border: 2px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  padding: 24px;
+  color: #64748b;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.delay-analytics-state--error {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.8);
+}
+
+.delay-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.delay-kpi-card {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 14px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+}
+
+.delay-kpi-label {
+  margin: 0;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.delay-kpi-value {
+  margin: 8px 0 6px;
+  color: #0f172a;
+  font-size: 1.6rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.delay-kpi-value span {
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.delay-kpi-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.delay-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.delay-chart-card,
+.delay-table-card {
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.delay-chart-head h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.delay-chart-head p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.delay-chart-canvas-wrap {
+  margin-top: 12px;
+  height: 260px;
+}
+
+.delay-table-card {
+  margin-top: 14px;
+}
+
+.delay-table-empty {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.delay-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.delay-table th,
+.delay-table td {
+  text-align: left;
+  padding: 10px 8px;
+  font-size: 0.86rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
+  color: #334155;
+}
+
+.delay-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.delay-table-title {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+@media (max-width: 1280px) {
+  .delay-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .delay-kpi-grid,
+  .delay-chart-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .delay-analytics-head {
+    flex-direction: column;
+  }
 }
 </style>
 
