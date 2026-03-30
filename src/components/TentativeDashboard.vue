@@ -421,7 +421,6 @@ export default {
       menuHideTimeout: null,
       searchQuery: '',
       showSearchSuggestions: false,
-      searchSuggestions: [],
       searchStats: null,
       filteredTasks: [],
       searchDebounceTimeout: null,

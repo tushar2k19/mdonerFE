@@ -11,6 +11,7 @@ import ReviewDashboard from '../components/ReviewDashboard.vue'
 import TaskReviewHub from '../components/TaskReviewHub.vue'
 import UnderDevelopment from '../components/UnderDevelopment.vue'
 import DailyReviewSlideshow from '../components/DailyReviewSlideshow.vue'
+import ImportDashboardHtml from '../components/ImportDashboardHtml.vue'
 
 Vue.use(Router)
 
@@ -108,6 +109,12 @@ const router = new Router({
       name: 'TaskReviewHub',
       component: TaskReviewHub,
       props: route => ({ taskId: route.params.taskId }),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/import-dashboard-html',
+      name: 'ImportDashboardHtml',
+      component: ImportDashboardHtml,
       meta: { requiresAuth: true }
     }
     
