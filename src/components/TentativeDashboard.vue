@@ -1166,26 +1166,30 @@ export default {
         const scalingFactor = usableWidth / sumWidths;
         const scaledColumnWidths = columnWidths.map(w => w * scalingFactor);
         const headerOffsets = [0, 7.5, 17.5, -5, -27.5, -16.5, -7.5]; // mm, tweak as needed
+        // Single implementation for blue table header — must match on page 1 and continuation pages
+        const drawBlueTableHeaderRow = (yMm) => {
+          let xPos = marginX;
+          pdf.setFontSize(7.5);
+          pdf.setFont('Arial', 'bold');
+          for (let hi = 0; hi < headers.length; hi++) {
+            const cellWidth = scaledColumnWidths[hi];
+            pdf.setFillColor(59, 130, 246);
+            pdf.rect(xPos, yMm, cellWidth, 8, 'F');
+            xPos += cellWidth;
+          }
+          xPos = marginX;
+          for (let hi = 0; hi < headers.length; hi++) {
+            const cellWidth = scaledColumnWidths[hi];
+            const textX = xPos + cellWidth / 2 + (headerOffsets[hi] || 0);
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(headers[hi], textX + 3, yMm + 5.5, { align: 'center' });
+            xPos += cellWidth;
+          }
+          return yMm + 8;
+        };
+
         let xPosition = marginX;
-        pdf.setFontSize(7.5);
-        pdf.setFont('Arial', 'bold');
-        // First loop: draw all header rectangles
-        for (let i = 0; i < headers.length; i++) {
-          const cellWidth = scaledColumnWidths[i];
-          pdf.setFillColor(59, 130, 246);
-          pdf.rect(xPosition, position, cellWidth, 8, 'F');
-          xPosition += cellWidth;
-        }
-        // Second loop: draw all header texts (after rectangles)
-        xPosition = marginX;
-        for (let i = 0; i < headers.length; i++) {
-          const cellWidth = scaledColumnWidths[i];
-          const textX = xPosition + cellWidth / 2 + (headerOffsets[i] || 0);
-          pdf.setTextColor(0, 0, 0);
-          pdf.text(headers[i], textX + 3, position + 5.5, { align: 'center' });
-          xPosition += cellWidth;
-        }
-        position += 8;
+        position = drawBlueTableHeaderRow(position);
 
         // --- Process Rows ---
         const rows = document.querySelectorAll('.table-row');
@@ -1237,13 +1241,18 @@ export default {
             actionColumn.style.lineHeight = '1.3';
             actionColumn.style.verticalAlign = 'top';
             // Also apply to all nested elements
+            const inlineTags = ['SPAN', 'B', 'STRONG', 'I', 'EM', 'U', 'FONT', 'A', 'SUB', 'SUP'];
             actionColumn.querySelectorAll('*').forEach(el => {
               el.style.wordBreak = 'break-word';
               el.style.overflowWrap = 'break-word';
-              el.style.whiteSpace = 'pre-line';
+              
+              if (!inlineTags.includes(el.tagName.toUpperCase())) {
+                el.style.whiteSpace = 'pre-line';
+                el.style.maxWidth = '100%';
+              }
+              
               el.style.fontSize = '10px';
               el.style.lineHeight = '1.3';
-              el.style.maxWidth = '100%';
             });
           }
 
@@ -1276,6 +1285,134 @@ export default {
           // PRE-COMPUTE SAFE CUT BOUNDARIES
           const cloneRect = rowClone.getBoundingClientRect();
           const avoidCutIntervals = [];
+          const textFragments = []; // For searchable PDF layer
+
+          const collectTextFragments = () => {
+            const walker = document.createTreeWalker(rowClone, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while ((node = walker.nextNode())) {
+              let text = node.nodeValue.trim();
+              if (text.length === 0) continue;
+              
+              const parent = node.parentElement;
+              if (!parent) continue;
+              const style = window.getComputedStyle(parent);
+              if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+              if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
+
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              let rects = Array.from(range.getClientRects());
+
+              if (rects.length === 0) {
+                const pRect = parent.getBoundingClientRect();
+                if (pRect.height > 0 && pRect.width > 0) {
+                  rects = [pRect];
+                }
+              }
+              
+              if (rects.length === 0) continue;
+
+              // Clean text for jsPDF to avoid font/encoding errors (replace smart quotes and dashes)
+              text = text.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-');
+              text = text.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+
+              if (rects.length === 1) {
+                const rect = rects[0];
+                if (rect.height > 0) {
+                  textFragments.push({
+                    text: text,
+                    top: rect.top - cloneRect.top,
+                    bottom: rect.bottom - cloneRect.top,
+                    left: rect.left - cloneRect.left,
+                    width: rect.width,
+                    height: rect.height
+                  });
+                }
+              } else {
+                const lines = text.split(/\s*\n\s*/).filter(l => l.trim().length > 0);
+                if (lines.length === rects.length) {
+                  for (let j = 0; j < rects.length; j++) {
+                    const rect = rects[j];
+                    if (rect.height > 0) {
+                      textFragments.push({
+                        text: lines[j].trim(),
+                        top: rect.top - cloneRect.top,
+                        bottom: rect.bottom - cloneRect.top,
+                        left: rect.left - cloneRect.left,
+                        width: rect.width,
+                        height: rect.height
+                      });
+                    }
+                  }
+                } else {
+                  const charsPerRect = Math.ceil(text.length / rects.length);
+                  for (let j = 0; j < rects.length; j++) {
+                    const rect = rects[j];
+                    if (rect.height > 0) {
+                      const chunk = text.substring(j * charsPerRect, (j + 1) * charsPerRect).trim();
+                      if (chunk) {
+                        textFragments.push({
+                          text: chunk,
+                          top: rect.top - cloneRect.top,
+                          bottom: rect.bottom - cloneRect.top,
+                          left: rect.left - cloneRect.left,
+                          width: rect.width,
+                          height: rect.height
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          };
+          collectTextFragments();
+
+          // FIX HTML2CANVAS INLINE BACKGROUND OVERLAP BUG
+          // html2canvas draws massive overflowing rects for inline elements that span multiple lines.
+          // We convert their backgrounds into precise absolute block divs.
+          const bgDivs = [];
+          const cloneStyle = window.getComputedStyle(rowClone);
+          const borderTop = parseFloat(cloneStyle.borderTopWidth) || 0;
+          const borderLeft = parseFloat(cloneStyle.borderLeftWidth) || 0;
+
+          const allEls = rowClone.querySelectorAll('td:nth-child(4) *');
+          allEls.forEach(el => {
+            const style = window.getComputedStyle(el);
+            const bgColor = style.backgroundColor;
+            
+            if (style.display === 'inline' && bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const rects = Array.from(range.getClientRects());
+              
+              rects.forEach(rect => {
+                if (rect.height > 0 && rect.width > 0) {
+                  const bgDiv = document.createElement('div');
+                  bgDiv.style.position = 'absolute';
+                  // Calculate position relative to the padding box of rowClone
+                  bgDiv.style.left = `${rect.left - cloneRect.left - borderLeft}px`;
+                  bgDiv.style.top = `${rect.top - cloneRect.top - borderTop}px`;
+                  bgDiv.style.width = `${rect.width}px`;
+                  bgDiv.style.height = `${rect.height}px`;
+                  bgDiv.style.backgroundColor = bgColor;
+                  bgDiv.style.zIndex = '0';
+                  bgDiv.style.pointerEvents = 'none';
+                  bgDivs.push(bgDiv);
+                }
+              });
+              
+              // Remove buggy background and ensure text renders on top
+              el.style.setProperty('background-color', 'transparent', 'important');
+              el.style.position = 'relative';
+              el.style.zIndex = '1';
+            }
+          });
+
+          rowClone.style.position = 'relative';
+          rowClone.style.zIndex = '0'; // Establish stacking context
+          bgDivs.forEach(div => rowClone.appendChild(div));
 
           const addRects = (elements) => {
             elements.forEach(el => {
@@ -1381,6 +1518,37 @@ export default {
 
               pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth + 1, sliceImgHeight);
 
+              // INVISIBLE TEXT LAYER FOR SEARCH
+              const scaleX = canvas.width / cloneRect.width;
+              textFragments.forEach(frag => {
+                const fragTopCanvas = frag.top * scaleY;
+                const fragBottomCanvas = frag.bottom * scaleY;
+                // Check if fragment intersects this slice (with 1px epsilon)
+                if (fragBottomCanvas > renderedHeight + 1 && fragTopCanvas < renderedHeight + sliceHeightPx - 1) {
+                  // Calculate coordinates in mm (match addImage horizontal mapping)
+                  const xMm = marginX + (frag.left * scaleX / canvas.width) * (usableWidth + 1);
+                  const widthMm = Math.max(
+                    0.5,
+                    (frag.width * scaleX / canvas.width) * (usableWidth + 1)
+                  );
+                  // Line box height in canvas px -> pt (82/96 ~= CSS px to pt); scaled so
+                  // Ctrl+F selection boxes stay tighter than the old 0.75* heuristic (still searchable).
+                  const lineBoxCanvasPx = frag.height * scaleY;
+                  let fontSizePt = lineBoxCanvasPx * (82 / 96) * 0.92 * 1.1; // +10% vs prior invisible layer
+                  fontSizePt = Math.max(2.5, Math.min(7.15, fontSizePt));
+
+                  pdf.setFont('helvetica', 'normal');
+                  pdf.setFontSize(fontSizePt);
+                  const yMm = position + ((fragTopCanvas - renderedHeight) / sliceHeightPx) * sliceImgHeight;
+                  // maxWidth wraps invisible text inside the same column as the screenshot (no horizontal spill)
+                  pdf.text(String(frag.text), xMm, yMm, {
+                    renderingMode: 3,
+                    baseline: 'top',
+                    maxWidth: widthMm
+                  });
+                }
+              });
+
               renderedHeight += sliceHeightPx;
               position += sliceImgHeight;
 
@@ -1406,20 +1574,7 @@ export default {
                 pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
                 pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
                 position += 1;
-                pdf.setFontSize(7.5);
-                pdf.setFont('Arial', 'bold');
-                xPosition = marginX;
-                headers.forEach((header, index) => {
-                  const cellWidth = scaledColumnWidths[index];
-                  const textWidth = pdf.getTextWidth(header);
-                  pdf.setFillColor(59, 130, 246);
-                  pdf.rect(xPosition, position, cellWidth, 8, 'F');
-                  // Center header text in the cell, with optional offset
-                  const textX = xPosition + cellWidth / 2 + (headerOffsets[index] || 0);
-                  pdf.text(header, textX, position + 5.5, { align: 'center' });
-                  xPosition += cellWidth;
-                });
-                position += 10;
+                position = drawBlueTableHeaderRow(position);
               }
             }
             document.body.removeChild(tempDiv);
@@ -2584,8 +2739,7 @@ export default {
   display: block !important;
 }
 .pdf-capture-mode td:nth-child(4) *:not(table):not(p):not(div) {
-  transform-origin: top left !important;
-  display: inline-block !important;
+  /* Removed display: inline-block !important; as it breaks inline span wrapping with background colors */
 }
 
  /* Compact Government Style Table Headers */
@@ -3429,8 +3583,27 @@ td.action-content-cell .action-node.level-4 {
 .pdf-capture-mode td * {
   word-break: break-word !important;
   overflow-wrap: break-word !important;
+}
+
+.pdf-capture-mode td div,
+.pdf-capture-mode td p,
+.pdf-capture-mode td table {
   white-space: pre-line !important;
   max-width: 100% !important;
+}
+
+.pdf-capture-mode td span,
+.pdf-capture-mode td b,
+.pdf-capture-mode td strong,
+.pdf-capture-mode td i,
+.pdf-capture-mode td em,
+.pdf-capture-mode td u,
+.pdf-capture-mode td font,
+.pdf-capture-mode td a {
+  white-space: normal !important;
+  max-width: none !important;
+  -webkit-box-decoration-break: clone !important;
+  box-decoration-break: clone !important;
 }
 .pdf-capture-mode ul, .pdf-capture-mode ol {
   padding-left: 18px !important;

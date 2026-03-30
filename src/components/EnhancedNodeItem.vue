@@ -257,6 +257,17 @@
                 <span v-if="!node.reviewer_id">👤 Assign Reviewer</span>
                 <span v-else>👤 Change Reviewer</span>
               </button>
+              <div class="action-divider"></div>
+              <button
+                type="button"
+                class="action-item action-item-show-delays"
+                :class="{ 'action-item--has-delays': delaysHighlightMenuItem }"
+                :disabled="!isPersistedActionNode || delaysMenuFetchLoading"
+                @click="openDelaysModal"
+              >
+                🕐 Show Delays
+                <span v-if="delaysMenuFetchLoading" class="delays-inline-loading"> …</span>
+              </button>
             </div>
           </div>
           <button
@@ -369,12 +380,136 @@
         </div>
       </div>
     </div>
+
+    <!-- Review date extension (optional delay reason) — editors only when postponing -->
+    <!-- Recorded review-date delays (saved reasons / explanations) -->
+    <div
+      v-if="showDelaysModal"
+      class="reviewer-modal-overlay"
+      @click.self="closeDelaysModal"
+    >
+      <div class="reviewer-modal delays-modal" @click.stop>
+        <div class="delays-modal-header">
+          <h4>Recorded delays — point {{ node.display_counter || node.id }}</h4>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm delays-refresh-btn"
+            :disabled="delaysModalFetchLoading"
+            @click="refreshDelaysInModal"
+          >
+            Refresh
+          </button>
+        </div>
+        <p class="extension-modal-hint delays-modal-sub">
+          Rows below are saved only when an editor postponed the review date and chose a reason (or added remarks). Skipped popups do not appear here.
+        </p>
+        <div v-if="delaysModalFetchLoading" class="delays-modal-loading">Loading…</div>
+        <div v-else-if="!delayEvents.length" class="delays-modal-empty">
+          No delay records stored for this action point yet.
+        </div>
+        <div v-else class="delays-table-wrap">
+          <table class="delays-table">
+            <thead>
+              <tr>
+                <th>Previous date</th>
+                <th>New date</th>
+                <th>Reason</th>
+                <th>Remarks</th>
+                <th>Recorded</th>
+                <th>By</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="ev in delayEvents" :key="ev.id">
+                <td>{{ formatDelayDate(ev.previous_review_date) }}</td>
+                <td>{{ formatDelayDate(ev.new_review_date) }}</td>
+                <td>{{ formatDelayReason(ev.reason) }}</td>
+                <td class="delays-remarks">{{ ev.explanation || '—' }}</td>
+                <td>{{ formatDelayRecordedAt(ev.recorded_at) }}</td>
+                <td>{{ (ev.recorded_by && ev.recorded_by.full_name) || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="delays-count-footer">{{ delayEvents.length }} record(s)</p>
+        </div>
+        <div class="reviewer-modal-actions">
+          <button type="button" class="btn btn-primary" @click="closeDelaysModal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showReviewDateExtensionModal"
+      class="reviewer-modal-overlay"
+      @click.self="cancelReviewDateExtensionModal"
+    >
+      <div class="reviewer-modal review-date-extension-modal" @click.stop>
+        <h4>Review date extended</h4>
+        <p class="extension-modal-hint">
+          Optional: record why this review was postponed for analytics. You can skip if the change is not a delay.
+        </p>
+        <div class="extension-reason-tags">
+          <button
+            v-for="opt in reviewExtensionReasonOptions"
+            :key="opt.value"
+            type="button"
+            class="extension-tag-btn"
+            :class="{ active: extensionReason === opt.value }"
+            @click="extensionReason = opt.value"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+        <div class="form-group extension-remarks">
+          <label for="extension-remarks">Add remarks (optional)</label>
+          <input
+            id="extension-remarks"
+            v-model="extensionExplanation"
+            type="text"
+            class="form-input"
+            maxlength="2000"
+            placeholder="Short explanation for the delay…"
+            autocomplete="off"
+          >
+        </div>
+        <div class="reviewer-modal-actions extension-modal-actions">
+          <button type="button" class="btn btn-secondary" :disabled="savingReviewDate" @click="cancelReviewDateExtensionModal">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-secondary" :disabled="savingReviewDate" @click="skipReviewDateExtensionReason">
+            Skip
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="savingReviewDate || !extensionReason"
+            @click="confirmReviewDateExtensionReason"
+          >
+            Save with reason
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { getReviewDateHighlightClasses, getReviewDateHighlightClassesIfSet } from '../utils/reviewDateHighlight'
 import { hasReviewerMetadata, reviewerIdKey, sanitizeReviewerName } from '../utils/reviewerDiffHint'
+
+const REVIEW_EXTENSION_REASON_OPTIONS = [
+  { value: 'operational', label: 'Operational reasons' },
+  { value: 'financial', label: 'Financial reasons' },
+  { value: 'weather', label: 'Weather reasons' },
+  { value: 'misc', label: 'Misc reasons' },
+  { value: 'technical', label: 'Technical reasons' },
+  { value: 'other', label: 'Other reasons' }
+]
+
+const REVIEW_EXTENSION_REASON_LABEL_MAP = REVIEW_EXTENSION_REASON_OPTIONS.reduce((acc, o) => {
+  acc[o.value] = o.label
+  return acc
+}, {})
 
 export default {
   name: 'EnhancedNodeItem',
@@ -475,7 +610,17 @@ export default {
       reviewers: [],
       selectedReviewerId: '',
       loadingReviewers: false,
-      showReviewerHover: false
+      showReviewDateExtensionModal: false,
+      pendingNewReviewDate: null,
+      extensionReason: '',
+      extensionExplanation: '',
+      savingReviewDate: false,
+      reviewExtensionReasonOptions: REVIEW_EXTENSION_REASON_OPTIONS,
+      showReviewerHover: false,
+      showDelaysModal: false,
+      delaysMenuFetchLoading: false,
+      delaysModalFetchLoading: false,
+      delayEvents: []
     }
   },
 
@@ -540,6 +685,14 @@ export default {
       const id = reviewerIdKey(this.node)
       if (id != null) return `Reviewer #${id}`
       return ''
+    },
+    isPersistedActionNode () {
+      const id = Number(this.node.id)
+      return id > 0 && this.taskVersionId != null && this.taskVersionId !== ''
+    },
+    /** Highlight “Show Delays” after we know this node has saved extension events. */
+    delaysHighlightMenuItem () {
+      return this.delayEvents.length > 0
     }
   },
 
@@ -582,6 +735,12 @@ export default {
         })
       },
       deep: true
+    },
+    'node.id' () {
+      this.delayEvents = []
+      this.delaysMenuFetchLoading = false
+      this.delaysModalFetchLoading = false
+      this.showDelaysModal = false
     }
   },
 
@@ -688,11 +847,116 @@ export default {
       this.startDateEdit()
     },
 
-    saveDate () {
-      if (this.editDate !== this.originalDate) {
-        this.$emit('update-node', this.node.id, { review_date: this.editDate })
+    toReviewDateKey (value) {
+      if (value === null || value === undefined || value === '') return null
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return null
+      return d.toISOString().slice(0, 10)
+    },
+
+    isPostponingReviewDate (oldVal, newVal) {
+      const next = this.toReviewDateKey(newVal)
+      const prev = this.toReviewDateKey(oldVal)
+      if (!next || !prev) return false
+      return next > prev
+    },
+
+    async saveDate () {
+      if (this.editDate === this.originalDate) {
+        this.isEditingDate = false
+        return
       }
-      this.isEditingDate = false
+      if (!this.canEditThisNode()) {
+        this.isEditingDate = false
+        return
+      }
+
+      const nodeId = Number(this.node.id)
+      if (nodeId < 0 || this.taskVersionId === null || this.taskVersionId === undefined || this.taskVersionId === '') {
+        this.$emit('update-node', this.node.id, { review_date: this.editDate })
+        this.isEditingDate = false
+        return
+      }
+
+      if (this.isPostponingReviewDate(this.originalDate, this.editDate)) {
+        this.pendingNewReviewDate = this.editDate
+        this.extensionReason = ''
+        this.extensionExplanation = ''
+        this.showReviewDateExtensionModal = true
+        this.isEditingDate = false
+        return
+      }
+
+      await this.persistReviewDateToServer(null)
+    },
+
+    cancelReviewDateExtensionModal () {
+      this.showReviewDateExtensionModal = false
+      this.pendingNewReviewDate = null
+      this.extensionReason = ''
+      this.extensionExplanation = ''
+      this.editDate = this.originalDate
+    },
+
+    async skipReviewDateExtensionReason () {
+      await this.persistReviewDateToServer(null)
+    },
+
+    async confirmReviewDateExtensionReason () {
+      if (!this.extensionReason) {
+        this.$toast && this.$toast.info('Select a reason or use Skip')
+        return
+      }
+      await this.persistReviewDateToServer({
+        reason: this.extensionReason,
+        explanation: (this.extensionExplanation || '').trim()
+      })
+    },
+
+    async persistReviewDateToServer (reviewDateExtension) {
+      const newDate = this.pendingNewReviewDate != null ? this.pendingNewReviewDate : this.editDate
+      this.savingReviewDate = true
+      try {
+        const body = {
+          action_node: { review_date: newDate }
+        }
+        if (reviewDateExtension && reviewDateExtension.reason) {
+          body.review_date_extension = {
+            reason: reviewDateExtension.reason,
+            explanation: reviewDateExtension.explanation || ''
+          }
+        }
+        const response = await this.$http.secured.put(
+          `/task_versions/${this.taskVersionId}/nodes/${this.node.id}`,
+          body
+        )
+        const updated = response.data && response.data.data
+        if (updated) {
+          this.$emit('update-node', this.node.id, {
+            review_date: updated.review_date
+          })
+        } else {
+          this.$emit('update-node', this.node.id, { review_date: newDate })
+        }
+        this.showReviewDateExtensionModal = false
+        this.pendingNewReviewDate = null
+        this.extensionReason = ''
+        this.extensionExplanation = ''
+        this.originalDate = newDate
+        this.editDate = newDate
+        this.$toast && this.$toast.success('Review date saved')
+        this.isEditingDate = false
+        if (reviewDateExtension && reviewDateExtension.reason) {
+          await this.fetchDelayEvents({ forModal: this.showDelaysModal })
+        }
+      } catch (error) {
+        console.error('save review_date failed', error)
+        let msg = (error.response && error.response.data && (error.response.data.errors || error.response.data.error)) || error.message
+        if (Array.isArray(msg)) msg = msg.join(', ')
+        this.$toast && this.$toast.error(typeof msg === 'string' ? msg : 'Failed to save review date')
+      } finally {
+        this.savingReviewDate = false
+      }
     },
 
     cancelDateEdit () {
@@ -707,7 +971,66 @@ export default {
 
     toggleActionDropdown () {
       if (!this.canEditThisNode()) return
-      this.showActionDropdown = !this.showActionDropdown
+      const opening = !this.showActionDropdown
+      this.showActionDropdown = opening
+      if (opening && this.isPersistedActionNode) {
+        this.fetchDelayEvents({ forModal: false })
+      }
+    },
+
+    async fetchDelayEvents ({ forModal = false } = {}) {
+      if (!this.isPersistedActionNode) return
+      if (forModal) this.delaysModalFetchLoading = true
+      else this.delaysMenuFetchLoading = true
+      try {
+        const url = `/task_versions/${this.taskVersionId}/nodes/${this.node.id}/review_date_extension_events`
+        const { data } = await this.$http.secured.get(url)
+        if (data && data.success) {
+          this.delayEvents = Array.isArray(data.events) ? data.events : []
+        } else {
+          this.delayEvents = []
+        }
+      } catch (e) {
+        console.error('fetchDelayEvents failed', e)
+        this.$toast && this.$toast.error('Could not load delay records')
+        if (forModal) this.delayEvents = []
+        /* Menu fetch failure: keep prior delayEvents so highlight stays stable. */
+      } finally {
+        this.delaysMenuFetchLoading = false
+        this.delaysModalFetchLoading = false
+      }
+    },
+
+    refreshDelaysInModal () {
+      this.fetchDelayEvents({ forModal: true })
+    },
+
+    openDelaysModal () {
+      if (!this.isPersistedActionNode) return
+      this.showActionDropdown = false
+      this.showDelaysModal = true
+      this.fetchDelayEvents({ forModal: true })
+    },
+
+    closeDelaysModal () {
+      this.showDelaysModal = false
+    },
+
+    formatDelayDate (iso) {
+      if (!iso) return '—'
+      const d = new Date(iso)
+      return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString()
+    },
+
+    formatDelayRecordedAt (iso) {
+      if (!iso) return '—'
+      const d = new Date(iso)
+      return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString()
+    },
+
+    formatDelayReason (code) {
+      if (!code) return '—'
+      return REVIEW_EXTENSION_REASON_LABEL_MAP[code] || code
     },
 
     emitOpenCommentForNode () {
@@ -1889,6 +2212,87 @@ export default {
   margin: 0.25rem 0;
 }
 
+.action-item-show-delays.action-item--has-delays {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.35), transparent);
+  font-weight: 600;
+  border-left: 3px solid #f59e0b;
+  padding-left: calc(0.75rem - 3px);
+}
+
+.action-item-show-delays.action-item--has-delays:hover {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.5), #f3f4f6);
+}
+
+.delays-inline-loading {
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+
+.delays-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.delays-modal-header h4 {
+  margin: 0;
+  flex: 1;
+}
+
+.delays-modal-sub {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.delays-modal-loading,
+.delays-modal-empty {
+  padding: 1rem 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.delays-table-wrap {
+  max-height: 50vh;
+  overflow: auto;
+  margin-bottom: 0.75rem;
+}
+
+.delays-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.delays-table th,
+.delays-table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.delays-table th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+.delays-remarks {
+  max-width: 14rem;
+  word-break: break-word;
+}
+
+.delays-count-footer {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.delays-refresh-btn {
+  flex-shrink: 0;
+}
+
 /* Children Styles */
 .node-children {
   margin-top: 0.5rem;
@@ -2352,6 +2756,52 @@ export default {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
+}
+.review-date-extension-modal {
+  max-width: 520px;
+}
+.extension-modal-hint {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin: 0 0 1rem 0;
+  line-height: 1.45;
+}
+.extension-reason-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.extension-tag-btn {
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #374151;
+}
+.extension-tag-btn:hover {
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+.extension-tag-btn.active {
+  background: #1e40af;
+  color: #fff;
+  border-color: #1e40af;
+}
+.extension-remarks {
+  margin-bottom: 1rem;
+}
+.extension-remarks label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+.extension-modal-actions {
+  flex-wrap: wrap;
 }
 .btn-danger {
   background: #ef4444;

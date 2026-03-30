@@ -519,6 +519,57 @@ export default {
       });
     },
 
+    /**
+     * Re-position reviewer badges on a cloned row for PDF capture.
+     * Uses the clone's layout so badge positions are correct when html2canvas runs.
+     */
+    positionReviewerBadgesForClone(rowClone) {
+      const actionCell = rowClone.querySelector('.action-content-cell');
+      const responsibilityCell = rowClone.querySelector('.responsibility-cell');
+      if (!actionCell || !responsibilityCell) return;
+
+      const existingBadges = responsibilityCell.querySelectorAll('.reviewer-badge-parallel');
+      existingBadges.forEach(badge => badge.remove());
+
+      responsibilityCell.style.position = 'relative';
+      responsibilityCell.style.overflow = 'visible';
+
+      const rdAttr = (rowClone.getAttribute('data-review-date') || '').trim();
+      const highlightClasses = this.getHighlightClass(rdAttr || null);
+
+      const actionNodes = actionCell.querySelectorAll('.action-node');
+      actionNodes.forEach(node => {
+        if (node.classList.contains('has-reviewer')) {
+          const reviewerName = node.dataset.reviewerName;
+          if (!reviewerName) return;
+
+          const badge = document.createElement('div');
+          badge.className = 'reviewer-badge-parallel ' + highlightClasses.join(' ');
+          badge.textContent = reviewerName;
+          Object.assign(badge.style, {
+            display: 'inline-block',
+            margin: '2px 0',
+            opacity: '1',
+            zIndex: '10',
+            position: 'absolute',
+            left: '6px',
+            width: 'calc(100% - 12px)',
+            textAlign: 'left',
+            boxSizing: 'border-box'
+          });
+
+          const nodeRect = node.getBoundingClientRect();
+          const cellRect = responsibilityCell.getBoundingClientRect();
+          let topOffset = nodeRect.top - cellRect.top;
+          const cellHeight = cellRect.height;
+          if (topOffset < 0) topOffset = 0;
+          if (topOffset > cellHeight - 16) topOffset = Math.max(0, cellHeight - 16);
+          badge.style.top = `${topOffset}px`;
+          responsibilityCell.appendChild(badge);
+        }
+      });
+    },
+
     // Add positionReviewerBadges method
     positionReviewerBadges(taskId) {
       const taskRow = document.querySelector(`[data-task-id="${taskId}"]`);
@@ -856,112 +907,460 @@ export default {
       try {
         await this.$nextTick()
         
-        const element = document.querySelector('.dashboard-container')
-        if (!element) {
-          throw new Error('Dashboard container not found')
-        }
-        
-        // Clone the element for PDF generation
-        const clonedElement = element.cloneNode(true)
-        clonedElement.style.width = '1200px'
-        clonedElement.style.backgroundColor = 'white'
-        clonedElement.style.padding = '20px'
-        
-        // Hide action buttons and modify for PDF
-        const actionElements = clonedElement.querySelectorAll('.dashboard-actions')
-        actionElements.forEach(el => {
-          el.style.display = 'none'
-        })
-        
-        // Process PDF content
-        const iframe = document.createElement('iframe')
-        iframe.style.position = 'absolute'
-        iframe.style.left = '-9999px'
-        iframe.style.width = '1200px'
-        iframe.style.height = '800px'
-        document.body.appendChild(iframe)
-        
-        const doc = iframe.contentDocument
-        doc.open()
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Final Dashboard</title>
-            <style>
-              body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-              .dashboard-container { max-width: 1200px; margin: 0 auto; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 11px; vertical-align: middle !important; }
-              th { background-color: #f5f5f5; font-weight: bold; }
-              .table-headers th { background-color: #4a90e2; color: white; }
-              .status-approved { background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; }
-              .action-content-cell { max-width: 300px; word-wrap: break-word; }
-              .list-marker { font-weight: bold; margin-right: 5px; }
-              .yellow-bg-bold { background: #ffeb3b !important; font-weight: bold !important; border-radius: 4px; padding: 2px 6px; display: inline-block; vertical-align: middle; }
-            </style>
-          </head>
-          <body class="pdf-capture-mode">
-            <h1 style="text-align: center; color: #333; margin-bottom: 30px;">Final Dashboard - Approved Tasks</h1>
-            <p style="text-align: center; color: #666; margin-bottom: 30px;">Generated on ${new Date().toLocaleDateString()}</p>
-            ${clonedElement.outerHTML}
-          </body>
-          </html>
-        `)
-        doc.close()
-        
-        setTimeout(async () => {
-          try {
-            const canvas = await html2canvas(doc.body, {
-              width: 1200,
-              height: doc.body.scrollHeight,
-              scale: 2,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: '#ffffff'
-            })
-            
-            const pdf = new jsPDF('p', 'mm', 'a4')
-            const pageWidth = pdf.internal.pageSize.getWidth()
-            const pageHeight = pdf.internal.pageSize.getHeight()
-            const marginX = 10
-            const usableWidth = pageWidth - (marginX * 2)
-            
-            let position = 20
-            let renderedHeight = 0
-            
-            while (renderedHeight < canvas.height) {
-              const sliceHeightPx = Math.min(canvas.height - renderedHeight, (pageHeight - 40) * canvas.width / usableWidth)
+        const orientation = 'l';
+        const pdf = new jsPDF(orientation, 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const marginX = 5;
+        const marginY = 10;
+        const usableWidth = pageWidth - marginX * 2;
+        let position = marginY;
+
+        pdf.setFontSize(12);
+        pdf.setFont('Arial', 'bold');
+
+        const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+        const headerWidth = pdf.getTextWidth(headerText);
+        pdf.setFillColor(255, 255, 0);
+        pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
+        pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+
+        // Date header
+        const today = new Date();
+        const options = { timeZone: 'Asia/Kolkata' };
+        const formattedDate = today.toLocaleDateString('en-IN', options)
+          .replace(/\//g, '.')
+          .replace(/\b(\d)\b/g, '0$1');
+        pdf.setFillColor(255, 255, 0);
+        pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
+        pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+
+        position += 1;
+
+        // --- Custom Table Headers ---
+        // Use precise manual placement for each header
+        const columnWidths = [4, 9, 9, 135, 8, 9, 8]; // in mm
+        const headers = [
+          'S No.',
+          'Sector/Division',
+          'Description',
+          'Action to be Taken',
+          'Original Date',
+          'Responsibility',
+          'Review Date'
+        ];
+        const sumWidths = columnWidths.reduce((a, b) => a + b, 0);
+        const scalingFactor = usableWidth / sumWidths;
+        const scaledColumnWidths = columnWidths.map(w => w * scalingFactor);
+        const headerOffsets = [0, 7.5, 17.5, -5, -27.5, -16.5, -7.5]; // mm, tweak as needed
+        // Single implementation for blue table header — must match on page 1 and continuation pages
+        const drawBlueTableHeaderRow = (yMm) => {
+          let xPos = marginX;
+          pdf.setFontSize(7.5);
+          pdf.setFont('Arial', 'bold');
+          for (let hi = 0; hi < headers.length; hi++) {
+            const cellWidth = scaledColumnWidths[hi];
+            pdf.setFillColor(59, 130, 246);
+            pdf.rect(xPos, yMm, cellWidth, 8, 'F');
+            xPos += cellWidth;
+          }
+          xPos = marginX;
+          for (let hi = 0; hi < headers.length; hi++) {
+            const cellWidth = scaledColumnWidths[hi];
+            const textX = xPos + cellWidth / 2 + (headerOffsets[hi] || 0);
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(headers[hi], textX + 3, yMm + 5.5, { align: 'center' });
+            xPos += cellWidth;
+          }
+          return yMm + 8;
+        };
+
+        let xPosition = marginX;
+        position = drawBlueTableHeaderRow(position);
+
+        // --- Process Rows ---
+        const rows = document.querySelectorAll('.table-row');
+        if (!rows.length) return;
+
+        for (let i = 0; i < rows.length; i++) {
+          const rowClone = rows[i].cloneNode(true);
+          
+          const tableInRow = rowClone.querySelector('table');
+
+          // Set fixed widths and enforce wrapping for all cells
+          const tds = tableInRow.querySelectorAll('tr > td:not(table table td)');
+          tds.forEach((td, index) => {
+            td.style.width = `${scaledColumnWidths[index]}mm`;
+            td.style.maxWidth = `${scaledColumnWidths[index]}mm`;
+            td.style.minWidth = `${scaledColumnWidths[index]}mm`;
+            td.style.boxSizing = 'border-box';
+            td.style.wordBreak = 'break-word';
+            td.style.overflowWrap = 'break-word';
+            td.style.whiteSpace = 'pre-line';
+            td.style.verticalAlign = 'middle';
+            td.style.fontSize = '10px';
+            td.style.lineHeight = '1.3';
+            td.style.padding = '2px 4px';
+          });
+
+          // Action column (index 3)
+          const actionColumn = tableInRow.querySelector('td:nth-child(4)');
+          if (actionColumn) {
+            actionColumn.style.width = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.maxWidth = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.minWidth = `${scaledColumnWidths[3]}mm`;
+            actionColumn.style.wordBreak = 'break-word';
+            actionColumn.style.overflowWrap = 'break-word';
+            actionColumn.style.whiteSpace = 'pre-line';
+            actionColumn.style.fontSize = '10px';
+            actionColumn.style.lineHeight = '1.3';
+            actionColumn.style.verticalAlign = 'top';
+            // Also apply to all nested elements
+            const inlineTags = ['SPAN', 'B', 'STRONG', 'I', 'EM', 'U', 'FONT', 'A', 'SUB', 'SUP'];
+            actionColumn.querySelectorAll('*').forEach(el => {
+              el.style.wordBreak = 'break-word';
+              el.style.overflowWrap = 'break-word';
               
-              const sliceCanvas = document.createElement('canvas')
-              sliceCanvas.width = canvas.width
-              sliceCanvas.height = sliceHeightPx
-              const sliceCtx = sliceCanvas.getContext('2d')
-              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx)
+              if (!inlineTags.includes(el.tagName.toUpperCase())) {
+                el.style.whiteSpace = 'pre-line';
+                el.style.maxWidth = '100%';
+              }
               
-              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0)
-              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width
+              el.style.fontSize = '10px';
+              el.style.lineHeight = '1.3';
+            });
+          }
+
+          // Add .pdf-capture-mode for PDF-specific styles
+          rowClone.classList.add('pdf-capture-mode');
+          tableInRow.style.tableLayout = 'fixed';
+          tableInRow.style.width = `${usableWidth}mm`;
+          tableInRow.style.maxWidth = `${usableWidth}mm`;
+          tableInRow.style.borderCollapse = 'collapse';
+
+          // Temporary container
+          const tempDiv = document.createElement('div');
+          tempDiv.style.position = 'absolute';
+          tempDiv.style.left = '-9999px';
+          tempDiv.style.background = '#fff';
+          tempDiv.style.width = `${usableWidth}mm`;
+          rowClone.style.width = `${usableWidth}mm`;
+          tempDiv.appendChild(rowClone);
+          document.body.appendChild(tempDiv);
+
+          // Wait for clone layout, then re-position reviewer badges so they appear correctly in PDF
+          await new Promise(resolve => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          });
+          this.positionReviewerBadgesForClone(rowClone);
+          await new Promise(resolve => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          });
+
+          // PRE-COMPUTE SAFE CUT BOUNDARIES
+          const cloneRect = rowClone.getBoundingClientRect();
+          const avoidCutIntervals = [];
+          const textFragments = []; // For searchable PDF layer
+
+          const collectTextFragments = () => {
+            const walker = document.createTreeWalker(rowClone, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while ((node = walker.nextNode())) {
+              let text = node.nodeValue.trim();
+              if (text.length === 0) continue;
               
-              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth + 1, sliceImgHeight)
+              const parent = node.parentElement;
+              if (!parent) continue;
+              const style = window.getComputedStyle(parent);
+              if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+              if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) continue;
+
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              let rects = Array.from(range.getClientRects());
+
+              if (rects.length === 0) {
+                const pRect = parent.getBoundingClientRect();
+                if (pRect.height > 0 && pRect.width > 0) {
+                  rects = [pRect];
+                }
+              }
               
-              renderedHeight += sliceHeightPx
-              
-              if (renderedHeight < canvas.height) {
-                pdf.addPage()
-                position = 20
+              if (rects.length === 0) continue;
+
+              // Clean text for jsPDF to avoid font/encoding errors (replace smart quotes and dashes)
+              text = text.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-');
+              text = text.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+
+              if (rects.length === 1) {
+                const rect = rects[0];
+                if (rect.height > 0) {
+                  textFragments.push({
+                    text: text,
+                    top: rect.top - cloneRect.top,
+                    bottom: rect.bottom - cloneRect.top,
+                    left: rect.left - cloneRect.left,
+                    width: rect.width,
+                    height: rect.height
+                  });
+                }
+              } else {
+                const lines = text.split(/\s*\n\s*/).filter(l => l.trim().length > 0);
+                if (lines.length === rects.length) {
+                  for (let j = 0; j < rects.length; j++) {
+                    const rect = rects[j];
+                    if (rect.height > 0) {
+                      textFragments.push({
+                        text: lines[j].trim(),
+                        top: rect.top - cloneRect.top,
+                        bottom: rect.bottom - cloneRect.top,
+                        left: rect.left - cloneRect.left,
+                        width: rect.width,
+                        height: rect.height
+                      });
+                    }
+                  }
+                } else {
+                  const charsPerRect = Math.ceil(text.length / rects.length);
+                  for (let j = 0; j < rects.length; j++) {
+                    const rect = rects[j];
+                    if (rect.height > 0) {
+                      const chunk = text.substring(j * charsPerRect, (j + 1) * charsPerRect).trim();
+                      if (chunk) {
+                        textFragments.push({
+                          text: chunk,
+                          top: rect.top - cloneRect.top,
+                          bottom: rect.bottom - cloneRect.top,
+                          left: rect.left - cloneRect.left,
+                          width: rect.width,
+                          height: rect.height
+                        });
+                      }
+                    }
+                  }
+                }
               }
             }
+          };
+          collectTextFragments();
+
+          // FIX HTML2CANVAS INLINE BACKGROUND OVERLAP BUG
+          // html2canvas draws massive overflowing rects for inline elements that span multiple lines.
+          // We convert their backgrounds into precise absolute block divs.
+          const bgDivs = [];
+          const cloneStyle = window.getComputedStyle(rowClone);
+          const borderTop = parseFloat(cloneStyle.borderTopWidth) || 0;
+          const borderLeft = parseFloat(cloneStyle.borderLeftWidth) || 0;
+
+          const allEls = rowClone.querySelectorAll('td:nth-child(4) *');
+          allEls.forEach(el => {
+            const style = window.getComputedStyle(el);
+            const bgColor = style.backgroundColor;
             
-            pdf.save('final-dashboard.pdf')
-            document.body.removeChild(iframe)
-          } catch (error) {
-            console.error('PDF generation failed:', error)
-            document.body.removeChild(iframe)
+            if (style.display === 'inline' && bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const rects = Array.from(range.getClientRects());
+              
+              rects.forEach(rect => {
+                if (rect.height > 0 && rect.width > 0) {
+                  const bgDiv = document.createElement('div');
+                  bgDiv.style.position = 'absolute';
+                  // Calculate position relative to the padding box of rowClone
+                  bgDiv.style.left = `${rect.left - cloneRect.left - borderLeft}px`;
+                  bgDiv.style.top = `${rect.top - cloneRect.top - borderTop}px`;
+                  bgDiv.style.width = `${rect.width}px`;
+                  bgDiv.style.height = `${rect.height}px`;
+                  bgDiv.style.backgroundColor = bgColor;
+                  bgDiv.style.zIndex = '0';
+                  bgDiv.style.pointerEvents = 'none';
+                  bgDivs.push(bgDiv);
+                }
+              });
+              
+              // Remove buggy background and ensure text renders on top
+              el.style.setProperty('background-color', 'transparent', 'important');
+              el.style.position = 'relative';
+              el.style.zIndex = '1';
+            }
+          });
+
+          rowClone.style.position = 'relative';
+          rowClone.style.zIndex = '0'; // Establish stacking context
+          bgDivs.forEach(div => rowClone.appendChild(div));
+
+          const addRects = (elements) => {
+            elements.forEach(el => {
+              const rect = el.getBoundingClientRect();
+              if (rect.height > 0) {
+                avoidCutIntervals.push({
+                  top: rect.top - cloneRect.top,
+                  bottom: rect.bottom - cloneRect.top
+                });
+              }
+            });
+          };
+
+          // Protect nested table rows, images, and reviewer badges
+          addRects(rowClone.querySelectorAll('td:nth-child(4) table tr'));
+          addRects(rowClone.querySelectorAll('td:nth-child(4) img'));
+          addRects(rowClone.querySelectorAll('.reviewer-badge-parallel'));
+
+          // Protect individual text lines in the Action column
+          const actionTd = rowClone.querySelector('td:nth-child(4)');
+          if (actionTd) {
+            const walker = document.createTreeWalker(actionTd, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while ((node = walker.nextNode())) {
+              if (node.nodeValue.trim().length > 0) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                const rects = range.getClientRects();
+                for (let j = 0; j < rects.length; j++) {
+                  if (rects[j].height > 0) {
+                    avoidCutIntervals.push({
+                      top: rects[j].top - cloneRect.top,
+                      bottom: rects[j].bottom - cloneRect.top
+                    });
+                  }
+                }
+              }
+            }
           }
-        }, 1000)
-        
+
+          // Sort top-to-bottom for the retraction algorithm
+          avoidCutIntervals.sort((a, b) => a.top - b.top);
+
+          try {
+            const canvas = await html2canvas(rowClone, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: null,
+              width: usableWidth * 3.78, // px per mm
+              logging: true,
+              allowTaint: true,
+              letterRendering: true,
+              fontFamilyCSS: '*',
+              onclone: (clonedDoc) => {
+                clonedDoc.body.style.overflow = 'visible';
+                clonedDoc.body.style.position = 'static';
+              }
+            });
+
+            // Page management with layout-aware snapping
+            let renderedHeight = 0;
+            const scaleY = canvas.height / cloneRect.height;
+            const maxAllowedGap = (((pageHeight - 10) * canvas.width) / usableWidth) * 0.3;
+
+            while (renderedHeight < canvas.height) {
+              let sliceHeightPx = Math.min(
+                ((pageHeight - position - 10) * canvas.width) / usableWidth,
+                canvas.height - renderedHeight
+              );
+
+              let targetCutY = renderedHeight + sliceHeightPx;
+
+              if (targetCutY < canvas.height) {
+                let bestCutY = targetCutY;
+                for (let k = 0; k < avoidCutIntervals.length; k++) {
+                  const interval = avoidCutIntervals[k];
+                  const topCanvas = interval.top * scaleY;
+                  const bottomCanvas = interval.bottom * scaleY;
+
+                  if (targetCutY > topCanvas + 1 && targetCutY < bottomCanvas - 1) {
+                    const gapCreated = targetCutY - topCanvas;
+                    if (gapCreated <= maxAllowedGap && topCanvas > renderedHeight + 2) {
+                      bestCutY = topCanvas;
+                      break; 
+                    }
+                  }
+                }
+                
+                if (bestCutY !== targetCutY) {
+                  targetCutY = bestCutY;
+                  sliceHeightPx = targetCutY - renderedHeight;
+                }
+              }
+
+              const sliceCanvas = document.createElement('canvas');
+              sliceCanvas.width = canvas.width;
+              sliceCanvas.height = sliceHeightPx;
+              const sliceCtx = sliceCanvas.getContext('2d');
+              sliceCtx.drawImage(canvas, 0, renderedHeight, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+              const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 1.0);
+              const sliceImgHeight = (sliceHeightPx * usableWidth) / canvas.width;
+
+              pdf.addImage(sliceImgData, 'JPEG', marginX, position, usableWidth + 1, sliceImgHeight);
+
+              // INVISIBLE TEXT LAYER FOR SEARCH
+              const scaleX = canvas.width / cloneRect.width;
+              textFragments.forEach(frag => {
+                const fragTopCanvas = frag.top * scaleY;
+                const fragBottomCanvas = frag.bottom * scaleY;
+                // Check if fragment intersects this slice (with 1px epsilon)
+                if (fragBottomCanvas > renderedHeight + 1 && fragTopCanvas < renderedHeight + sliceHeightPx - 1) {
+                  // Calculate coordinates in mm (match addImage horizontal mapping)
+                  const xMm = marginX + (frag.left * scaleX / canvas.width) * (usableWidth + 1);
+                  const widthMm = Math.max(
+                    0.5,
+                    (frag.width * scaleX / canvas.width) * (usableWidth + 1)
+                  );
+                  // Line box height in canvas px -> pt (82/96 ~= CSS px to pt); scaled so
+                  // Ctrl+F selection boxes stay tighter than the old 0.75* heuristic (still searchable).
+                  const lineBoxCanvasPx = frag.height * scaleY;
+                  let fontSizePt = lineBoxCanvasPx * (82 / 96) * 0.92 * 1.1; // +10% vs prior invisible layer
+                  fontSizePt = Math.max(2.5, Math.min(7.15, fontSizePt));
+
+                  pdf.setFont('helvetica', 'normal');
+                  pdf.setFontSize(fontSizePt);
+                  const yMm = position + ((fragTopCanvas - renderedHeight) / sliceHeightPx) * sliceImgHeight;
+                  // maxWidth wraps invisible text inside the same column as the screenshot (no horizontal spill)
+                  pdf.text(String(frag.text), xMm, yMm, {
+                    renderingMode: 3,
+                    baseline: 'top',
+                    maxWidth: widthMm
+                  });
+                }
+              });
+
+              renderedHeight += sliceHeightPx;
+              position += sliceImgHeight;
+
+              if (renderedHeight < canvas.height) {
+                pdf.addPage(orientation, 'a4');
+                position = marginY;
+                xPosition = marginX;
+                pdf.setFontSize(12);
+                pdf.setFont('Arial', 'bold');
+                // Main title
+                const headerText = 'DASHBOARD MEETING POINTS (MDoNER)';
+                const headerWidth = pdf.getTextWidth(headerText);
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(104, 6, headerWidth + 1.25, 6, 'F');
+                pdf.text(headerText, pageWidth / 2, marginY, { align: 'center' });
+                // Date header
+                const today = new Date();
+                const options = { timeZone: 'Asia/Kolkata' };
+                const formattedDate = today.toLocaleDateString('en-IN', options)
+                  .replace(/\//g, '.')
+                  .replace(/\b(\d)\b/g, '0$1');
+                pdf.setFillColor(255, 255, 0);
+                pdf.rect(pageWidth - marginX - 30.2, marginY - 4.5, 30.2, 6, 'F');
+                pdf.text(`As on ${formattedDate}`, pageWidth - marginX, marginY, { align: 'right' });
+                position += 1;
+                position = drawBlueTableHeaderRow(position);
+              }
+            }
+            document.body.removeChild(tempDiv);
+          } catch (error) {
+            console.error(`Row ${i} error:`, error);
+            document.body.removeChild(tempDiv);
+          }
+        }
+        pdf.save('final-dashboard.pdf');
       } catch (error) {
-        console.error('PDF generation failed:', error)
+        console.error('PDF generation failed:', error);
       } finally {
         this.pdfVisible = false
         this.pdfMode = false
@@ -2445,19 +2844,183 @@ export default {
 </style>
 
 <style>
-.pdf-capture-mode .yellow-bg-bold {
+.pdf-capture-mode {
+  font-family: Arial !important;
+  overflow: visible !important;
+}
+
+.pdf-capture-mode tr > td:not(table table td):nth-child(1),  /* S No. */
+.pdf-capture-mode tr > td:not(table table td):nth-child(2),  /* Sector/Division */
+.pdf-capture-mode tr > td:not(table table td):nth-child(3),  /* Description */
+.pdf-capture-mode tr > td:not(table table td):nth-child(5),  /* Original Date */
+.pdf-capture-mode tr > td:not(table table td):nth-child(6),  /* Responsibility */
+.pdf-capture-mode tr > td:not(table table td):nth-child(7) { /* Review Date */
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+
+/* the following code makes the content uniform (12px) for 4th col. remove them to preserve the styling of "action to be taken" */
+
+.pdf-capture-mode td {
+  font-size: 12pt !important;
+  padding: 2px 5px !important;
+}
+
+.pdf-capture-mode td:nth-child(4) {
+  overflow: visible !important;
+  padding: 5px !important;
+}
+
+/* Preserve block layout: table, p, div stay block so "heading above table, note below" is correct in PDF */
+.pdf-capture-mode td:nth-child(4) table,
+.pdf-capture-mode td:nth-child(4) p,
+.pdf-capture-mode td:nth-child(4) div {
+  display: block !important;
+}
+.pdf-capture-mode td:nth-child(4) *:not(table):not(p):not(div) {
+  /* Removed display: inline-block !important; as it breaks inline span wrapping with background colors */
+}
+
+/* PDF Export: Strict fixed layout and wrapping for .pdf-capture-mode */
+.pdf-capture-mode table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #ddd !important;
+}
+.pdf-capture-mode th, .pdf-capture-mode td {
+  border: 1px solid #ddd !important;
+  padding: 2px 4px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  box-sizing: border-box !important;
+  max-width: none !important;
+}
+.pdf-capture-mode td {
+  max-width: none !important;
+}
+.pdf-capture-mode td:nth-child(4) {
+  /* Action to be Taken column: use JS-applied width (scaledColumnWidths[3]); strict wrapping */
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  vertical-align: top !important;
+  overflow: visible !important;
+}
+.pdf-capture-mode td * {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+.pdf-capture-mode td div,
+.pdf-capture-mode td p,
+.pdf-capture-mode td table {
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+
+.pdf-capture-mode td span,
+.pdf-capture-mode td b,
+.pdf-capture-mode td strong,
+.pdf-capture-mode td i,
+.pdf-capture-mode td em,
+.pdf-capture-mode td u,
+.pdf-capture-mode td font,
+.pdf-capture-mode td a {
+  white-space: normal !important;
+  max-width: none !important;
+  -webkit-box-decoration-break: clone !important;
+  box-decoration-break: clone !important;
+}
+.pdf-capture-mode ul, .pdf-capture-mode ol {
+  padding-left: 18px !important;
+  margin: 0.2em 0 !important;
+}
+.pdf-capture-mode li {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+.pdf-capture-mode table table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+.pdf-capture-mode table table th, .pdf-capture-mode table table td {
+  font-size: 9px !important;
+  padding: 2px 3px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-line !important;
+  max-width: 100% !important;
+}
+
+/* Table styling for tables inside 'Action to be Taken' (dashboard and PDF) */
+.action-content-cell table,
+.action-content-cell th,
+.action-content-cell td,
+.pdf-capture-mode .action-content-cell table,
+.pdf-capture-mode .action-content-cell th,
+.pdf-capture-mode .action-content-cell td,
+.action-content-cell table table,
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #222 !important;
+  border-collapse: collapse !important;
+  padding: 3px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  vertical-align: top !important;
+}
+
+.action-content-cell table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+}
+
+.action-content-cell th {
+  background: #f2f2f2 !important;
+  font-weight: 600 !important;
+  color: #222 !important;
+}
+
+/* Ensure nested tables also get the same styling */
+.action-content-cell table table,
+.action-content-cell table th,
+.action-content-cell table td {
+  border: 1px solid #222 !important;
+  padding: 1px !important;
+  background: #fff !important;
+  font-size: 11px !important;
+}
+
+.yellow-bg-bold {
   background: #ffeb3b !important;
   font-weight: bold !important;
-  border-radius: 4px !important;
-  padding: 2px 6px !important;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  vertical-align: top;
+}
+
+/* PDF-specific vertical alignment for highlight columns */
+.pdf-capture-mode .original-date-cell,
+.pdf-capture-mode .responsibility-cell,
+.pdf-capture-mode .review-date-cell {
+  vertical-align: top !important;
+}
+
+.pdf-capture-mode .yellow-bg-bold {
   display: inline-block !important;
-  vertical-align: middle !important;
-}
-.pdf-capture-mode .red-text {
-  color: #d32f2f !important;
-}
-.pdf-capture-mode .black-text {
-  color: #222 !important;
+  vertical-align: top !important;
 }
 
 /* Ensure bold styling for S.No, Sector/Division, and Description columns in PDF */
@@ -2466,8 +3029,17 @@ export default {
 .pdf-capture-mode td:nth-child(3) strong {
   font-weight: bold !important;
 }
+.red-text {
+  color: #d32f2f !important;
+}
+.black-text {
+  color: #222 !important;
+}
+.review-date-cell, .responsibility-cell {
+  text-align: center !important;
+}
 
-/* PDF-specific: Remove all vertical gap between lines in action content for testing */
+/* PDF-specific: Tight vertical spacing but allow gap around tables so text above/below stays clear */
 .pdf-capture-mode .action-content-cell *,
 .pdf-capture-mode .action-node,
 .pdf-capture-mode .action-node * {
@@ -2476,6 +3048,12 @@ export default {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   line-height: 1.1 !important;
+}
+
+/* Keep small gap above/below tables so "Expenditure status..." and "Aug-25 targets..." stay separated */
+.pdf-capture-mode .action-content-cell table {
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
 }
 
 .pdf-capture-mode p,
