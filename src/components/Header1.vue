@@ -280,6 +280,8 @@ html, body {
 
 .nav-mobile-panel {
   display: none;
+  position: relative;
+  z-index: 1001;
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem 0.85rem;
