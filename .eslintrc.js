@@ -42,5 +42,41 @@ module.exports = {
     'quotes': 'off',
     'no-unused-vars': 'warn', // Change to warning instead of error
     'vue/no-unused-components': 'warn'
-  }
+  },
+  // Meeting / new-flow components must not pull in legacy TaskModal or EnhancedNode* (regression guard).
+  overrides: [
+    {
+      files: ['src/components/New*.vue'],
+      rules: {
+        'no-restricted-imports': ['error', {
+          paths: [
+            {
+              name: './TaskModal.vue',
+              message: 'New* flow: use NewTaskModal, not TaskModal.'
+            },
+            {
+              name: './EnhancedNodeEditor.vue',
+              message: 'New* flow: use NewEnhancedNodeEditor.'
+            },
+            {
+              name: './EnhancedNodeItem.vue',
+              message: 'New* flow: use NewEnhancedNodeItem.'
+            },
+            {
+              name: '../components/TaskModal.vue',
+              message: 'New* flow: use NewTaskModal, not TaskModal.'
+            },
+            {
+              name: '../components/EnhancedNodeEditor.vue',
+              message: 'New* flow: use NewEnhancedNodeEditor.'
+            },
+            {
+              name: '../components/EnhancedNodeItem.vue',
+              message: 'New* flow: use NewEnhancedNodeItem.'
+            }
+          ]
+        }]
+      }
+    }
+  ]
 }

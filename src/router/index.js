@@ -4,16 +4,33 @@ import Signin from '../components/Signin.vue'
 import Signup from '../components/Signup.vue'
 import TentativeDashboard from '../components/TentativeDashboard.vue'
 import FinalDashboard from '../components/FinalDashboard.vue'
+import NewTentativeDashboard from '../components/NewTentativeDashboard.vue'
+import NewFinalDashboard from '../components/NewFinalDashboard.vue'
 import CompletedTasks from '../components/CompletedTasks.vue'
 import Home from '../components/Home.vue'
 import ReviewInterface from '../components/ReviewInterface.vue'
 import ReviewDashboard from '../components/ReviewDashboard.vue'
 import TaskReviewHub from '../components/TaskReviewHub.vue'
+import NewTaskReviewHub from '../components/NewTaskReviewHub.vue'
 import UnderDevelopment from '../components/UnderDevelopment.vue'
 import DailyReviewSlideshow from '../components/DailyReviewSlideshow.vue'
 import ImportDashboardHtml from '../components/ImportDashboardHtml.vue'
+import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
 
 Vue.use(Router)
+
+function roleFromCookie () {
+  if (typeof document === 'undefined') return null
+  try {
+    const entry = document.cookie.split(';').find(c => c.trim().startsWith('user_info='))
+    if (!entry) return null
+    const raw = decodeURIComponent(entry.split('=').slice(1).join('='))
+    const u = JSON.parse(raw)
+    return u.role ? String(u.role).toLowerCase() : null
+  } catch (e) {
+    return null
+  }
+}
 
 const router = new Router({
   mode: 'history',
@@ -50,6 +67,18 @@ const router = new Router({
       path: '/final',
       name: 'FinalDashboard',
       component: FinalDashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/new-tentative',
+      name: 'NewTentativeDashboard',
+      component: NewTentativeDashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/new-final',
+      name: 'NewFinalDashboard',
+      component: NewFinalDashboard,
       meta: { requiresAuth: true }
     },
     {
@@ -112,6 +141,12 @@ const router = new Router({
       meta: { requiresAuth: true }
     },
     {
+      path: '/meeting-review-hub',
+      name: 'NewTaskReviewHub',
+      component: NewTaskReviewHub,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/import-dashboard-html',
       name: 'ImportDashboardHtml',
       component: ImportDashboardHtml,
@@ -134,6 +169,21 @@ router.beforeEach((to, from, next) => {
     if (!isSignedIn) {
       next({ name: 'Signin' })
     } else {
+      const role = roleFromCookie()
+      if (to.name === 'NewTentativeDashboard') {
+        if (role !== 'editor') {
+          next({ name: 'Home' })
+          return
+        }
+        if (!isMeetingDashboardUiEnabled()) {
+          next({ path: '/tentative' })
+          return
+        }
+      }
+      if (to.name === 'NewFinalDashboard' && !isMeetingDashboardUiEnabled()) {
+        next({ path: '/final' })
+        return
+      }
       next()
     }
   } else if (to.name === 'Signin' || to.name === 'LandingPage') {

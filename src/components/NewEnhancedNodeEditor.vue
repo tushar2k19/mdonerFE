@@ -44,7 +44,7 @@
          :class="{ 'context-menu-open': contextMenuOpen }"
          v-if="nodes.length > 0"
          ref="nodesContainer">
-          <EnhancedNodeItem
+          <NewEnhancedNodeItem
             v-for="(node, index) in nodes"
             :key="node.id"
             :node="node"
@@ -55,6 +55,7 @@
             :diff-data="diffData"
             :readonly="readonly"
             :task-version-id="taskVersionId"
+            :meeting-draft-task-id="meetingDraftTaskId"
             :permission-mode="permissionMode"
             :current-reviewer-id="currentReviewerId"
             :reviewer-type="reviewerType"
@@ -97,16 +98,20 @@
 </template>
 
 <script>
-import EnhancedNodeItem from './EnhancedNodeItem.vue'
+import NewEnhancedNodeItem from './NewEnhancedNodeItem.vue'
 
 export default {
-  name: 'EnhancedNodeEditor',
-  
+  name: 'NewEnhancedNodeEditor',
+
   components: {
-    EnhancedNodeItem
+    NewEnhancedNodeItem
   },
 
   props: {
+    meetingDraftTaskId: {
+      type: [Number, String],
+      default: null
+    },
     taskVersionId: {
       type: [Number, String],
       required: false
@@ -197,7 +202,8 @@ export default {
     },
 
     /**
-     * Rebuild tree from flat rows. Sibling order follows position (matches TaskVersion / NewTask trees).
+     * Rebuild tree from flat rows. Order must match Rails NewTask#build_tree_structure_in_memory
+     * (siblings sorted by position, then id) — not raw flat-array iteration order.
      */
     buildHierarchy(flatNodes) {
       if (!flatNodes || !flatNodes.length) return []
@@ -911,8 +917,8 @@ export default {
       }
     },
 
-    // Permission checking methods (mirrors EnhancedNodeItem — use for diagnostics only; per-node
-    // editability is enforced in EnhancedNodeItem via canEditThisNode + global `readonly` only.)
+    // Permission checking methods (mirrors legacy EnhancedNodeItem — use for diagnostics only; per-node
+    // editability is enforced in NewEnhancedNodeItem via canEditThisNode + global `readonly` only.)
     canEditNode (node) {
       if (!this.permissionMode) return !this.readonly
       if (this.readonly) return false

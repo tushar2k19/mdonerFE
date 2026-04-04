@@ -114,8 +114,9 @@
             :init="editorConfig"
             v-model="formData.action_to_be_taken" -->
 
-          <EnhancedNodeEditor
+          <NewEnhancedNodeEditor
             :task-version-id="taskVersionId"
+            :meeting-draft-task-id="meetingDraftTaskIdForEditor"
             :initial-nodes="actionNodes"
             @nodes-changed="onNodesChanged"
           />
@@ -140,16 +141,16 @@
   </div>
 </template>
 <script>
-import EnhancedNodeEditor from './EnhancedNodeEditor.vue'
+import NewEnhancedNodeEditor from './NewEnhancedNodeEditor.vue'
 import MergeInterface from './MergeInterface.vue'
 import Datepicker from 'vuejs-datepicker'
 import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
 
 export default {
-  name: 'TaskModal',
+  name: 'NewTaskModal',
 
   components: {
-    EnhancedNodeEditor,
+    NewEnhancedNodeEditor,
     MergeInterface,
     Datepicker
   },
@@ -283,6 +284,13 @@ export default {
     }
   },
   computed: {
+    /** When editing a living meeting draft, node item incremental API uses task id (no task_version). */
+    meetingDraftTaskIdForEditor () {
+      if (this.task && this.task.meeting_dashboard_draft && this.task.id != null) {
+        return this.task.id
+      }
+      return null
+    },
     filteredTagSuggestions () {
       const list = Array.isArray(this.allTags) ? this.allTags : []
       const q = (this.newTagName || '').trim().toLowerCase()
@@ -325,9 +333,8 @@ export default {
         this.selectedTags = this.task.tags.map(t => ({ id: t.id, name: t.name }))
       }
     } else {
-      // For new tasks, initialize with empty array
       this.actionNodes = []
-      this.taskVersionId = 1 // Temporary ID for new tasks
+      this.taskVersionId = null
     }
   },
   mounted() {
@@ -360,7 +367,7 @@ export default {
           // Backend returns tree structure: [{ node: {...}, children: [...] }]
           const treeData = response.data.data
 
-          // Convert tree structure to flat array for EnhancedNodeEditor
+          // Convert tree structure to flat array for NewEnhancedNodeEditor
           this.actionNodes = this.flattenTreeStructure(treeData)
 
           // Also populate the action_to_be_taken field with formatted content
@@ -572,7 +579,7 @@ export default {
     },
 
     handleMergeConflict (conflictData) {
-      // Show merge interface directly in TaskModal
+      // Show merge interface directly in NewTaskModal
       this.showMergeInterface = true
       this.mergeConflictData = {
         taskId: this.task.id,
@@ -591,7 +598,7 @@ export default {
     normalizeTreeItemNode (item) {
       if (!item) return null
       if (item.node !== undefined) return item.node
-      const { children: _ch, ...rest } = item
+      const { children: _c, ...rest } = item
       return rest
     },
 

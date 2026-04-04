@@ -29,15 +29,15 @@
           :to="route.path"
           class="nav-link px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 relative overflow-hidden group"
           :class="{ 
-            'active bg-white text-indigo-600 shadow-sm': $route.path === route.path,
-            'text-blue-200': $route.path !== route.path
+            'active bg-white text-indigo-600 shadow-sm': isNavActive(route.path),
+            'text-blue-200': !isNavActive(route.path)
           }"
         >
-          <span class="relative z-10 transition-colors duration-300" :class="{ 'group-hover:text-white': $route.path !== route.path }">
+          <span class="relative z-10 transition-colors duration-300" :class="{ 'group-hover:text-white': !isNavActive(route.path) }">
           {{ route.label }}
           </span>
           <span 
-            v-if="$route.path !== route.path"
+            v-if="!isNavActive(route.path)"
             class="absolute inset-0 bg-white/10 rounded-full transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out origin-left z-0"
           ></span>
         </router-link>
@@ -67,6 +67,15 @@
 
         <!-- Action Buttons -->
         <div class="nav-right flex items-center space-x-4 flex-shrink-0">
+        <button
+          v-if="showMeetingUiDevToggle"
+          type="button"
+          class="meeting-ui-dev-toggle"
+          :title="meetingUiToggleTitle"
+          @click="toggleMeetingDashboardUi"
+        >
+          {{ meetingUiToggleLabel }}
+        </button>
         <NotificationComponent
           v-if="isAuthenticated"
           class="notification-wrapper"
@@ -105,7 +114,7 @@
         :key="'m-' + route.path"
         :to="route.path"
         class="nav-mobile-link"
-        :class="{ 'nav-mobile-link--active': $route.path === route.path }"
+        :class="{ 'nav-mobile-link--active': isNavActive(route.path) }"
         @click.native="mobileNavOpen = false"
       >
         {{ route.label }}
@@ -116,6 +125,13 @@
 
 <script>
 import NotificationComponent from './NotificationComponent.vue'
+import {
+  isMeetingDashboardUiEnabled,
+  isWebpackDevelopment,
+  setStoredMeetingUiOverride,
+  getBuildDefaultMeetingUi,
+  getStoredMeetingUiOverride
+} from '@/utils/meetingDashboardUi'
 
 export default {
   name: 'Header',
@@ -130,6 +146,7 @@ export default {
   },
   data () {
     return {
+      meetingUiRevision: 0,
       mobileNavOpen: false,
       navigationRoutes: [
         { path: '/', label: 'Home' },
@@ -166,14 +183,32 @@ export default {
       return null
     },
 
+    showMeetingUiDevToggle () {
+      return isWebpackDevelopment()
+    },
+    meetingDashboardEnabled () {
+      this.meetingUiRevision
+      return isMeetingDashboardUiEnabled()
+    },
+    meetingUiToggleLabel () {
+      return this.meetingDashboardEnabled ? 'Meeting UI: on' : 'Meeting UI: off'
+    },
+    meetingUiToggleTitle () {
+      const build = getBuildDefaultMeetingUi() ? 'build default on' : 'build default off'
+      const stored = getStoredMeetingUiOverride()
+      const src = stored === null ? `Using ${build}` : 'Overridden in this browser (localStorage)'
+      return `${src}. Click to toggle legacy vs /new-tentative & /new-final links.`
+    },
     filteredNavigationRoutes () {
+      const tentativePath = this.meetingDashboardEnabled ? '/new-tentative' : '/tentative'
+      const finalPath = this.meetingDashboardEnabled ? '/new-final' : '/final'
       // Custom logic for editor and reviewer roles
       if (this.userRole === 'editor') {
         return [
           { path: '/', label: 'Home' },
           { path: '/daily-dashboard', label: 'Daily Dashboard' },
-          { path: '/tentative', label: 'Editor Dashboard' },
-          { path: '/final', label: 'Full Dashboard' },
+          { path: tentativePath, label: 'Editor Dashboard' },
+          { path: finalPath, label: 'Full Dashboard' },
           // { path: '/completed-tasks', label: 'Completed Tasks' }, // COMMENTED OUT
           { path: '/review-tasks', label: 'Review Tasks' },
           // { path: '/system-logs', label: 'System Logs' } // COMMENTED OUT
@@ -182,7 +217,7 @@ export default {
         return [
           { path: '/', label: 'Home' },
           { path: '/daily-dashboard', label: 'Daily Dashboard' },
-          { path: '/final', label: 'Full Dashboard' },
+          { path: finalPath, label: 'Full Dashboard' },
           { path: '/review-tasks', label: 'Review Tasks' }
         ]
       } else {
@@ -200,7 +235,42 @@ export default {
     }
   },
 
+  mounted () {
+    window.addEventListener('storage', this.onMeetingUiStorage)
+  },
+
+  beforeDestroy () {
+    window.removeEventListener('storage', this.onMeetingUiStorage)
+  },
+
   methods: {
+    onMeetingUiStorage (e) {
+      if (e && e.key === 'meeting_dashboard_ui') {
+        this.meetingUiRevision += 1
+      }
+    },
+    toggleMeetingDashboardUi () {
+      const next = !isMeetingDashboardUiEnabled()
+      setStoredMeetingUiOverride(next)
+      this.meetingUiRevision += 1
+      const p = this.$route.path
+      if (!next) {
+        if (p === '/new-tentative') this.$router.replace('/tentative')
+        else if (p === '/new-final') this.$router.replace('/final')
+      } else {
+        if (p === '/tentative' && this.userRole === 'editor') this.$router.replace('/new-tentative')
+        else if (p === '/final') this.$router.replace('/new-final')
+      }
+    },
+    isNavActive (routePath) {
+      const p = this.$route.path
+      if (p === routePath) return true
+      const editorPair = (routePath === '/new-tentative' && p === '/tentative') ||
+        (routePath === '/tentative' && p === '/new-tentative')
+      const finalPair = (routePath === '/new-final' && p === '/final') ||
+        (routePath === '/final' && p === '/new-final')
+      return editorPair || finalPair
+    },
     async handleSignOut () {
       try {
         await this.$http.secured.delete('/signout')
@@ -259,6 +329,28 @@ html, body {
 
 .header-trailing {
   margin-left: auto;
+}
+
+.meeting-ui-dev-toggle {
+  display: none;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  color: #e0e7ff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.meeting-ui-dev-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+@media (min-width: 640px) {
+  .meeting-ui-dev-toggle {
+    display: inline-block;
+  }
 }
 
 .nav-mobile-toggle {

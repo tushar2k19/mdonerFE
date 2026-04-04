@@ -5,6 +5,12 @@
         <h2>Import Dashboard HTML</h2>
         <p>
           Upload LibreOffice-exported <code>dashboard.html</code>. Preview extraction per task, then approve to create new draft tasks.
+          <span v-if="meetingImportMode" class="import-mode-hint">
+            Meeting dashboard is <strong>on</strong>: imports go to <strong>New tasks</strong> and appear on <strong>Editor Dashboard</strong> (<code>/new-tentative</code>).
+          </span>
+          <span v-else class="import-mode-hint import-mode-hint--legacy">
+            Meeting dashboard is <strong>off</strong> on the server: imports use the <strong>legacy</strong> task tables (legacy Editor Dashboard only).
+          </span>
         </p>
       </div>
       <div class="import-actions">
@@ -32,7 +38,7 @@
           </div>
           <div class="import-task-sub">Responsibility: {{ t.responsibility }}</div>
           <div class="import-task-status">
-            <span v-if="t._approved" class="pill pill-ok">Imported (Task #{{ t._task_id }})</span>
+            <span v-if="t._approved" class="pill pill-ok">{{ importSuccessLabel(t) }}</span>
             <span v-else class="pill pill-pending">Pending</span>
           </div>
         </div>
@@ -81,6 +87,9 @@ export default {
     }
   },
   computed: {
+    meetingImportMode () {
+      return process.env.FEATURE_MEETING_DASHBOARD === 'true'
+    },
     activeTask () {
       if (!this.selectedSn) return null
       return this.tasks.find(t => t.sn === this.selectedSn) || null
@@ -112,7 +121,8 @@ export default {
           _originalNodes: Array.isArray(t.nodes) ? t.nodes : [],
           _editedNodes: Array.isArray(t.nodes) ? t.nodes : [],
           _approved: false,
-          _task_id: null
+          _task_id: null,
+          _meeting_dashboard: null
         }))
         this.selectedSn = this.tasks.length ? this.tasks[0].sn : null
       } catch (err) {
@@ -133,6 +143,11 @@ export default {
       if (!this.activeTask) return
       this.activeTask._editedNodes = this.activeTask._originalNodes
     },
+    importSuccessLabel (t) {
+      if (!t || !t._task_id) return 'Imported'
+      if (t._meeting_dashboard) return `Imported (New task #${t._task_id})`
+      return `Imported (Legacy task #${t._task_id})`
+    },
     async approve () {
       if (!this.activeTask) return
       this.loadingApprove = true
@@ -150,6 +165,12 @@ export default {
         const { data } = await this.$http.secured.post('/imports/dashboard_html/approve', payload)
         this.activeTask._approved = true
         this.activeTask._task_id = data && data.task_id
+        this.activeTask._meeting_dashboard = !!(data && data.meeting_dashboard)
+        if (data && data.meeting_dashboard) {
+          this.$toast.success(`Imported new task #${data.task_id}. Open Editor Dashboard to see it.`)
+        } else {
+          this.$toast.success(`Imported legacy task #${data.task_id}.`)
+        }
       } catch (err) {
         console.error(err)
         this.error = (err && err.response && err.response.data && err.response.data.error) || 'Failed to import task'
@@ -166,6 +187,8 @@ export default {
 .import-hero { display:flex; justify-content:space-between; gap: 1rem; align-items:flex-end; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0; background: linear-gradient(180deg, #fff, #f8fafc); }
 .import-hero h2 { margin: 0 0 0.25rem 0; font-size: 1.25rem; }
 .import-hero p { margin: 0; color: #475569; font-size: 0.9rem; }
+.import-mode-hint { display: block; margin-top: 0.5rem; font-size: 0.82rem; color: #334155; }
+.import-mode-hint--legacy { color: #9a3412; }
 .import-actions { display:flex; gap: 0.75rem; align-items:center; }
 .btn { padding: 0.6rem 0.9rem; border-radius: 10px; border: 1px solid transparent; cursor:pointer; font-weight: 600; }
 .btn-primary { background: #4f46e5; color: #fff; }

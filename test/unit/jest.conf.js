@@ -14,6 +14,7 @@ module.exports = {
   snapshotSerializers: ['<rootDir>/node_modules/jest-serializer-vue'],
   testEnvironment: 'jsdom',
   testURL: 'http://localhost',
+  setupTestFrameworkScriptFile: '<rootDir>/test/unit/setup.js',
   testMatch: ['**/test/unit/specs/**/*.spec.js'],
   // Vue 2 + old stack: mapCoverage removed in Jest 25+
   coveragePathIgnorePatterns: ['/node_modules/']
