@@ -7,7 +7,8 @@
     { 'dragging': isDragging, 'drag-over': isDragOver },
     { 'permission-readonly': permissionMode && readonly },
     { 'permission-assigned': permissionMode && isNodeAssignedToCurrentReviewer() },
-    { 'permission-unassigned': permissionMode && !isNodeAssignedToCurrentReviewer() }
+    { 'permission-unassigned': permissionMode && !isNodeAssignedToCurrentReviewer() },
+    meetingHubRowClassObj
   ]" :draggable="canEditThisNode()" @dragstart="handleDragStart" @dragend="handleDragEnd" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
     <!-- Node Content -->
     <div class="node-content" :style="{ paddingLeft: indentLevel + 'px' }">
@@ -341,6 +342,8 @@
         :assigned-node-ids="assignedNodeIds"
         :suppress-diff-highlights="suppressDiffHighlights"
         :enable-comment-shortcut="enableCommentShortcut"
+        :meeting-editor-overlay="meetingEditorOverlay"
+        :meeting-pack-highlight-mode="meetingPackHighlightMode"
         @update-node="$emit('update-node', $event, arguments[1])"
         @delete-node="$emit('delete-node', $event)"
         @add-subpoint="$emit('add-subpoint', $event)"
@@ -510,7 +513,8 @@
 <script>
 import { getReviewDateHighlightClasses, getReviewDateHighlightClassesIfSet } from '../utils/reviewDateHighlight'
 import { hasReviewerMetadata, reviewerIdKey, sanitizeReviewerName } from '../utils/reviewerDiffHint'
-import NewEnhancedNodeItem from './NewEnhancedNodeItem.vue'
+import { meetingHubHighlightClass } from '@/utils/meetingHubNodeHighlight'
+import { shouldApplyMeetingHubTint, PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
 
 const REVIEW_EXTENSION_REASON_OPTIONS = [
   { value: 'operational', label: 'Operational reasons' },
@@ -529,8 +533,10 @@ const REVIEW_EXTENSION_REASON_LABEL_MAP = REVIEW_EXTENSION_REASON_OPTIONS.reduce
 export default {
   name: 'NewEnhancedNodeItem',
 
+  // Async self-import breaks the webpack circular dependency; sync `import from './self'`
+  // can yield a partially-initialized export so props/computed never attach (runtime warnings).
   components: {
-    NewEnhancedNodeItem
+    NewEnhancedNodeItem: () => import('./NewEnhancedNodeItem.vue')
   },
 
   props: {
@@ -594,6 +600,14 @@ export default {
     enableCommentShortcut: {
       type: Boolean,
       default: false
+    },
+    meetingEditorOverlay: {
+      type: Object,
+      default: () => ({})
+    },
+    meetingPackHighlightMode: {
+      type: String,
+      default: PACK_HIGHLIGHT_MODE.ALL
     }
   },
 
@@ -651,6 +665,24 @@ export default {
   computed: {
     indentLevel () {
       return (this.node.level - 1) * 32 // 32px per level for better visibility
+    },
+    meetingHubEntry () {
+      const sid = this.node && this.node.stable_node_id
+      if (!sid || !this.meetingEditorOverlay || typeof this.meetingEditorOverlay !== 'object') return null
+      return this.meetingEditorOverlay[sid] || null
+    },
+    meetingHubRowClassObj () {
+      const o = this.meetingHubEntry
+      if (!o) return {}
+      const hasA = o.assignment_users && o.assignment_users.length
+      const hasC = (o.comment_count || 0) > 0
+      if (!hasA && !hasC) return {}
+      const hub = meetingHubHighlightClass(!!hasA, !!hasC)
+      const obj = { 'meeting-overlay-node': true }
+      if (shouldApplyMeetingHubTint(this.meetingPackHighlightMode, hub)) {
+        obj[hub] = true
+      }
+      return obj
     },
     computedDiffStatus() {
       if (this.viewMode === 'current' || this.viewMode === 'diff') {
@@ -906,8 +938,9 @@ export default {
         return
       }
 
-      const nodeId = Number(this.node.id)
-      if (nodeId < 0 || this.taskVersionId === null || this.taskVersionId === undefined || this.taskVersionId === '') {
+      // Meeting draft: meetingDraftTaskId + PUT /meeting_dashboard/tasks/:id/nodes/:id (no task_version).
+      // Legacy: taskVersionId + /task_versions/... — align with isPersistedActionNode / nodeApiBase.
+      if (!this.isPersistedActionNode) {
         this.$emit('update-node', this.node.id, { review_date: this.editDate })
         this.isEditingDate = false
         return

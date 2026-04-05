@@ -1,5 +1,8 @@
 <template>
-  <div class="dashboard-container">
+  <div
+    class="dashboard-container new-tentative-dashboard"
+    :class="{ 'dashboard-pdf-capture': pdfMode }"
+  >
     <div
       v-if="showMeetingDashboardBar"
       class="meeting-dashboard-bar"
@@ -21,7 +24,10 @@
           <router-link to="/import-dashboard-html" class="meeting-import-link">Import dashboard HTML</router-link>
         </div>
       </div>
-      <div class="meeting-bar-row meeting-bar-row-agenda">
+      <div
+        v-if="meetingAgendaUiEnabled"
+        class="meeting-bar-row meeting-bar-row-agenda"
+      >
         <span class="meeting-bar-label">Agenda highlight</span>
         <label class="meeting-bar-field">
           <span class="meeting-bar-sublabel">From</span>
@@ -48,6 +54,14 @@
           <span class="comment-nav-pos">{{ commentNavIndex + 1 }} / {{ commentNavNodes.length }}</span>
           <button type="button" class="meeting-bar-ghost-btn" @click="commentNavNext">Next →</button>
         </div>
+        <button
+          type="button"
+          class="meeting-bar-ghost-btn"
+          :disabled="!latestPublishedVersionId || commentNavNodes.length === 0"
+          @click="openAllCommentsModal"
+        >
+          Browse all comments
+        </button>
         <router-link
           v-if="latestPublishedVersionId"
           class="meeting-review-status-link"
@@ -119,7 +133,7 @@
       <!-- Action Buttons -->
       <div class="dashboard-actions-inline">
         <div class="filter-container" ref="filterContainer">
-          <button 
+<button 
             class="filter-btn"
             @click="toggleFilterDropdown"
             :class="{ 'active': showFilterDropdown }"
@@ -150,75 +164,86 @@
                 Clear All
               </button>
             </div>
-            
-            <!-- Status Filter -->
-            <div class="filter-section">
+
+            <!-- Pack highlight (replaces toolbar checkbox) -->
+            <div v-if="showMeetingDashboardBar" class="filter-section filter-section--pack-highlight">
               <div class="filter-section-header">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 3L2 9L12 15L22 9L12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M2 15L12 21L22 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span>Status</span>
+                <span>Pack highlight</span>
               </div>
-              <div class="filter-options">
-                <label 
-                  v-for="status in statusOptions" 
-                  :key="status.value"
-                  class="filter-option"
-                  :class="{ 'selected': selectedStatus === status.value }"
+              <label class="filter-compact-label">Show &amp; filter by node state</label>
+              <select
+                v-model="packHighlightMode"
+                class="filter-preset-select"
+                @change="onPackHighlightModeChange"
+              >
+                <option
+                  v-for="opt in packHighlightSelectOptions"
+                  :key="opt.value"
+                  :value="opt.value"
                 >
-                  <input 
-                    type="radio" 
-                    :value="status.value" 
-                    v-model="selectedStatus"
-                    @change="applyFilters"
-                    class="filter-radio"
-                  />
-                  <span class="filter-option-text">{{ status.label }}</span>
-                  <span class="filter-count">({{ getStatusCount(status.value) }})</span>
-                </label>
-              </div>
+                  {{ opt.label }}
+                </option>
+              </select>
             </div>
             
             <!-- Review Date Filter -->
-            <div class="filter-section">
+            <div class="filter-section filter-section--review-date">
               <div class="filter-section-header">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M8 2V5M16 2V5M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 <span>Review Date</span>
               </div>
-              <div class="filter-options">
-                <label 
-                  v-for="dateOption in dateOptions" 
-                  :key="dateOption.value"
-                  class="filter-option"
-                  :class="{ 'selected': selectedDateFilter === dateOption.value }"
+              <div class="filter-review-date-body">
+                <label class="filter-compact-label">Quick filter</label>
+                <select
+                  class="filter-preset-select"
+                  :value="reviewDateSelectValue"
+                  @change="onReviewDatePresetChange"
                 >
-                  <input 
-                    type="radio" 
-                    :value="dateOption.value" 
-                    v-model="selectedDateFilter"
-                    @change="applyFilters"
-                    class="filter-radio"
+                  <option
+                    v-for="opt in reviewDateQuickSelectOptions"
+                    :key="opt.value"
+                    :value="opt.value"
+                    :title="opt.label + ' — ' + datePresetOptionCount(opt.value) + ' tasks'"
+                  >
+                    {{ opt.label }} ({{ datePresetOptionCount(opt.value) }})
+                  </option>
+                </select>
+
+                <label class="filter-compact-label filter-calendar-label">Pick on calendar</label>
+                <div class="tentative-filter-vcalendar-wrap">
+                  <v-date-picker
+                    :value="calendarRangeValue"
+                    mode="date"
+                    :is-range="true"
+                    @input="onReviewCalendarInput"
                   />
-                  <span class="filter-option-text">{{ dateOption.label }}</span>
-                  <span class="filter-count">({{ getDateFilterCount(dateOption.value) }})</span>
-                </label>
-                
-                <!-- Custom Date Picker -->
-                <div v-if="selectedDateFilter === 'custom'" class="custom-date-section">
-                  <div class="date-picker-wrapper">
-                    <input 
-                      type="date" 
-                      v-model="customDate"
-                      @change="applyFilters"
-                      class="custom-date-input"
-                      :max="maxDate"
-                    />
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M8 2V5M16 2V5M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </div>
+                </div>
+
+                <div class="filter-bound-row">
+                  <label class="filter-bound-field">
+                    <span>From</span>
+                    <input
+                      v-model="reviewDateFromYmd"
+                      type="date"
+                      class="filter-bound-input"
+                      @change="onReviewBoundChange"
+                    >
+                  </label>
+                  <label class="filter-bound-field">
+                    <span>To</span>
+                    <input
+                      v-model="reviewDateToYmd"
+                      type="date"
+                      class="filter-bound-input"
+                      @change="onReviewBoundChange"
+                    >
+                  </label>
                 </div>
               </div>
             </div>
@@ -235,13 +260,12 @@
               <div v-if="isLoadingTags" style="color:#6b7280;font-size:0.9rem;">Loading tags...</div>
               <div v-else-if="!allTagsForFilter.length" style="color:#6b7280;font-size:0.9rem;">No tags yet</div>
               <div v-else>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                <div class="filter-tag-search-row">
                   <input
                     v-model="filterTagQuery"
                     type="text"
                     class="form-control tag-search-input"
                     placeholder="Search tags..."
-                    style="max-width:320px;"
                     @focus="openFilterTagDropdown"
                     @click="openFilterTagDropdown"
                     @input="openFilterTagDropdown"
@@ -268,7 +292,7 @@
                 </div>
 
                 <!-- Selected tags summary chips -->
-                <div v-if="selectedTagsFilter.length" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+                <div v-if="selectedTagsFilter.length" class="filter-tag-chips-row">
                   <span
                     v-for="tid in selectedTagsFilter"
                     :key="tid"
@@ -290,13 +314,13 @@
                 <span>Active Filters</span>
               </div>
               <div class="active-filters-list">
-                <span v-if="selectedStatus !== 'all'" class="active-filter-tag">
-                  {{ getStatusLabel(selectedStatus) }}
-                  <button @click="clearStatusFilter" class="remove-filter-btn">×</button>
+                <span v-if="reviewDateFilterActive" class="active-filter-tag">
+                  {{ getReviewDateFilterLabel() }}
+                  <button type="button" @click="clearDateFilter" class="remove-filter-btn">×</button>
                 </span>
-                <span v-if="selectedDateFilter !== 'all'" class="active-filter-tag">
-                  {{ getDateFilterLabel(selectedDateFilter) }}
-                  <button @click="clearDateFilter" class="remove-filter-btn">×</button>
+                <span v-if="packHighlightListFilterActive" class="active-filter-tag">
+                  {{ getPackHighlightFilterLabel() }}
+                  <button type="button" @click="clearPackHighlightListFilter" class="remove-filter-btn">×</button>
                 </span>
                 <span
                   v-for="tid in selectedTagsFilter"
@@ -312,7 +336,7 @@
             <!-- Results Summary -->
             <div class="filter-results-summary">
               <span class="results-text">
-                Showing {{ filteredTasks.length }} of {{ activeTasks.length }} tasks
+                Showing {{ displayTasks.length }} of {{ activeTasks.length }} tasks
               </span>
             </div>
           </div>
@@ -358,7 +382,6 @@
           <th>Responsibility</th>
           <th>Review Date</th>
           <th>Status</th>
-          <th>Actions</th>
         </tr>
       </table>
     </div>
@@ -372,8 +395,9 @@
          :class="{ 
            'highlighted-row': String(task.id) === String($route.query.highlightTaskId),
            'search-highlight': searchQuery.length > 0 && isTaskInSearchResults(task.id),
-           'agenda-range-row-highlight': showMeetingDashboardBar && taskInAgendaRange(task)
-         }">
+           'agenda-range-row-highlight': showMeetingDashboardBar && meetingAgendaUiEnabled && taskInAgendaRange(task)
+         }"
+         @contextmenu.prevent="openTaskContextMenu(task, $event)">
       <table>
         <tr>
           <td><strong>{{ getDisplayIndex(index) }}</strong></td>
@@ -392,17 +416,70 @@
           <td class="review-date-cell" :style="pdfMode ? 'vertical-align: top;' : ''">
             <span :class="getHighlightClass(task.review_date)">{{ formatDate(task.review_date) }}</span>
           </td>
-          <td><span :class="statusClass[task.status || 'unknown']">{{ formatStatus(task.status) }}</span></td>
-          <td class="actions-cell">
-            <div class="action-menu-container">
-              <button class="action-trigger"
-                      :class="{ 'active': activeMenuId === task.id }"
-                      @mouseenter="showActionMenu(task.id, $event)"
-                      @mouseleave="hideActionMenu(task.id)"
-                      :data-task-id="task.id">
-                ⋮
-              </button>
-            </div>
+          <td
+            v-if="showMeetingDashboardBar"
+            class="meeting-pack-status-td"
+            :class="{
+              'meeting-pack-status-td--ready': meetingPackStatusTdReady(task),
+              'meeting-pack-status-td--pending': meetingPackStatusTdPending(task)
+            }"
+          >
+            <!-- No right-click on touch: small control on narrow viewports only (see .row-context-menu-mobile). -->
+            <button
+              type="button"
+              class="row-context-menu-mobile"
+              aria-label="Open task actions"
+              @click.stop="openRowMenuFromControl(task, $event)"
+            >
+              ⋮
+            </button>
+            <template v-for="(packStats, packStatsIdx) in [normalizePackNodeStats(task)]">
+              <div v-if="!packStats" :key="'mp-miss-' + packStatsIdx" class="meeting-pack-status-cell">
+                <span class="meeting-pack-status-missing">—</span>
+              </div>
+              <div v-else :key="'mp-ok-' + packStatsIdx" class="meeting-pack-status-cell">
+                <div class="meeting-pack-status-counts">
+                  <span
+                    class="meeting-pack-count meeting-pack-count--unresolved"
+                    title="Unresolved nodes (review hub)"
+                  >
+                    <svg class="meeting-pack-glyph meeting-pack-glyph--red" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.5" fill="currentColor" /></svg>
+                    <span class="meeting-pack-count-num">{{ packStats.unresolved_count }}</span>
+                  </span>
+                  <span class="meeting-pack-count-sep" aria-hidden="true">·</span>
+                  <span
+                    class="meeting-pack-count meeting-pack-count--resolved"
+                    title="Resolved nodes"
+                  >
+                    <svg class="meeting-pack-glyph meeting-pack-glyph--green" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="3.5" fill="currentColor" /></svg>
+                    <span class="meeting-pack-count-num">{{ packStats.resolved_count }}</span>
+                  </span>
+                  <span
+                    v-if="packStats.no_action_nodes"
+                    class="meeting-pack-info-wrap"
+                    :title="meetingPackNoChangeTooltip"
+                    role="img"
+                    aria-label="No change. Ready to be published."
+                  >
+                    <span class="meeting-pack-info-icon">i</span>
+                  </span>
+                </div>
+                <div v-if="meetingPackStatusShowSecondLine(task)" class="meeting-pack-status-message">
+                  {{ meetingPackStatusSecondLineText(task) }}
+                </div>
+              </div>
+            </template>
+          </td>
+          <td v-else class="legacy-status-td">
+            <span :class="statusClass[task.status || 'unknown']">{{ formatStatus(task.status) }}</span>
+            <button
+              type="button"
+              class="row-context-menu-mobile"
+              aria-label="Open task actions"
+              @click.stop="openRowMenuFromControl(task, $event)"
+            >
+              ⋮
+            </button>
           </td>
         </tr>
       </table>
@@ -411,30 +488,26 @@
     <!-- Global Action Menu (outside table structure) -->
     <div class="global-action-menu" 
          :class="{ 'show': activeMenuId }"
-         :style="menuPosition"
-         @mouseenter="keepMenuOpen"
-         @mouseleave="hideActionMenu(activeMenuId)">
+         :style="menuPosition">
       <button @click="editTask(getCurrentTask()); forceHideMenu()" class="menu-item">Edit</button>
       <button v-if="canDelete(getCurrentTask())"
               @click="deleteTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Delete</button>
-      <button v-if="canSendForReview(getCurrentTask())"
-              @click="openReviewModal(getCurrentTask()); forceHideMenu()"
-              class="menu-item">{{ getReviewButtonText(getCurrentTask()) }}</button>
-      <button @click="openCommentsModal(getCurrentTask()); forceHideMenu()"
-              class="menu-item">Reviews</button>
+      <button
+        v-if="!showMeetingDashboardBar && canSendForReview(getCurrentTask())"
+        @click="openReviewModal(getCurrentTask()); forceHideMenu()"
+        class="menu-item"
+      >{{ getReviewButtonText(getCurrentTask()) }}</button>
+      <button
+        v-if="!showMeetingDashboardBar"
+        @click="openCommentsModal(getCurrentTask()); forceHideMenu()"
+        class="menu-item"
+      >Reviews</button>
       <button v-if="canApprove(getCurrentTask())"
               @click="approveTask(getCurrentTask()); forceHideMenu()"
               class="menu-item">Approve</button>
       <button @click="openTagsModal(getCurrentTask())" class="menu-item tags">Tags</button>
       <template v-if="showMeetingDashboardBar && latestPublishedVersionId">
-        <button
-          type="button"
-          class="menu-item"
-          @click="openAssignInputModal(getCurrentTask()); forceHideMenu()"
-        >
-          Assign input (pack)
-        </button>
         <button
           type="button"
           class="menu-item"
@@ -474,6 +547,8 @@
     <NewTaskModal v-if="showTaskModal"
                   :task="currentTask"
                   :mode="taskModalMode"
+                  :meeting-overlay-version-id="latestPublishedVersionId"
+                  :pack-highlight-mode="packHighlightMode"
                   @close="closeTaskModal"
                   @save="handleTaskSaved" />
     <ReviewModal v-if="showReviewModal"
@@ -513,29 +588,37 @@
       </div>
     </div>
 
-    <div v-if="showAssignInputModal" class="meeting-reset-modal-overlay" @click.self="closeAssignInputModal">
-      <div class="meeting-reset-modal assign-pack-modal" role="dialog" aria-modal="true">
-        <h3 class="meeting-reset-modal-title">Assign input reviewer</h3>
-        <p v-if="assignModalTask" class="meeting-reset-modal-text">{{ assignModalTask.description }}</p>
-        <div class="assign-pack-fields">
-          <label class="assign-pack-label">Node</label>
-          <select v-model="assignSelectedStableId" class="assign-pack-select">
-            <option value="">Select node…</option>
-            <option v-for="opt in assignNodeOptions" :key="opt.stable_node_id" :value="opt.stable_node_id">
-              {{ opt.label }}
-            </option>
-          </select>
-          <label class="assign-pack-label">Reviewer</label>
-          <select v-model="assignSelectedUserId" class="assign-pack-select">
-            <option value="">Select user…</option>
-            <option v-for="u in assignReviewers" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
+    <div
+      v-if="allCommentsModalVisible"
+      class="nfd-all-comments-overlay no-print"
+      @click.self="allCommentsModalVisible = false"
+    >
+      <div class="nfd-all-comments-dialog" role="dialog" aria-modal="true">
+        <div class="nfd-all-comments-head">
+          <h3>Nodes with comments (this pack)</h3>
+          <button type="button" class="nfd-all-comments-close" aria-label="Close" @click="allCommentsModalVisible = false">×</button>
         </div>
-        <div class="meeting-reset-modal-actions">
-          <button type="button" class="meeting-reset-cancel" @click="closeAssignInputModal">Cancel</button>
-          <button type="button" class="meeting-reset-confirm" :disabled="assignSaving" @click="submitAssignInput">
-            {{ assignSaving ? 'Saving…' : 'Assign' }}
-          </button>
+        <div class="nfd-all-comments-body">
+          <p v-if="!commentNavNodes.length" class="nfd-muted">No comments on this dashboard version.</p>
+          <div v-else class="nfd-all-comments-cards">
+            <div
+              v-for="(item, idx) in commentNavNodes"
+              :key="item.stable_node_id + '-' + idx"
+              class="nfd-comment-card"
+            >
+              <div class="nfd-comment-card-header">
+                <strong>{{ taskLabelForCommentNode(item) }}</strong>
+                <span class="nfd-comment-node-label">Node {{ nodeLabelForCommentNode(item) }}</span>
+              </div>
+              <div class="nfd-comment-card-preview">
+                {{ getNodeContentPreview(item.stable_node_id, 150) }}
+              </div>
+              <div class="nfd-comment-card-actions">
+                <button type="button" class="nfd-linkish" @click="goToCommentNode(item)">↗ Go to node</button>
+                <button type="button" class="nfd-linkish" @click="openThreadForNode(item.stable_node_id)">💬 Open thread</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -546,9 +629,43 @@
       :stable-node-id="commentsModalStableId"
       :current-user-id="currentUserId"
       :user-role="userRole"
-      @close="commentsModalVisible = false"
+      :node-context="commentsModalNodeContext"
+      :is-node-resolved="commentsModalNodeResolved"
+      @close="closeDashboardCommentsModal"
       @submitted="onDashboardCommentSubmitted"
+      @resolution-changed="onDashboardNodeResolutionChanged"
     />
+
+    <div
+      v-if="packHighlightNavFabVisible"
+      class="pack-highlight-nav-fab no-print"
+      role="navigation"
+      aria-label="Pack highlight nodes"
+    >
+      <button
+        type="button"
+        class="pack-highlight-nav-fab-btn"
+        aria-label="Previous highlighted pack node"
+        @click="packHighlightNavPrev"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 15l-6-6-6 6" />
+        </svg>
+      </button>
+      <span class="pack-highlight-nav-fab-counter" aria-live="polite">
+        {{ packHighlightNavIndex + 1 }} / {{ packHighlightNavCount }}
+      </span>
+      <button
+        type="button"
+        class="pack-highlight-nav-fab-btn"
+        aria-label="Next highlighted pack node"
+        @click="packHighlightNavNext"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -558,9 +675,45 @@ import ReviewModal from '../components/ReviewModal.vue'
 import CommentsModal from '../components/CommentsModal.vue'
 import DashboardNodeCommentsModal from '../components/DashboardNodeCommentsModal.vue'
 import Datepicker from 'vuejs-datepicker'
+import VDatePicker from 'v-calendar/src/components/DatePicker.vue'
+import 'v-calendar/src/styles/base.css'
 // import ParticleBackground from './ParticleBackground.vue'
-import { exportMeetingDashboardPdf, stripTentativePdfExtraColumns } from '@/utils/meetingDashboardPdfExport'
-import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
+import { exportMeetingDashboardPdf } from '@/utils/meetingDashboardPdfExport'
+import { isMeetingDashboardUiEnabled, isWebpackDevelopment } from '@/utils/meetingDashboardUi'
+import {
+  meetingHubHighlightClass,
+  MEETING_HUB_HIGHLIGHT_CLASSES
+} from '@/utils/meetingHubNodeHighlight'
+import {
+  ymdFromDate,
+  presetKeyToYmdRange,
+  ymdPairToDateRange,
+  taskMatchesReviewDateFilter,
+  isDateFilterActive,
+  countTasksMatchingDateFilter
+} from '@/utils/tentativeReviewDateFilter'
+import {
+  PACK_HIGHLIGHT_OPTIONS,
+  packModeToHubClass,
+  packHighlightShowsHubColors,
+  packHighlightRestrictsTaskList,
+  shouldApplyMeetingHubTint,
+  taskMatchesPackHighlightMode
+} from '@/utils/meetingPackHighlightFilter'
+import {
+  buildPackHighlightNavTargets,
+  stripPackHighlightNavFocusClass
+} from '@/utils/meetingPackHighlightNav'
+
+const REVIEW_DATE_QUICK_SELECT = [
+  { value: 'all', label: 'All dates' },
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'tomorrow', label: 'Tomorrow' },
+  { value: 'last7', label: 'Last 7 days' },
+  { value: 'last30', label: 'Last 30 days' },
+  { value: 'custom', label: 'Custom range' }
+]
 
 export default {
   name: 'NewTentativeDashboard',
@@ -571,6 +724,7 @@ export default {
     CommentsModal,
     DashboardNodeCommentsModal,
     Datepicker,
+    VDatePicker,
     // ParticleBackground,
   },
 
@@ -587,10 +741,19 @@ export default {
       showCompletedTasks: false,
       activeMenuId: null,
       menuPosition: { top: '0px', left: '0px' },
+      /** Anchor for context menu: offsets from task row top-left; updated on open for scroll sync. */
+      menuAnchor: null,
+      contextMenuRafId: null,
       pdfVisible: false,
       pdfMode: false,
       resizeTimeout: null,
       menuHideTimeout: null,
+      /** Meeting draft: show pack node chrome on draft HTML (default on). Toggle is next to Filter when meeting bar is visible. */
+      packHighlightMode: 'all',
+      packHighlightNavIndex: 0,
+      packHighlightNavTargets: [],
+      packHighlightNavInitialScrollDone: false,
+      _packHighlightNavForceScroll: false,
       searchQuery: '',
       showSearchSuggestions: false,
       searchStats: null,
@@ -600,26 +763,12 @@ export default {
       
       // Filter system data
       showFilterDropdown: false,
-      selectedStatus: 'all',
-      selectedDateFilter: 'all',
-      customDate: '',
-      maxDate: new Date().toISOString().split('T')[0], // Today's date for max constraint
-      
-      // Filter options
-      statusOptions: [
-        { value: 'all', label: 'All Statuses' },
-        { value: 'draft', label: 'Draft' },
-        { value: 'under_review', label: 'Under Review' },
-        { value: 'approved', label: 'Approved' },
-        { value: 'completed', label: 'Completed' }
-      ],
-      dateOptions: [
-        { value: 'all', label: 'All Dates' },
-        { value: 'today', label: 'Today' },
-        { value: 'yesterday', label: 'Yesterday' },
-        { value: 'tomorrow', label: 'Tomorrow' },
-        { value: 'custom', label: 'Custom Date' }
-      ],
+      /** 'all' | 'preset' | 'range' — client-side review_date filter */
+      reviewDateMode: 'all',
+      reviewDatePresetKey: 'today',
+      reviewDateFromYmd: '',
+      reviewDateToYmd: '',
+      calendarRangeValue: null,
 
       // Tags filter (NEW)
       selectedTagsFilter: [],
@@ -640,6 +789,8 @@ export default {
       // Meeting dashboard (draft pack) — see New_Todo.md
       targetMeetingDate: '',
       persistedTargetMeetingDate: '',
+      /** Product: agenda date-range highlight not required; keep false. Safe-delete dead code later (see New_Todo.md). */
+      meetingAgendaUiEnabled: false,
       agendaDateFrom: '',
       agendaDateTo: '',
       showResetConfirmModal: false,
@@ -657,12 +808,11 @@ export default {
       commentNavIndex: 0,
       commentsModalVisible: false,
       commentsModalStableId: '',
-      showAssignInputModal: false,
-      assignModalTask: null,
-      assignSelectedStableId: '',
-      assignSelectedUserId: '',
-      assignReviewers: [],
-      assignSaving: false
+      commentsModalNodeContext: null,
+      allCommentsModalVisible: false,
+
+      /** Tooltip for meeting pack "no action nodes" info control (exact product copy). */
+      meetingPackNoChangeTooltip: 'No change.\n\nReady to be published.'
     }
   },
   watch: {
@@ -686,7 +836,7 @@ export default {
           this.applyAutoScaling()
           if (this.showMeetingDashboardBar) {
             this.applyAgendaNodeHighlights()
-            this.applyEditorOverlays()
+            this.scheduleApplyEditorOverlays()
           }
         })
       },
@@ -695,8 +845,14 @@ export default {
     editorOverlay: {
       deep: true,
       handler() {
-        this.$nextTick(() => this.applyEditorOverlays())
+        this.scheduleApplyEditorOverlays()
       }
+    },
+    packHighlightMode() {
+      this.scheduleApplyEditorOverlays()
+    },
+    '$route'() {
+      this.forceHideMenu()
     }
   },
   computed: {
@@ -713,6 +869,31 @@ export default {
         else if (name.includes(q)) contains.push(t)
       })
       return prefix.concat(contains).slice(0, 20)
+    },
+    reviewDateQuickSelectOptions () {
+      return REVIEW_DATE_QUICK_SELECT
+    },
+    reviewDateFilterContext () {
+      return {
+        mode: this.reviewDateMode,
+        presetKey: this.reviewDatePresetKey,
+        fromYmd: this.reviewDateFromYmd || '',
+        toYmd: this.reviewDateToYmd || ''
+      }
+    },
+    reviewDateFilterActive () {
+      return isDateFilterActive(this.reviewDateFilterContext)
+    },
+    reviewDateSelectValue () {
+      if (this.reviewDateMode === 'range') return 'custom'
+      if (this.reviewDateMode === 'all') return 'all'
+      return this.reviewDatePresetKey
+    },
+    packHighlightSelectOptions () {
+      return PACK_HIGHLIGHT_OPTIONS
+    },
+    packHighlightListFilterActive () {
+      return this.showMeetingDashboardBar && packHighlightRestrictsTaskList(this.packHighlightMode)
     },
     userRole () {
       let abc = this.getCookie('user_info')
@@ -733,27 +914,11 @@ export default {
         return null
       }
     },
-    assignNodeOptions () {
-      const task = this.assignModalTask
-      const roots = task && task.current_version && task.current_version.action_nodes
-      if (!Array.isArray(roots)) return []
-      const out = []
-      const walk = (nodes, prefix) => {
-        if (!Array.isArray(nodes)) return
-        nodes.forEach((n, i) => {
-          const counter = n.display_counter != null ? String(n.display_counter) : String(i + 1)
-          const snippet = this.stripHtmlTags(n.content || '').trim().slice(0, 48)
-          const label = (prefix ? `${prefix} › ` : '') + `${counter} ${snippet || '(empty)'}`
-          if (n.stable_node_id) {
-            out.push({ stable_node_id: n.stable_node_id, label })
-          }
-          if (n.children && n.children.length) {
-            walk(n.children, prefix ? `${prefix}.${counter}` : counter)
-          }
-        })
-      }
-      walk(roots, '')
-      return out
+    commentsModalNodeResolved () {
+      const sid = this.commentsModalStableId
+      if (!sid) return false
+      const o = (this.editorOverlay || {})[sid]
+      return !!(o && o.is_resolved === true)
     },
     statusClass() {
       return {
@@ -766,20 +931,12 @@ export default {
       }
     },
     displayTasks() {
-      // Apply both search and filter
       let tasks = this.activeTasks
-      
-      // Apply status filter
-      if (this.selectedStatus !== 'all') {
-        tasks = tasks.filter(task => task.status === this.selectedStatus)
+
+      if (this.reviewDateFilterActive) {
+        tasks = tasks.filter(task => taskMatchesReviewDateFilter(task, this.reviewDateFilterContext))
       }
-      
-      // Apply date filter
-      if (this.selectedDateFilter !== 'all') {
-        tasks = this.filterTasksByDate(tasks)
-      }
-      
-      // NEW: Apply tags filter (ANY match)
+
       if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) {
         tasks = tasks.filter(task => {
           if (!task || !Array.isArray(task.tags) || task.tags.length === 0) return false
@@ -787,30 +944,25 @@ export default {
           return ids.some(id => this.selectedTagsFilter.includes(id))
         })
       }
-      
-      // Apply search filter
-      if (this.searchQuery.length > 0) {
-        tasks = this.filteredTasks.filter(task => {
-          // Check if task passes status filter
-          if (this.selectedStatus !== 'all' && task.status !== this.selectedStatus) {
-            return false
-          }
-          // Check if task passes date filter
-          if (this.selectedDateFilter !== 'all' && !this.taskMatchesDateFilter(task)) {
-            return false
-          }
-          return true
-        })
+
+      if (this.packHighlightListFilterActive) {
+        tasks = tasks.filter(task =>
+          taskMatchesPackHighlightMode(task, this.editorOverlay, this.packHighlightMode)
+        )
       }
-      
+
+      if (this.searchQuery.length > 0) {
+        tasks = this.filteredTasks.filter(task => this.taskPassesFilterPanelWithSearch(task))
+      }
+
       return tasks
     },
-    
+
     activeFiltersCount() {
       let count = 0
-      if (this.selectedStatus !== 'all') count++
-      if (this.selectedDateFilter !== 'all') count++
+      if (this.reviewDateFilterActive) count++
       if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) count++
+      if (this.packHighlightListFilterActive) count++
       return count
     },
     searchSuggestions() {
@@ -866,9 +1018,25 @@ export default {
       )
       
       return uniqueSuggestions.slice(0, 8)
+    },
+    packHighlightNavFabVisible () {
+      return (
+        this.showMeetingDashboardBar &&
+        packHighlightShowsHubColors(this.packHighlightMode) &&
+        !this.pdfMode &&
+        this.packHighlightNavTargets.length > 0
+      )
+    },
+    packHighlightNavCount () {
+      return this.packHighlightNavTargets.length
     }
   },
-  
+
+  watch: {
+    pdfMode (v) {
+      if (v && this.$el) stripPackHighlightNavFocusClass(this.$el)
+    }
+  },
 
   created () {
     console.log('Route Query:', this.$route.query)
@@ -881,6 +1049,15 @@ export default {
     
     // Add click outside handler to close menu
     document.addEventListener('click', this.handleClickOutside)
+    document.addEventListener('keydown', this.onDocumentKeydownContextMenu)
+    this._onPackHighlightNavKeydown = (e) => this.onPackHighlightNavDocumentKeydown(e)
+    document.addEventListener('keydown', this._onPackHighlightNavKeydown)
+
+    this._onScrollRepositionContextMenu = () => this.scheduleContextMenuReposition()
+    window.addEventListener('scroll', this._onScrollRepositionContextMenu, true)
+    if (this.$el) {
+      this.$el.addEventListener('scroll', this._onScrollRepositionContextMenu, true)
+    }
     
     if (this.$route.query.highlightTaskId) {
       const row = document.querySelector(`[data-task-id="${this.$route.query.highlightTaskId}"]`)
@@ -889,6 +1066,8 @@ export default {
         row.classList.add('highlight-transition')
       }
     }
+
+    this.scheduleFocusNodeFromRoute()
 
     // Position reviewer badges after mount and initial render
     this.$nextTick(() => {
@@ -925,6 +1104,17 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
     document.removeEventListener('click', this.handleClickOutside)
+    document.removeEventListener('keydown', this.onDocumentKeydownContextMenu)
+    if (this._onPackHighlightNavKeydown) {
+      document.removeEventListener('keydown', this._onPackHighlightNavKeydown)
+      this._onPackHighlightNavKeydown = null
+    }
+    if (this._onScrollRepositionContextMenu) {
+      window.removeEventListener('scroll', this._onScrollRepositionContextMenu, true)
+      if (this.$el) {
+        this.$el.removeEventListener('scroll', this._onScrollRepositionContextMenu, true)
+      }
+    }
     window.removeEventListener('scroll', this.handleScroll)
     
     // Cleanup resize observer
@@ -960,12 +1150,14 @@ export default {
 
   methods: {
     handleResize() {
+      this.scheduleContextMenuReposition()
       // Debounce resize events
       if (this.resizeTimeout) {
         clearTimeout(this.resizeTimeout)
       }
       this.resizeTimeout = setTimeout(() => {
         this.applyAutoScaling()
+        this.scheduleContextMenuReposition()
       }, 150)
     },
 
@@ -1013,7 +1205,7 @@ export default {
     async fetchDraftEditorOverlay () {
       if (!this.showMeetingDashboardBar || !this.latestPublishedVersionId) {
         this.editorOverlay = {}
-        this.$nextTick(() => this.applyEditorOverlays())
+        this.scheduleApplyEditorOverlays()
         return
       }
       try {
@@ -1024,18 +1216,41 @@ export default {
       } catch (e) {
         this.editorOverlay = {}
       }
-      this.$nextTick(() => this.applyEditorOverlays())
+      this.scheduleApplyEditorOverlays()
+    },
+
+    /** Coalesce overlay DOM passes when editorOverlay / tasks / toggles churn in the same tick. */
+    scheduleApplyEditorOverlays () {
+      if (!this.showMeetingDashboardBar) return
+      if (this._scheduleEditorOverlayPending) return
+      this._scheduleEditorOverlayPending = true
+      this.$nextTick(() => {
+        this._scheduleEditorOverlayPending = false
+        this.applyEditorOverlays()
+      })
     },
 
     applyEditorOverlays () {
       if (!this.showMeetingDashboardBar || !this.$el || !this.$el.querySelectorAll) return
       const root = this.$el
       root.querySelectorAll('.action-content-cell .action-node').forEach((el) => {
-        el.classList.remove('meeting-overlay-node', 'meeting-has-assign', 'meeting-has-comment')
+        el.classList.remove(
+          'meeting-overlay-node',
+          ...MEETING_HUB_HIGHLIGHT_CLASSES,
+          'meeting-pack-resolved'
+        )
         const b = el.querySelector('.meeting-comment-badge')
         if (b) b.remove()
+        el.querySelectorAll('.meeting-pack-resolution-chip').forEach((x) => x.remove())
+        el.querySelectorAll('.meeting-pack-marker-with-tick').forEach((slot) => {
+          const parent = slot.parentNode
+          if (!parent) return
+          while (slot.firstChild) parent.insertBefore(slot.firstChild, slot)
+          parent.removeChild(slot)
+        })
       })
       const map = this.editorOverlay || {}
+      const mode = this.packHighlightMode
       this.$nextTick(() => {
         root.querySelectorAll('.action-content-cell .action-node[data-stable-node-id]').forEach((el) => {
           const sid = el.getAttribute('data-stable-node-id')
@@ -1046,23 +1261,141 @@ export default {
           const hasC = (o.comment_count || 0) > 0
           if (!hasA && !hasC) return
           el.classList.add('meeting-overlay-node')
-          if (hasA) el.classList.add('meeting-has-assign')
-          if (hasC) el.classList.add('meeting-has-comment')
-          if (hasC) {
-            const badge = document.createElement('span')
-            badge.className = 'meeting-comment-badge'
-            badge.textContent = String(o.comment_count)
-            badge.setAttribute('title', 'Comments on current published pack')
-            badge.addEventListener('click', (ev) => {
-              ev.stopPropagation()
-              ev.preventDefault()
-              this.commentsModalStableId = sid
-              this.commentsModalVisible = true
-            })
-            el.appendChild(badge)
+          const hub = meetingHubHighlightClass(!!hasA, !!hasC)
+          const applyTint = shouldApplyMeetingHubTint(mode, hub)
+          if (applyTint) {
+            el.classList.add(hub)
+            if (o.is_resolved === true) el.classList.add('meeting-pack-resolved')
+          }
+          /* Resolved only: small tick beside .node-marker; no "!?" for unresolved. */
+          if (o.is_resolved === true) {
+            const chip = document.createElement('span')
+            chip.className = 'meeting-pack-resolution-chip meeting-pack-resolution-chip--resolved no-print'
+            chip.setAttribute('role', 'img')
+            chip.setAttribute('aria-label', 'Pack node resolved')
+            chip.innerHTML =
+              '<svg class="meeting-pack-resolution-tick" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>'
+            const marker = el.querySelector('.node-marker')
+            if (marker && marker.parentNode === el) {
+              const slot = document.createElement('span')
+              slot.className = 'meeting-pack-marker-with-tick no-print'
+              el.insertBefore(slot, marker)
+              slot.appendChild(marker)
+              slot.appendChild(chip)
+            } else {
+              el.insertBefore(chip, el.firstChild)
+            }
           }
         })
+        this.$nextTick(() => {
+          this.refreshPackHighlightNavTargets()
+        })
       })
+    },
+
+    escapeSelectorValue (sid) {
+      return typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(String(sid))
+        : String(sid).replace(/\\/g, '\\\\')
+    },
+
+    packHighlightNavTargetsEqual (a, b) {
+      if (!a || !b || a.length !== b.length) return false
+      return a.every((t, i) => b[i] && t.taskId === b[i].taskId && t.stableId === b[i].stableId)
+    },
+
+    refreshPackHighlightNavTargets () {
+      const root = this.$el
+      if (!root || !this.showMeetingDashboardBar) {
+        if (this.packHighlightNavTargets.length) this.packHighlightNavTargets = []
+        stripPackHighlightNavFocusClass(root)
+        return
+      }
+      if (!packHighlightShowsHubColors(this.packHighlightMode)) {
+        if (this.packHighlightNavTargets.length) this.packHighlightNavTargets = []
+        this.packHighlightNavIndex = 0
+        stripPackHighlightNavFocusClass(root)
+        return
+      }
+      const list = buildPackHighlightNavTargets(root, this.packHighlightMode)
+      const n = list.length
+      if (n === 0) {
+        if (this.packHighlightNavTargets.length) this.packHighlightNavTargets = []
+        this.packHighlightNavIndex = 0
+        stripPackHighlightNavFocusClass(root)
+        return
+      }
+      const targetsUnchanged = this.packHighlightNavTargetsEqual(this.packHighlightNavTargets, list)
+      if (!targetsUnchanged) {
+        this.packHighlightNavTargets = list
+      }
+      if (this.packHighlightNavIndex >= n) this.packHighlightNavIndex = n - 1
+      if (this.packHighlightNavIndex < 0) this.packHighlightNavIndex = 0
+      const forceScroll = this._packHighlightNavForceScroll
+      this._packHighlightNavForceScroll = false
+      const firstEver = !this.packHighlightNavInitialScrollDone
+      if (firstEver) this.packHighlightNavInitialScrollDone = true
+      const scroll = forceScroll || firstEver
+      this.applyPackHighlightNavFocus({ scroll })
+    },
+
+    applyPackHighlightNavFocus ({ scroll }) {
+      const root = this.$el
+      if (!root) return
+      stripPackHighlightNavFocusClass(root)
+      const targets = this.packHighlightNavTargets
+      const n = targets.length
+      if (!n) return
+      let idx = this.packHighlightNavIndex
+      if (idx < 0 || idx >= n) idx = 0
+      const { taskId, stableId } = targets[idx]
+      const esc = this.escapeSelectorValue(stableId)
+      const el = root.querySelector(
+        `[data-task-id="${taskId}"] .action-node[data-stable-node-id="${esc}"]`
+      )
+      if (!el) return
+      el.classList.add('pack-highlight-nav-focus')
+      if (scroll) {
+        const row = el.closest('[data-task-id]')
+        const si = (node) =>
+          node &&
+          typeof node.scrollIntoView === 'function' &&
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        si(row)
+        si(el)
+      }
+    },
+
+    packHighlightNavPrev () {
+      const n = this.packHighlightNavTargets.length
+      if (!n) return
+      this.packHighlightNavIndex = (this.packHighlightNavIndex - 1 + n) % n
+      this.applyPackHighlightNavFocus({ scroll: true })
+    },
+
+    packHighlightNavNext () {
+      const n = this.packHighlightNavTargets.length
+      if (!n) return
+      this.packHighlightNavIndex = (this.packHighlightNavIndex + 1) % n
+      this.applyPackHighlightNavFocus({ scroll: true })
+    },
+
+    onPackHighlightNavDocumentKeydown (e) {
+      if (!this.packHighlightNavFabVisible || this.packHighlightNavTargets.length === 0) return
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+      const t = e.target
+      if (
+        t &&
+        (t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          (t.isContentEditable && t.isContentEditable !== 'false'))
+      ) {
+        return
+      }
+      e.preventDefault()
+      if (e.key === 'ArrowUp') this.packHighlightNavPrev()
+      else this.packHighlightNavNext()
     },
 
     async loadMeetingDraftSettings () {
@@ -1189,6 +1522,7 @@ export default {
     },
 
     taskInAgendaRange (task) {
+      if (!this.meetingAgendaUiEnabled) return false
       if (!this.agendaDateFrom || !this.agendaDateTo) return false
       if (task == null || task.review_date == null || task.review_date === '') return false
       const rd = new Date(task.review_date)
@@ -1231,6 +1565,7 @@ export default {
         root.querySelectorAll('.action-node.agenda-range-node-highlight').forEach((el) => {
           el.classList.remove('agenda-range-node-highlight')
         })
+        if (!this.meetingAgendaUiEnabled) return
         if (!this.agendaDateFrom || !this.agendaDateTo) return
         const from = this.parseYmdToLocalDate(this.agendaDateFrom)
         const to = this.parseYmdToLocalDate(this.agendaDateTo)
@@ -1281,81 +1616,139 @@ export default {
       this.commentNavScrollToCurrent()
     },
 
-    commentNavScrollToCurrent () {
-      const item = this.commentNavNodes[this.commentNavIndex]
-      if (!item) return
-      const taskId = item.new_task_id
-      const sid = item.stable_node_id
-      const row = this.$el.querySelector(`[data-task-id="${taskId}"]`)
-      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    scheduleFocusNodeFromRoute () {
+      const focusNode = this.$route && this.$route.query && this.$route.query.focus_node
+      if (!focusNode) return
       this.$nextTick(() => {
-        const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(sid) : String(sid).replace(/\\/g, '\\\\')
-        const el = this.$el.querySelector(
-          `[data-task-id="${taskId}"] .action-node[data-stable-node-id="${esc}"]`
-        )
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('comment-nav-flash')
-          setTimeout(() => el.classList.remove('comment-nav-flash'), 1200)
-        }
+        setTimeout(() => {
+          this.scrollToStableNode(null, focusNode)
+        }, 500)
       })
     },
 
-    onDashboardCommentSubmitted () {
-      this.fetchDraftEditorOverlay()
-      if (this.showCommentsNavMode) {
-        this.loadCommentNavNodes()
+    scrollToStableNode (taskId, stableNodeId) {
+      if (!stableNodeId || !this.$el) return
+      const sid = stableNodeId
+      const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(sid) : String(sid).replace(/\\/g, '\\\\')
+      const scrollFlash = (el) => {
+        if (!el) return
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('comment-nav-flash')
+        setTimeout(() => el.classList.remove('comment-nav-flash'), 1500)
       }
-    },
-
-    async openAssignInputModal (task) {
-      if (!task || !this.latestPublishedVersionId) {
-        this.$toast && this.$toast.info('Publish a pack first to assign input reviewers.')
+      const noTask = taskId == null || taskId === ''
+      if (noTask) {
+        this.$nextTick(() => {
+          const el = this.$el.querySelector(`.action-node[data-stable-node-id="${esc}"]`)
+          if (el) {
+            const row = el.closest('[data-task-id]')
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            scrollFlash(el)
+          }
+        })
         return
       }
-      this.assignModalTask = task
-      this.assignSelectedStableId = ''
-      this.assignSelectedUserId = ''
-      this.showAssignInputModal = true
-      if (!this.assignReviewers.length) {
-        try {
-          const { data } = await this.$http.secured.get('/users/reviewers')
-          const list = Array.isArray(data) ? data : (data.reviewers || [])
-          this.assignReviewers = list.map((r) => ({
-            id: r.id,
-            name: r.name || [r.first_name, r.last_name].filter(Boolean).join(' ')
-          }))
-        } catch (e) {
-          this.assignReviewers = []
+      const row = this.$el.querySelector(`[data-task-id="${taskId}"]`)
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      this.$nextTick(() => {
+        const el = this.$el.querySelector(
+          `[data-task-id="${taskId}"] .action-node[data-stable-node-id="${esc}"]`
+        )
+        scrollFlash(el)
+      })
+    },
+
+    commentNavScrollToCurrent () {
+      const item = this.commentNavNodes[this.commentNavIndex]
+      if (!item) return
+      this.scrollToStableNode(item.new_task_id, item.stable_node_id)
+    },
+
+    async openAllCommentsModal () {
+      await this.loadCommentNavNodes()
+      this.allCommentsModalVisible = true
+    },
+
+    tasksForCommentPreview () {
+      const a = this.activeTasks || []
+      const c = this.completedTasks || []
+      return a.concat(c)
+    },
+
+    taskLabelForCommentNode (item) {
+      const t = this.tasksForCommentPreview().find((x) => x.id === item.new_task_id)
+      return t ? (t.description || `Task ${item.new_task_id}`).slice(0, 120) : `Task ${item.new_task_id}`
+    },
+
+    nodeLabelForCommentNode (item) {
+      const t = this.tasksForCommentPreview().find((x) => x.id === item.new_task_id)
+      if (!t || !t.current_version || !t.current_version.action_nodes) return item.stable_node_id || 'Node'
+      let found = ''
+      const walk = (nodes, prefix) => {
+        if (!Array.isArray(nodes) || found) return
+        nodes.forEach((n, i) => {
+          if (found) return
+          const c = n.display_counter != null ? String(n.display_counter) : String(i + 1)
+          const path = prefix ? `${prefix}.${c}` : c
+          if (n.stable_node_id === item.stable_node_id) {
+            found = path
+            return
+          }
+          if (n.children && n.children.length) walk(n.children, path)
+        })
+      }
+      walk(t.current_version.action_nodes, '')
+      return found || item.stable_node_id || 'Node'
+    },
+
+    goToCommentNode (item) {
+      this.allCommentsModalVisible = false
+      this.$nextTick(() => this.scrollToStableNode(item.new_task_id, item.stable_node_id))
+    },
+
+    openThreadForNode (stableId) {
+      this.allCommentsModalVisible = false
+      this.openDashboardCommentsModal(stableId)
+    },
+
+    truncatePlainText (str, maxChars) {
+      const s = String(str || '').trim()
+      if (!s) return ''
+      if (s.length <= maxChars) return s
+      return s.slice(0, maxChars) + '…'
+    },
+
+    getNodeContentPreview (stableNodeId, maxChars) {
+      if (!stableNodeId) return '(node content unavailable)'
+      for (const task of this.tasksForCommentPreview()) {
+        const node = this.findNodeInTaskTreeByStableId(task, stableNodeId)
+        if (node) {
+          const plain = this.stripHtmlForCommentPreview(node.content)
+          return this.truncatePlainText(plain, maxChars)
         }
       }
+      return '(node content unavailable)'
     },
 
-    closeAssignInputModal () {
-      this.showAssignInputModal = false
-      this.assignModalTask = null
-    },
-
-    async submitAssignInput () {
-      if (!this.latestPublishedVersionId || !this.assignSelectedStableId || !this.assignSelectedUserId) {
-        this.$toast && this.$toast.error('Choose a node and reviewer.')
+    async onDashboardCommentSubmitted () {
+      if (this.showMeetingDashboardBar) {
+        await this.fetchTasksByDate()
         return
       }
-      this.assignSaving = true
-      try {
-        await this.$http.secured.post('/meeting_dashboard/assignments', {
-          new_dashboard_version_id: this.latestPublishedVersionId,
-          stable_node_id: this.assignSelectedStableId,
-          user_id: Number(this.assignSelectedUserId)
-        })
-        this.$toast.success('Assignment saved.')
-        this.closeAssignInputModal()
-        await this.fetchDraftEditorOverlay()
-      } catch (e) {
-        const msg = (e.response && e.response.data && e.response.data.error) || 'Assignment failed'
-        this.$toast.error(msg)
-      } finally {
-        this.assignSaving = false
+      this.fetchDraftEditorOverlay()
+      if (this.showCommentsNavMode) {
+        await this.loadCommentNavNodes()
+      }
+    },
+
+    async onDashboardNodeResolutionChanged () {
+      if (this.showMeetingDashboardBar) {
+        await this.fetchTasksByDate()
+        return
+      }
+      this.fetchDraftEditorOverlay()
+      if (this.showCommentsNavMode) {
+        await this.loadCommentNavNodes()
       }
     },
 
@@ -1384,7 +1777,134 @@ export default {
         return
       }
       this.commentsModalStableId = withComments[0].stable_node_id
+      this.commentsModalNodeContext = this.buildCommentsModalNodeContext(
+        task,
+        withComments[0].stable_node_id
+      )
       this.commentsModalVisible = true
+    },
+
+    stripHtmlForCommentPreview (html) {
+      if (html == null) return ''
+      return String(html)
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    },
+
+    findNodeInTaskTreeByStableId (task, stableId) {
+      const roots = task && task.current_version && task.current_version.action_nodes
+      if (!Array.isArray(roots) || !stableId) return null
+      let found = null
+      const walk = (nodes) => {
+        if (!Array.isArray(nodes) || found) return
+        nodes.forEach((n) => {
+          if (found) return
+          if (n.stable_node_id === stableId) {
+            found = n
+            return
+          }
+          if (n.children && n.children.length) walk(n.children)
+        })
+      }
+      walk(roots)
+      return found
+    },
+
+    nodeLabelForStableInTask (task, stableId) {
+      const roots = task && task.current_version && task.current_version.action_nodes
+      if (!Array.isArray(roots)) return stableId || 'Node'
+      let label = ''
+      const walk = (nodes, prefix) => {
+        if (!Array.isArray(nodes) || label) return
+        nodes.forEach((n) => {
+          if (label) return
+          const c = n.display_counter != null ? String(n.display_counter) : ''
+          const path = prefix ? `${prefix}.${c}` : c
+          if (n.stable_node_id === stableId) {
+            label = path || stableId
+            return
+          }
+          if (n.children && n.children.length) walk(n.children, path)
+        })
+      }
+      walk(roots, '')
+      return label || stableId || 'Node'
+    },
+
+    /**
+     * Build parenthetical hierarchy label: e.g. "1(b)(iii)" instead of "1.b.iii".
+     * Each depth after the first wraps its counter in parentheses.
+     */
+    nodeHierarchyLabel (task, stableId) {
+      const roots = task && task.current_version && task.current_version.action_nodes
+      if (!Array.isArray(roots) || !stableId) return ''
+      let result = ''
+      const walk = (nodes, pathParts, depth) => {
+        if (!Array.isArray(nodes) || result) return
+        nodes.forEach((n) => {
+          if (result) return
+          const c = n.display_counter != null ? String(n.display_counter) : ''
+          const nextParts = pathParts.concat(c)
+          if (n.stable_node_id === stableId) {
+            // First part bare, rest wrapped in parens
+            result = nextParts.map((p, i) => (i === 0 ? p : `(${p})`)).join('')
+            return
+          }
+          if (n.children && n.children.length) walk(n.children, nextParts, depth + 1)
+        })
+      }
+      walk(roots, [], 0)
+      return result
+    },
+
+    buildCommentsModalNodeContext (task, stableId) {
+      if (!task || !stableId) return null
+      const node = this.findNodeInTaskTreeByStableId(task, stableId)
+      if (!node) return null
+      const plain = this.stripHtmlForCommentPreview(node.content)
+      return {
+        taskDescription: task.description || `Task ${task.id}`,
+        taskSector: task.sector_division || '',
+        nodeLabel: this.nodeLabelForStableInTask(task, stableId),
+        nodeHierarchyPath: this.nodeHierarchyLabel(task, stableId),
+        nodeContentPreview: this.truncatePlainText(plain, 150),
+        nodeContentFull: plain
+      }
+    },
+
+    resolveCommentsModalNodeContext (stableId) {
+      if (!stableId) return null
+      const lists = [this.activeTasks, this.completedTasks]
+      for (const list of lists) {
+        if (!Array.isArray(list)) continue
+        for (const task of list) {
+          const node = this.findNodeInTaskTreeByStableId(task, stableId)
+          if (node) return this.buildCommentsModalNodeContext(task, stableId)
+        }
+      }
+      return null
+    },
+
+    openDashboardCommentsModal (stableId) {
+      this.commentsModalStableId = stableId
+      const ctx = this.resolveCommentsModalNodeContext(stableId)
+      // Enrich context with assigned reviewer names from editorOverlay
+      if (ctx && stableId && this.editorOverlay) {
+        const o = this.editorOverlay[stableId]
+        if (o && Array.isArray(o.assignment_users) && o.assignment_users.length) {
+          ctx.assignedReviewerNames = o.assignment_users
+            .map(u => u.name || `User ${u.id}`)
+            .join(', ')
+        }
+      }
+      this.commentsModalNodeContext = ctx
+      this.commentsModalVisible = true
+    },
+
+    closeDashboardCommentsModal () {
+      this.commentsModalVisible = false
+      this.commentsModalNodeContext = null
     },
 
     async fetchTasksByDate() {
@@ -1413,6 +1933,13 @@ export default {
           }
           this.activeTasks = sortTasksByReviewDate([...active])
           this.completedTasks = sortTasksByReviewDate([...completed])
+          if (isWebpackDevelopment()) {
+            this.activeTasks.forEach((t) => {
+              if (t && t.pack_node_stats == null) {
+                console.warn('[NewTentativeDashboard] Task missing pack_node_stats (meeting draft):', t.id)
+              }
+            })
+          }
           if (response.data.draft_settings && response.data.draft_settings.target_meeting_date) {
             const synced = this.toDateInputValue(response.data.draft_settings.target_meeting_date)
             if (synced) {
@@ -1454,8 +1981,9 @@ export default {
           this.applyAutoScaling()
           if (this.showMeetingDashboardBar) {
             this.applyAgendaNodeHighlights()
-            this.applyEditorOverlays()
+            this.scheduleApplyEditorOverlays()
           }
+          this.scheduleFocusNodeFromRoute()
         })
       } catch (error) {
         console.error('Error fetching tasks:', error)
@@ -1645,174 +2173,203 @@ export default {
     },
     
     applyFilters() {
-      // This method is called when filter options change
-      // The actual filtering is handled in the computed displayTasks property
       console.log('Filters applied:', {
-        status: this.selectedStatus,
-        dateFilter: this.selectedDateFilter,
-        customDate: this.customDate,
+        reviewDate: this.reviewDateFilterContext,
         tags: this.selectedTagsFilter
       })
-    // No refetch needed for local filters (status/date/tags)
     },
-    
+
     clearAllFilters() {
-      this.selectedStatus = 'all'
-      this.selectedDateFilter = 'all'
-      this.customDate = ''
-    this.selectedTagsFilter = []
+      this.reviewDateMode = 'all'
+      this.reviewDatePresetKey = 'today'
+      this.reviewDateFromYmd = ''
+      this.reviewDateToYmd = ''
+      this.calendarRangeValue = null
+      this.selectedTagsFilter = []
     },
-    
-    clearStatusFilter() {
-      this.selectedStatus = 'all'
-    },
-    
+
     clearDateFilter() {
-      this.selectedDateFilter = 'all'
-      this.customDate = ''
+      this.reviewDateMode = 'all'
+      this.reviewDatePresetKey = 'today'
+      this.reviewDateFromYmd = ''
+      this.reviewDateToYmd = ''
+      this.calendarRangeValue = null
     },
 
-  // Load all tags for the filter chips
-  async loadTagsForFilter () {
-    // Build tag list from currently loaded tasks so only in-use tags appear
-    try {
-      this.isLoadingTags = true
-      const idToName = new Map()
-      const source = Array.isArray(this.activeTasks) ? this.activeTasks : []
-      source.forEach(task => {
-        if (task && Array.isArray(task.tags)) {
-          task.tags.forEach(t => {
-            if (t && typeof t.id === 'number' && t.name) {
-              idToName.set(t.id, t.name)
-            }
-          })
-        }
-      })
-      // Convert to sorted array by name
-      this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-    } finally {
-      this.isLoadingTags = false
-    }
-  },
-
-  // Select a tag from suggestions
-  selectFilterTag (tag) {
-    if (!tag || typeof tag.id !== 'number') return
-    if (!this.selectedTagsFilter.includes(tag.id)) {
-      this.selectedTagsFilter = [...this.selectedTagsFilter, tag.id]
+    onPackHighlightModeChange () {
+      this.packHighlightNavIndex = 0
+      this._packHighlightNavForceScroll = true
       this.applyFilters()
-    }
-  },
+      this.scheduleApplyEditorOverlays()
+    },
 
-  // Toggle a tag id in the selection
-  toggleTagFilter (tagId) {
-    const id = Number(tagId)
-    if (this.selectedTagsFilter.includes(id)) {
-      this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== id)
-    } else {
-      this.selectedTagsFilter = [...this.selectedTagsFilter, id]
-    }
-    this.applyFilters()
-  },
+    getPackHighlightFilterLabel () {
+      const row = PACK_HIGHLIGHT_OPTIONS.find(o => o.value === this.packHighlightMode)
+      return (row && row.label) || this.packHighlightMode
+    },
 
-  // Remove a single tag from Active Filters summary
-  clearOneTagFilter (tagId) {
-    this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== tagId)
-    this.applyFilters()
-  },
-    
-    filterTasksByDate(tasks) {
-      if (this.selectedDateFilter === 'all') return tasks
-      
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      return tasks.filter(task => {
-        if (!task.review_date) return false
-        
-        const taskDate = new Date(task.review_date)
-        taskDate.setHours(0, 0, 0, 0)
-        
-        switch (this.selectedDateFilter) {
-          case 'today':
-            return taskDate.getTime() === today.getTime()
-          case 'yesterday':
-            const yesterday = new Date(today)
-            yesterday.setDate(yesterday.getDate() - 1)
-            return taskDate.getTime() === yesterday.getTime()
-          case 'tomorrow':
-            const tomorrow = new Date(today)
-            tomorrow.setDate(tomorrow.getDate() + 1)
-            return taskDate.getTime() === tomorrow.getTime()
-          case 'custom':
-            if (!this.customDate) return false
-            const customDate = new Date(this.customDate)
-            customDate.setHours(0, 0, 0, 0)
-            return taskDate.getTime() === customDate.getTime()
-          default:
-            return true
-        }
+    clearPackHighlightListFilter () {
+      this.packHighlightMode = 'all'
+      this.onPackHighlightModeChange()
+    },
+
+    datePresetOptionCount (value) {
+      if (value === 'all' || value === 'custom') return this.activeTasks.length
+      return countTasksMatchingDateFilter(this.activeTasks, {
+        mode: 'preset',
+        presetKey: value,
+        fromYmd: '',
+        toYmd: ''
       })
     },
-    
-    taskMatchesDateFilter(task) {
-      if (this.selectedDateFilter === 'all') return true
-      if (!task.review_date) return false
-      
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const taskDate = new Date(task.review_date)
-      taskDate.setHours(0, 0, 0, 0)
-      
-      switch (this.selectedDateFilter) {
-        case 'today':
-          return taskDate.getTime() === today.getTime()
-        case 'yesterday':
-          const yesterday = new Date(today)
-          yesterday.setDate(yesterday.getDate() - 1)
-          return taskDate.getTime() === yesterday.getTime()
-        case 'tomorrow':
-          const tomorrow = new Date(today)
-          tomorrow.setDate(tomorrow.getDate() + 1)
-          return taskDate.getTime() === tomorrow.getTime()
-        case 'custom':
-          if (!this.customDate) return false
-          const customDate = new Date(this.customDate)
-          customDate.setHours(0, 0, 0, 0)
-          return taskDate.getTime() === customDate.getTime()
-        default:
-          return true
+
+    onReviewDatePresetChange (e) {
+      const v = e.target.value
+      if (v === 'custom') {
+        this.reviewDateMode = 'range'
+        this.reviewDateFromYmd = ''
+        this.reviewDateToYmd = ''
+        this.calendarRangeValue = null
+        this.applyFilters()
+        return
+      }
+      if (v === 'all') {
+        this.reviewDateMode = 'all'
+        this.reviewDateFromYmd = ''
+        this.reviewDateToYmd = ''
+        this.calendarRangeValue = null
+        this.applyFilters()
+        return
+      }
+      this.reviewDateMode = 'preset'
+      this.reviewDatePresetKey = v
+      const { fromYmd, toYmd } = presetKeyToYmdRange(v)
+      this.reviewDateFromYmd = fromYmd
+      this.reviewDateToYmd = toYmd
+      this.calendarRangeValue = ymdPairToDateRange(fromYmd, toYmd)
+      this.applyFilters()
+    },
+
+    onReviewCalendarInput (val) {
+      if (val && val.start && val.end) {
+        this.reviewDateMode = 'range'
+        this.reviewDateFromYmd = ymdFromDate(val.start)
+        this.reviewDateToYmd = ymdFromDate(val.end)
+        this.calendarRangeValue = val
+      } else {
+        this.calendarRangeValue = val
+        if (!val) {
+          this.reviewDateMode = 'all'
+          this.reviewDateFromYmd = ''
+          this.reviewDateToYmd = ''
+        }
+      }
+      this.applyFilters()
+    },
+
+    onReviewBoundChange () {
+      this.reviewDateMode = 'range'
+      if (this.reviewDateFromYmd && this.reviewDateToYmd) {
+        this.calendarRangeValue = ymdPairToDateRange(this.reviewDateFromYmd, this.reviewDateToYmd)
+      } else {
+        this.calendarRangeValue = null
+      }
+      this.applyFilters()
+    },
+
+    getReviewDateFilterLabel () {
+      if (this.reviewDateMode === 'preset') {
+        const row = REVIEW_DATE_QUICK_SELECT.find(o => o.value === this.reviewDatePresetKey)
+        return (row && row.label) || this.reviewDatePresetKey
+      }
+      const f = this.reviewDateFromYmd
+      const t = this.reviewDateToYmd
+      const ds = (ymd) => {
+        if (!ymd) return ''
+        const d = new Date(`${ymd}T12:00:00`)
+        return !Number.isNaN(d.getTime())
+          ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+          : ymd
+      }
+      if (f && t) {
+        if (f === t) return ds(f)
+        return `${ds(f)} – ${ds(t)}`
+      }
+      if (f) return `On or after ${ds(f)}`
+      if (t) return `On or before ${ds(t)}`
+      return 'Custom range'
+    },
+
+    taskPassesFilterPanelWithSearch (task) {
+      if (this.reviewDateFilterActive && !taskMatchesReviewDateFilter(task, this.reviewDateFilterContext)) {
+        return false
+      }
+      if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) {
+        if (!task || !Array.isArray(task.tags) || task.tags.length === 0) return false
+        const ids = task.tags.map(t => t.id)
+        if (!ids.some(id => this.selectedTagsFilter.includes(id))) return false
+      }
+      if (this.packHighlightListFilterActive && !taskMatchesPackHighlightMode(task, this.editorOverlay, this.packHighlightMode)) {
+        return false
+      }
+      return true
+    },
+
+    // Load all tags for the filter chips
+    async loadTagsForFilter () {
+      // Build tag list from currently loaded tasks so only in-use tags appear
+      try {
+        this.isLoadingTags = true
+        const idToName = new Map()
+        const source = Array.isArray(this.activeTasks) ? this.activeTasks : []
+        source.forEach(task => {
+          if (task && Array.isArray(task.tags)) {
+            task.tags.forEach(t => {
+              if (t && typeof t.id === 'number' && t.name) {
+                idToName.set(t.id, t.name)
+              }
+            })
+          }
+        })
+        // Convert to sorted array by name
+        this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      } finally {
+        this.isLoadingTags = false
       }
     },
-    
-    getStatusCount(status) {
-      if (status === 'all') return this.activeTasks.length
-      return this.activeTasks.filter(task => task.status === status).length
-    },
-    
-    getDateFilterCount(dateFilter) {
-      if (dateFilter === 'all') return this.activeTasks.length
-      return this.filterTasksByDate(this.activeTasks).length
-    },
-    
-    getStatusLabel(status) {
-      const option = this.statusOptions.find(opt => opt.value === status)
-      return option ? option.label : status
-    },
-    
-    getDateFilterLabel(dateFilter) {
-      if (dateFilter === 'custom' && this.customDate) {
-        return `Custom: ${new Date(this.customDate).toLocaleDateString()}`
+
+    // Select a tag from suggestions
+    selectFilterTag (tag) {
+      if (!tag || typeof tag.id !== 'number') return
+      if (!this.selectedTagsFilter.includes(tag.id)) {
+        this.selectedTagsFilter = [...this.selectedTagsFilter, tag.id]
+        this.applyFilters()
       }
-      const option = this.dateOptions.find(opt => opt.value === dateFilter)
-      return option ? option.label : dateFilter
     },
+
+    // Toggle a tag id in the selection
+    toggleTagFilter (tagId) {
+      const id = Number(tagId)
+      if (this.selectedTagsFilter.includes(id)) {
+        this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== id)
+      } else {
+        this.selectedTagsFilter = [...this.selectedTagsFilter, id]
+      }
+      this.applyFilters()
+    },
+
+    // Remove a single tag from Active Filters summary
+    clearOneTagFilter (tagId) {
+      this.selectedTagsFilter = this.selectedTagsFilter.filter(tid => tid !== tagId)
+      this.applyFilters()
+    },
+    
     async downloadPDF () {
       try {
         await exportMeetingDashboardPdf({
           fileName: 'dashboard.pdf',
-          prepareRowClone: stripTentativePdfExtraColumns,
+          prepareRowClone: (rowClone) => this.prepareTentativePdfRowClone(rowClone),
           positionReviewerBadgesForClone: (rowClone) => this.positionReviewerBadgesForClone(rowClone),
           onStart: async () => {
             this.pdfVisible = true
@@ -2017,95 +2574,184 @@ export default {
       return statusMap[status] || status;
     },
 
-    showActionMenu(taskId, event) {
-      // Clear any pending hide timeout
+    /**
+     * Meeting draft: normalized pack_node_stats from GET /meeting_dashboard/draft, or null if absent.
+     */
+    normalizePackNodeStats (task) {
+      if (!task || task.pack_node_stats == null || typeof task.pack_node_stats !== 'object') return null
+      const s = task.pack_node_stats
+      return {
+        unresolved_count: Number(s.unresolved_count) || 0,
+        resolved_count: Number(s.resolved_count) || 0,
+        assigned_without_comment_count: Number(s.assigned_without_comment_count) || 0,
+        no_action_nodes: s.has_action_nodes === false
+      }
+    },
+
+    meetingPackStatusShowSecondLine (task) {
+      const stats = this.normalizePackNodeStats(task)
+      return !!(stats && !stats.no_action_nodes)
+    },
+
+    meetingPackStatusIsFullyClear (stats) {
+      if (!stats || stats.no_action_nodes) return false
+      return stats.unresolved_count === 0 && stats.assigned_without_comment_count === 0
+    },
+
+    meetingPackStatusTdReady (task) {
+      return this.meetingPackStatusIsFullyClear(this.normalizePackNodeStats(task))
+    },
+
+    meetingPackStatusTdPending (task) {
+      const stats = this.normalizePackNodeStats(task)
+      if (!stats || stats.no_action_nodes) return false
+      return !this.meetingPackStatusIsFullyClear(stats)
+    },
+
+    meetingPackStatusSecondLineText (task) {
+      const stats = this.normalizePackNodeStats(task)
+      if (!this.meetingPackStatusShowSecondLine(task)) return ''
+      return this.meetingPackStatusIsFullyClear(stats) ? 'Ready to be published' : 'Pending Action'
+    },
+
+    /** PDF export: strip Status (and Actions if still present) so clone matches 7-column jsPDF layout. */
+    prepareTentativePdfRowClone (rowClone) {
+      rowClone.querySelectorAll('.action-node.pack-highlight-nav-focus').forEach((el) => {
+        el.classList.remove('pack-highlight-nav-focus')
+      })
+      const tableInRow = rowClone.querySelector('table')
+      const mainRow = tableInRow && tableInRow.rows[0]
+      if (!mainRow) return
+      const n = mainRow.children.length
+      if (n >= 9) {
+        mainRow.removeChild(mainRow.children[8])
+        mainRow.removeChild(mainRow.children[7])
+      } else if (n === 8) {
+        mainRow.removeChild(mainRow.children[7])
+      }
+    },
+
+    clampContextMenuPosition (left, top) {
+      const w = 180
+      const h = 240
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      const clampedLeft = Math.max(10, Math.min(left, vw - w - 10))
+      const clampedTop = Math.max(10, Math.min(top, vh - h - 10))
+      return { left: clampedLeft, top: clampedTop }
+    },
+
+    applyMenuPositionFromClientPoint (clientX, clientY, rowEl) {
+      if (!rowEl || typeof clientX !== 'number' || typeof clientY !== 'number') return
+      const rr = rowEl.getBoundingClientRect()
+      this.menuAnchor = {
+        taskId: rowEl.getAttribute('data-task-id'),
+        offsetX: clientX - rr.left,
+        offsetY: clientY - rr.top
+      }
+      this.syncContextMenuPositionFromAnchor()
+    },
+
+    syncContextMenuPositionFromAnchor () {
+      if (!this.menuAnchor || !this.activeMenuId) return
+      const tid = this.menuAnchor.taskId
+      const rowEl = this.$el && this.$el.querySelector
+        ? this.$el.querySelector(`.table-row[data-task-id="${tid}"]`)
+        : null
+      if (!rowEl) {
+        this.forceHideMenu()
+        return
+      }
+      const rr = rowEl.getBoundingClientRect()
+      const left = rr.left + this.menuAnchor.offsetX
+      const top = rr.top + this.menuAnchor.offsetY
+      const { left: L, top: T } = this.clampContextMenuPosition(left, top)
+      this.menuPosition = {
+        position: 'fixed',
+        top: `${T}px`,
+        left: `${L}px`,
+        zIndex: '99999'
+      }
+    },
+
+    scheduleContextMenuReposition () {
+      if (!this.activeMenuId) return
+      if (this.contextMenuRafId != null) return
+      this.contextMenuRafId = window.requestAnimationFrame(() => {
+        this.contextMenuRafId = null
+        this.syncContextMenuPositionFromAnchor()
+      })
+    },
+
+    openTaskContextMenu (task, event) {
+      if (!task || !event) return
       if (this.menuHideTimeout) {
-        clearTimeout(this.menuHideTimeout);
-        this.menuHideTimeout = null;
+        clearTimeout(this.menuHideTimeout)
+        this.menuHideTimeout = null
       }
-      // Reset tags popover whenever menu is opened/hovered
-      this.showTagsForTaskId = null;
-
-      // Calculate global position for the dropdown
-      const trigger = event ? event.target : document.querySelector(`[data-task-id="${taskId}"]`);
-      if (trigger) {
-        const rect = trigger.getBoundingClientRect();
-        const menuWidth = 180;
-        const menuHeight = 200; // Approximate menu height
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        
-        // Calculate position with viewport boundary checks
-        // Position menu directly below the trigger with slight overlap to prevent gaps
-        let top = rect.bottom + 2; // Reduced gap
-        let left = rect.right - menuWidth;
-        
-        // Adjust if menu would go off-screen
-        if (left < 10) {
-          left = rect.left; // Align to left of trigger
-        }
-        if (top + menuHeight > viewportHeight) {
-          top = rect.top - menuHeight - 2; // Show above trigger with reduced gap
-        }
-        
-        this.menuPosition = {
-          position: 'fixed',
-          top: `${Math.max(10, top)}px`,
-          left: `${Math.max(10, Math.min(left, viewportWidth - menuWidth - 10))}px`,
-          zIndex: '99999'
-        };
-      }
-      this.activeMenuId = taskId;
+      this.showTagsForTaskId = null
+      const rowEl = event.currentTarget && event.currentTarget.classList.contains('table-row')
+        ? event.currentTarget
+        : (this.$el && this.$el.querySelector(`.table-row[data-task-id="${task.id}"]`))
+      this.activeMenuId = task.id
+      this.applyMenuPositionFromClientPoint(event.clientX, event.clientY, rowEl)
     },
 
-    hideActionMenu(taskId) {
-      // Add a delay before hiding to allow mouse movement to menu
-      this.menuHideTimeout = setTimeout(() => {
-      if (this.activeMenuId === taskId) {
-        this.activeMenuId = null;
-        this.showTagsForTaskId = null;
-      }
-      }, 300); // 300ms delay
-    },
-
-    keepMenuOpen() {
-      // Clear the hide timeout when hovering over menu
+    /** Mobile / no right-click: open same menu anchored to the ⋮ control. */
+    openRowMenuFromControl (task, event) {
+      if (!task || !event || !event.currentTarget) return
       if (this.menuHideTimeout) {
-        clearTimeout(this.menuHideTimeout);
-        this.menuHideTimeout = null;
+        clearTimeout(this.menuHideTimeout)
+        this.menuHideTimeout = null
       }
+      this.showTagsForTaskId = null
+      const rowEl = this.$el && this.$el.querySelector(`.table-row[data-task-id="${task.id}"]`)
+      if (!rowEl) return
+      const br = event.currentTarget.getBoundingClientRect()
+      const rr = rowEl.getBoundingClientRect()
+      const clientX = Math.min(br.right - 4, rr.right - 8)
+      const clientY = Math.min(br.bottom + 2, rr.bottom - 8)
+      this.activeMenuId = task.id
+      this.applyMenuPositionFromClientPoint(clientX, clientY, rowEl)
     },
 
-    forceHideMenu() {
-      // Immediately hide menu (for clicks, etc.)
+    forceHideMenu () {
       if (this.menuHideTimeout) {
-        clearTimeout(this.menuHideTimeout);
-        this.menuHideTimeout = null;
+        clearTimeout(this.menuHideTimeout)
+        this.menuHideTimeout = null
       }
-      this.activeMenuId = null;
-      this.showTagsForTaskId = null;
+      if (this.contextMenuRafId != null) {
+        window.cancelAnimationFrame(this.contextMenuRafId)
+        this.contextMenuRafId = null
+      }
+      this.activeMenuId = null
+      this.menuAnchor = null
+      this.showTagsForTaskId = null
     },
 
-    handleClickOutside(event) {
-      // Close menu if clicking outside of menu or trigger
+    handleClickOutside (event) {
+      if (!this.activeMenuId) return
+      const menu = document.querySelector('.global-action-menu.show')
+      if (menu && !menu.contains(event.target)) {
+        this.forceHideMenu()
+      }
+    },
+
+    onDocumentKeydownContextMenu (e) {
+      if (e.key !== 'Escape') return
+      if (this.showTagsModal) return
       if (this.activeMenuId) {
-        const menu = document.querySelector('.global-action-menu.show');
-        const trigger = document.querySelector(`[data-task-id="${this.activeMenuId}"]`);
-        
-        if (menu && !menu.contains(event.target) && 
-            trigger && !trigger.contains(event.target)) {
-          this.forceHideMenu();
-          this.showTagsForTaskId = null;
-        }
+        e.preventDefault()
+        this.forceHideMenu()
       }
     },
 
     getCurrentTask() {
       if (!this.activeMenuId || !this.activeTasks || !Array.isArray(this.activeTasks)) {
-        return null;
+        return null
       }
-      const menuId = Number(this.activeMenuId)
-      return this.activeTasks.find(task => task && Number(task.id) === menuId) || null;
+      const menuId = this.activeMenuId
+      return this.activeTasks.find(task => task && String(task.id) === String(menuId)) || null
     },
 
     // Open a tags popover from the action menu
@@ -2716,14 +3362,120 @@ export default {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 380px;
+  width: 340px;
+  max-height: min(85vh, 720px);
+  overflow-x: hidden;
+  overflow-y: auto;
   background: white;
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   border: 1px solid #e5e7eb;
   z-index: 1000;
   animation: dropdownSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filter-section--review-date .filter-review-date-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.filter-compact-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.filter-calendar-label {
+  margin-top: 0.5rem;
+}
+
+.filter-preset-select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
+  color: #374151;
+  background: #fff;
+}
+
+.filter-preset-select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+.tentative-filter-vcalendar-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 4px;
+  background: #fafafa;
   overflow: hidden;
+}
+
+.tentative-filter-vcalendar-wrap ::v-deep .vc-container {
+  border: none;
+  font-size: 0.8rem;
+}
+
+.tentative-filter-vcalendar-wrap ::v-deep .vc-header {
+  padding: 0.35rem 0;
+}
+
+.tentative-filter-vcalendar-wrap ::v-deep .vc-weekday {
+  padding: 0.2rem 0;
+  font-size: 0.65rem;
+}
+
+.tentative-filter-vcalendar-wrap ::v-deep .vc-day {
+  min-height: 1.85rem;
+}
+
+.filter-bound-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.filter-bound-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.filter-bound-input {
+  width: 100%;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.filter-tag-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.filter-tag-search-row .tag-search-input {
+  max-width: 100%;
+  flex: 1;
+}
+
+.filter-tag-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 @keyframes dropdownSlideIn {
@@ -2741,7 +3493,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem;
+  padding: 0.85rem 1rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-bottom: 1px solid #e5e7eb;
@@ -2771,7 +3523,7 @@ export default {
 }
 
 .filter-section {
-  padding: 1.25rem 1.5rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #f3f4f6;
 }
 
@@ -2782,11 +3534,11 @@ export default {
 .filter-section-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
   color: #374151;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .filter-options {
@@ -2874,7 +3626,7 @@ export default {
 }
 
 .active-filters-summary {
-  padding: 1rem 1.5rem;
+  padding: 0.65rem 1rem;
   background: #f8fafc;
   border-top: 1px solid #e5e7eb;
 }
@@ -2949,7 +3701,7 @@ export default {
 }
 
 .filter-results-summary {
-  padding: 1rem 1.5rem;
+  padding: 0.55rem 1rem;
   background: #f0f9ff;
   border-top: 1px solid #e0f2fe;
   text-align: center;
@@ -3105,9 +3857,10 @@ export default {
    min-width: 120px;
  }
 
+/* Col 9 (Actions) removed; its ~5% width folded into Action column (table-layout:fixed normalizes). */
 .table-headers th:nth-child(4),
  .table-row td:nth-child(4) { 
-   width: 55%; 
+   width: 60%; 
    min-width: 400px;
    overflow: hidden !important;
    word-wrap: break-word;
@@ -3135,9 +3888,6 @@ export default {
 
 .table-headers th:nth-child(8),
 .table-row td:nth-child(8) { width: 8%; }
-
-.table-headers th:nth-child(9),
-.table-row td:nth-child(9) { width: 5%; }
 
 
 .status-draft {
@@ -3218,13 +3968,103 @@ export default {
   text-align: center;
 }
 
-/* Actions cell styling */
-.actions-cell {
-  padding: 1rem 0.8rem !important;
-  text-align: center !important;
-  vertical-align: top !important;
-  overflow: visible !important;
-  position: static !important; /* Remove stacking context */
+/* Meeting pack-aware status column (replaces legacy status text when meeting UI is on) */
+.meeting-pack-status-td {
+  position: relative;
+  vertical-align: middle;
+  padding: 0.5rem 0.4rem !important;
+}
+
+.meeting-pack-status-td--ready {
+  background-color: #d1fae5 !important;
+}
+
+.meeting-pack-status-td--pending {
+  background-color: #ffedd5 !important;
+}
+
+.meeting-pack-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+
+.meeting-pack-status-missing {
+  color: #9ca3af;
+  font-size: 1rem;
+}
+
+.meeting-pack-status-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.meeting-pack-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.meeting-pack-count--unresolved {
+  color: #b91c1c;
+}
+
+.meeting-pack-count--resolved {
+  color: #047857;
+}
+
+.meeting-pack-glyph {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.meeting-pack-count-sep {
+  color: #9ca3af;
+  font-weight: 400;
+  user-select: none;
+}
+
+.meeting-pack-info-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  cursor: help;
+}
+
+.meeting-pack-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+}
+
+.meeting-pack-status-message {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.25;
+}
+
+.meeting-pack-status-td--ready .meeting-pack-status-message {
+  color: #065f46;
 }
 
 .table-row td:nth-child(8) {
@@ -3235,40 +4075,47 @@ export default {
   position: relative;
 }
 
-.action-menu-container {
-  position: static; /* Remove stacking context */
-  overflow: visible !important;
-  display: flex;
-  justify-content: center;
+.meeting-highlight-toggle {
+  display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
+  margin-right: 0.75rem;
+  font-size: 0.8rem;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
 }
-
-.action-trigger {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6B7280;
-  font-size: 1.25rem;
-  transition: all 0.2s;
+.meeting-highlight-toggle input {
   cursor: pointer;
 }
 
-.action-trigger:hover {
-  background: #F3F4F6;
-  color: #374151;
-  transform: scale(1.1);
+/* Narrow viewports: ⋮ opens the same menu as row right-click (see openRowMenuFromControl). */
+.row-context-menu-mobile {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  align-items: center;
+  justify-content: center;
 }
-
-/* Active state when menu is open */
-.action-trigger.active {
-  background: #EBF4FF;
-  color: #2563EB;
-  transform: scale(1.1);
+.legacy-status-td {
+  position: relative;
+}
+@media (max-width: 768px) {
+  .row-context-menu-mobile {
+    display: inline-flex;
+  }
 }
 
 /* Global Action Menu - Outside table structure */
@@ -4168,6 +5015,162 @@ td.action-content-cell .action-node.level-4 {
 }
 </style>
 
+<!--
+  Meeting pack highlights MUST be unscoped: v-html injects .action-node without Vue [data-v-*].
+  Scoped + /deep/ did not reliably style those nodes in devtools (classes present, no paint).
+  Prefix .new-tentative-dashboard avoids touching NewFinalDashboard / legacy dashboards.
+-->
+<style>
+.new-tentative-dashboard .action-content-cell .action-node.meeting-overlay-node {
+  position: relative;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+/* Review hub parity: red = assigned pending comment; green = assigned + commented; blue = commented unassigned */
+.new-tentative-dashboard .action-content-cell .action-node.meeting-hub-red {
+  background: rgba(254, 202, 202, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+.new-tentative-dashboard .action-content-cell .action-node.meeting-hub-green {
+  background: rgba(187, 247, 208, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+.new-tentative-dashboard .action-content-cell .action-node.meeting-hub-blue {
+  background: rgba(191, 219, 254, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+/* Pack highlight navigator: must beat hub tint rules (they use outline: none !important). */
+.new-tentative-dashboard .action-content-cell .action-node.pack-highlight-nav-focus {
+  outline: 3px solid #000000 !important;
+  outline-offset: -3px !important;
+  position: relative;
+  z-index: 1;
+}
+.new-tentative-dashboard .pack-highlight-nav-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  pointer-events: auto;
+}
+.new-tentative-dashboard .pack-highlight-nav-fab-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #64748b;
+  background: #ffffff;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.new-tentative-dashboard .pack-highlight-nav-fab-btn:hover {
+  background: #f8fafc;
+  border-color: #475569;
+  color: #0f172a;
+}
+.new-tentative-dashboard .pack-highlight-nav-fab-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.new-tentative-dashboard .pack-highlight-nav-fab-counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.2;
+  user-select: none;
+}
+.new-tentative-dashboard.dashboard-pdf-capture .pack-highlight-nav-fab,
+.pdf-capture-mode .new-tentative-dashboard .pack-highlight-nav-fab {
+  display: none !important;
+}
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.pack-highlight-nav-focus,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.pack-highlight-nav-focus {
+  outline: none !important;
+  z-index: auto;
+}
+/* Group marker + tick so flex row does not push the tick toward .node-content */
+.new-tentative-dashboard .action-content-cell .action-node .meeting-pack-marker-with-tick {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-right: 8px;
+  line-height: 1;
+}
+.new-tentative-dashboard .action-content-cell .action-node .meeting-pack-marker-with-tick .node-marker {
+  margin-right: 0 !important;
+}
+/* Pack resolution: green tick only (no "!?" for unresolved). */
+.new-tentative-dashboard .action-content-cell .action-node .meeting-pack-resolution-chip {
+  position: static;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  min-width: 11px;
+  height: auto;
+  pointer-events: none;
+  line-height: 1;
+  vertical-align: middle;
+}
+.new-tentative-dashboard .action-content-cell .action-node .meeting-pack-resolution-chip--resolved {
+  color: #15803d;
+}
+.new-tentative-dashboard .action-content-cell .action-node .meeting-pack-resolution-tick {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+/* PDF / capture: strip highlights (live page only). */
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-red,
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-green,
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-blue,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-red,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-green,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-blue {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  opacity: 1 !important;
+}
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-red .node-content,
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-green .node-content,
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .action-node.meeting-hub-blue .node-content,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-red .node-content,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-green .node-content,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .action-node.meeting-hub-blue .node-content {
+  box-shadow: none !important;
+  background: transparent !important;
+  outline: none !important;
+}
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .meeting-pack-resolution-chip,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .meeting-pack-resolution-chip {
+  display: none !important;
+}
+.new-tentative-dashboard.dashboard-pdf-capture .action-content-cell .meeting-comment-badge,
+.pdf-capture-mode .new-tentative-dashboard .action-content-cell .meeting-comment-badge {
+  display: none !important;
+}
+</style>
+
 <!-- GLOBAL TABLE BOUNDARY STYLES: Not scoped, only border/padding, no background/color override -->
 <style>
 .action-content-cell table,
@@ -4596,43 +5599,120 @@ td.action-content-cell .action-node.level-4 {
   box-shadow: 0 0 0 2px #fbbf24;
   border-radius: 6px;
 }
-.action-content-cell /deep/ .action-node.meeting-overlay-node {
-  border-radius: 6px;
-  padding: 2px 4px;
-}
-.action-content-cell /deep/ .action-node.meeting-has-assign {
-  background: rgba(191, 219, 254, 0.45);
-}
-.action-content-cell /deep/ .action-node.meeting-has-comment {
-  box-shadow: inset 0 0 0 1px #60a5fa;
-}
+/* Pack meeting overlays: see unscoped block `.new-tentative-dashboard` (v-html nodes lack scoped data-v). */
 .action-content-cell /deep/ .meeting-comment-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 9999px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2;
-}
-.action-content-cell /deep/ .action-node.meeting-overlay-node {
-  position: relative;
+  display: none;
 }
 .action-content-cell /deep/ .action-node.comment-nav-flash {
-  animation: meetingCommentFlash 1s ease-out;
+  animation: meetingCommentFlash 1.5s ease-out;
 }
 @keyframes meetingCommentFlash {
   0% { box-shadow: 0 0 0 4px #3b82f6; }
   100% { box-shadow: 0 0 0 0 transparent; }
+}
+.nfd-all-comments-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 100040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.nfd-all-comments-dialog {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.nfd-all-comments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.nfd-all-comments-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+}
+.nfd-all-comments-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
+}
+.nfd-all-comments-body {
+  padding: 12px 14px 16px;
+  overflow-y: auto;
+}
+.nfd-muted {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+.nfd-all-comments-cards {
+  display: flex;
+  flex-direction: column;
+}
+.nfd-comment-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-left: 3px solid #3b82f6;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.nfd-comment-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.nfd-comment-card-header strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+.nfd-comment-node-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.nfd-comment-card-preview {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.nfd-comment-card-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nfd-linkish {
+  border: none;
+  background: none;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.nfd-linkish:hover {
+  text-decoration: underline;
 }
 .meeting-reset-modal-overlay {
   position: fixed;

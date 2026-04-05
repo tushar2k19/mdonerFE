@@ -109,7 +109,7 @@ function drawWrappedMetaLines (doc, lines, marginX, y0, maxW, linePitch) {
  * @param {Object} opts
  * @param {string} [opts.fileName]
  * @param {Object} opts.meta
- * @param {Array<{ sector, description, nodeLabel, assigneeNames, statusLabel, commentCount, commentExcerpt?, statusKey? }>} opts.rows
+ * @param {Array<{ sector, nodeLabel, assigneeNames, statusLabel, commentCount, commentExcerpt?, statusKey? }>} opts.rows
  */
 export function exportReviewHubPdf (opts = {}) {
   const fileName = opts.fileName || 'review-hub-report.pdf'
@@ -129,27 +129,24 @@ export function exportReviewHubPdf (opts = {}) {
     rows.some((r) => r && String(r.commentExcerpt || '').trim())
   const col = hasExcerpt
     ? {
-        sector: 20,
-        desc: 52,
-        node: 18,
-        assignee: 30,
-        status: 32,
+        sector: 40,
+        node: 26,
+        assignee: 45,
+        status: 41,
         comments: 11,
         excerpt: 42
       }
     : {
-        sector: 22,
-        desc: 75,
-        node: 22,
-        assignee: 38,
-        status: 42,
-        comments: 18,
+        sector: 32,
+        node: 26,
+        assignee: 32,
+        status: 36,
+        comments: 16,
         excerpt: 0
       }
 
   const tableW =
     col.sector +
-    col.desc +
     col.node +
     col.assignee +
     col.status +
@@ -186,7 +183,6 @@ export function exportReviewHubPdf (opts = {}) {
 
   const colWidthsScaled = [
     S(col.sector),
-    S(col.desc),
     S(col.node),
     S(col.assignee),
     S(col.status),
@@ -201,8 +197,8 @@ export function exportReviewHubPdf (opts = {}) {
     doc.setFontSize(7)
     doc.setTextColor(30, 41, 59)
     const labels = hasExcerpt
-      ? ['Sector', 'Description', 'Node', 'Assignee', 'Status', '#', 'Latest comment']
-      : ['Sector / Div.', 'Description', 'Node', 'Assignee', 'Status', 'Comments']
+      ? ['Sector', 'Node', 'Assignee', 'Status', '#', 'Latest comment']
+      : ['Sector / Div.', 'Node', 'Assignee', 'Status', 'Comments']
     let x = marginX
     for (let i = 0; i < labels.length; i++) {
       doc.text(labels[i], x + 1, yy + 4.8)
@@ -230,12 +226,10 @@ export function exportReviewHubPdf (opts = {}) {
 
   const estimateRowHeight = (r) => {
     const wSector = colWidthsScaled[0] - 2
-    const wDesc = colWidthsScaled[1] - 2
-    const wNode = colWidthsScaled[2] - 2
-    const wAssign = colWidthsScaled[3] - 2
-    const wStatus = colWidthsScaled[4] - 2
-    const wExcerpt = hasExcerpt ? colWidthsScaled[6] - 2 : 0
-    const descLines = splitLines(doc, r.description, wDesc)
+    const wNode = colWidthsScaled[1] - 2
+    const wAssign = colWidthsScaled[2] - 2
+    const wStatus = colWidthsScaled[3] - 2
+    const wExcerpt = hasExcerpt ? colWidthsScaled[5] - 2 : 0
     const assignLines = splitLines(doc, r.assigneeNames, wAssign)
     const statusLines = splitLines(doc, r.statusLabel, wStatus)
     const sectorLines = splitLines(doc, r.sector, wSector)
@@ -245,7 +239,6 @@ export function exportReviewHubPdf (opts = {}) {
         ? splitLines(doc, r.commentExcerpt, wExcerpt)
         : ['']
     const lineCount = Math.max(
-      descLines.length,
       assignLines.length,
       statusLines.length,
       sectorLines.length,
@@ -258,14 +251,12 @@ export function exportReviewHubPdf (opts = {}) {
 
   const drawRow = (r, yy) => {
     const wSector = colWidthsScaled[0] - 2
-    const wDesc = colWidthsScaled[1] - 2
-    const wNode = colWidthsScaled[2] - 2
-    const wAssign = colWidthsScaled[3] - 2
-    const wStatus = colWidthsScaled[4] - 2
-    const wExcerpt = hasExcerpt ? colWidthsScaled[6] - 2 : 0
+    const wNode = colWidthsScaled[1] - 2
+    const wAssign = colWidthsScaled[2] - 2
+    const wStatus = colWidthsScaled[3] - 2
+    const wExcerpt = hasExcerpt ? colWidthsScaled[5] - 2 : 0
 
     const sectorLines = splitLines(doc, r.sector, wSector)
-    const descLines = splitLines(doc, r.description, wDesc)
     const nodeLines = splitLines(doc, r.nodeLabel, wNode)
     const assignLines = splitLines(doc, r.assigneeNames, wAssign)
     const statusLines = splitLines(doc, r.statusLabel, wStatus)
@@ -275,7 +266,6 @@ export function exportReviewHubPdf (opts = {}) {
         : []
 
     const lineCount = Math.max(
-      descLines.length,
       assignLines.length,
       statusLines.length,
       sectorLines.length,
@@ -306,16 +296,14 @@ export function exportReviewHubPdf (opts = {}) {
     doc.setTextColor(15, 23, 42)
     doc.text(sectorLines, x + 1, yy + 3.5)
     x += colWidthsScaled[0]
-    doc.text(descLines, x + 1, yy + 3.5)
-    x += colWidthsScaled[1]
     doc.text(nodeLines, x + 1, yy + 3.5)
-    x += colWidthsScaled[2]
+    x += colWidthsScaled[1]
     doc.text(assignLines, x + 1, yy + 3.5)
-    x += colWidthsScaled[3]
+    x += colWidthsScaled[2]
     doc.text(statusLines, x + 1, yy + 3.5)
-    x += colWidthsScaled[4]
+    x += colWidthsScaled[3]
     doc.text(String(r.commentCount != null ? r.commentCount : 0), x + 1, yy + 3.5)
-    x += colWidthsScaled[5]
+    x += colWidthsScaled[4]
     if (hasExcerpt) {
       doc.text(excerptLines.length ? excerptLines : [''], x + 1, yy + 3.5)
     }

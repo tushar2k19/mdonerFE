@@ -149,4 +149,108 @@ describe('NewEnhancedNodeItem.vue (action menu)', () => {
     expect(wrapper.emitted('update-node')).toBeTruthy()
     expect(wrapper.emitted('update-node')[0]).toEqual([42, { completed: true }])
   })
+
+  describe('review_date delay modal (meeting_dashboard draft)', () => {
+    function mountWithPut (nodePatch, httpMocks) {
+      const node = {
+        ...baseNode,
+        review_date: '2026-01-10T12:00:00.000Z',
+        ...(nodePatch || {})
+      }
+      return shallowMount(NewEnhancedNodeItem, {
+        propsData: {
+          node,
+          siblings: [node],
+          index: 0,
+          readonly: false,
+          meetingDraftTaskId: 99,
+          taskVersionId: null
+        },
+        stubs: { NewEnhancedNodeItem: true },
+        mocks: {
+          $http: { secured: httpMocks },
+          $toast: { error: jest.fn(), success: jest.fn(), info: jest.fn() }
+        }
+      })
+    }
+
+    it('postponing review_date opens modal without PUT (meetingDraftTaskId only)', async () => {
+      const put = jest.fn()
+      const get = jest.fn(() => Promise.resolve({ data: { success: true, events: [] } }))
+      wrapper = mountWithPut({}, { put, get })
+      wrapper.vm.startDateEdit()
+      wrapper.vm.editDate = '2026-06-15'
+      await wrapper.vm.saveDate()
+      expect(put).not.toHaveBeenCalled()
+      expect(wrapper.vm.showReviewDateExtensionModal).toBe(true)
+      expect(wrapper.vm.pendingNewReviewDate).toBe('2026-06-15')
+    })
+
+    it('Skip saves date via PUT without review_date_extension', async () => {
+      const put = jest.fn(() =>
+        Promise.resolve({ data: { success: true, data: { review_date: '2026-06-15T00:00:00.000Z' } } })
+      )
+      const get = jest.fn(() => Promise.resolve({ data: { success: true, events: [] } }))
+      wrapper = mountWithPut({}, { put, get })
+      wrapper.vm.startDateEdit()
+      wrapper.vm.editDate = '2026-06-15'
+      await wrapper.vm.saveDate()
+      await wrapper.vm.skipReviewDateExtensionReason()
+      await flushPromises()
+      expect(put).toHaveBeenCalledTimes(1)
+      expect(put).toHaveBeenCalledWith('/meeting_dashboard/tasks/99/nodes/42', {
+        action_node: { review_date: '2026-06-15' }
+      })
+      expect(wrapper.vm.showReviewDateExtensionModal).toBe(false)
+    })
+
+    it('Save with reason sends review_date_extension on same PUT', async () => {
+      const put = jest.fn(() =>
+        Promise.resolve({ data: { success: true, data: { review_date: '2026-06-15T00:00:00.000Z' } } })
+      )
+      const get = jest.fn(() => Promise.resolve({ data: { success: true, events: [] } }))
+      wrapper = mountWithPut({}, { put, get })
+      wrapper.vm.startDateEdit()
+      wrapper.vm.editDate = '2026-06-15'
+      await wrapper.vm.saveDate()
+      wrapper.vm.extensionReason = 'operational'
+      wrapper.vm.extensionExplanation = 'site slip'
+      await wrapper.vm.confirmReviewDateExtensionReason()
+      await flushPromises()
+      expect(put).toHaveBeenCalledTimes(1)
+      expect(put).toHaveBeenCalledWith('/meeting_dashboard/tasks/99/nodes/42', {
+        action_node: { review_date: '2026-06-15' },
+        review_date_extension: { reason: 'operational', explanation: 'site slip' }
+      })
+    })
+
+    it('earlier date saves immediately without delay modal', async () => {
+      const put = jest.fn(() =>
+        Promise.resolve({ data: { success: true, data: { review_date: '2026-01-05T00:00:00.000Z' } } })
+      )
+      const get = jest.fn(() => Promise.resolve({ data: { success: true, events: [] } }))
+      wrapper = mountWithPut({}, { put, get })
+      wrapper.vm.startDateEdit()
+      wrapper.vm.editDate = '2026-01-05'
+      await wrapper.vm.saveDate()
+      await flushPromises()
+      expect(wrapper.vm.showReviewDateExtensionModal).toBe(false)
+      expect(put).toHaveBeenCalledWith('/meeting_dashboard/tasks/99/nodes/42', {
+        action_node: { review_date: '2026-01-05' }
+      })
+    })
+
+    it('Cancel closes modal and does not PUT', async () => {
+      const put = jest.fn()
+      const get = jest.fn(() => Promise.resolve({ data: { success: true, events: [] } }))
+      wrapper = mountWithPut({}, { put, get })
+      wrapper.vm.startDateEdit()
+      wrapper.vm.editDate = '2026-06-15'
+      await wrapper.vm.saveDate()
+      wrapper.vm.cancelReviewDateExtensionModal()
+      expect(put).not.toHaveBeenCalled()
+      expect(wrapper.vm.showReviewDateExtensionModal).toBe(false)
+      expect(wrapper.vm.editDate).toBe('2026-01-10T12:00:00.000Z')
+    })
+  })
 })

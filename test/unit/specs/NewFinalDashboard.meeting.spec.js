@@ -1,9 +1,8 @@
 /**
  * New meeting-centric Final dashboard — published pack, overlay, comments navigation, hub link.
  *
- * Note: Dashboard node comments are create-only today (POST + GET). There is no
- * meeting_dashboard API for edit/delete on thread messages yet; when added, extend
- * DashboardNodeCommentsModal tests and add integration cases here.
+ * Dashboard node comments: GET/POST/PUT/DELETE on `/meeting_dashboard/dashboard_node_comments`.
+ * Thread edit/delete is exercised via DashboardNodeCommentsModal integration-style tests below.
  */
 import { shallowMount, mount } from '@vue/test-utils'
 import NewFinalDashboard from '@/components/NewFinalDashboard.vue'
@@ -115,9 +114,11 @@ function createHttpMock (overrides = {}) {
         const walk = (arr) => {
           arr.forEach((n) => {
             if (n.stable_node_id) {
+              const cc = n.stable_node_id === 'sn-a' ? 1 : 0
               nodes[n.stable_node_id] = {
                 assignment_users: [],
-                comment_count: n.stable_node_id === 'sn-a' ? 1 : 0
+                comment_count: cc,
+                comment_user_ids: cc > 0 ? [501] : []
               }
             }
             if (n.children && n.children.length) walk(n.children)
@@ -126,7 +127,11 @@ function createHttpMock (overrides = {}) {
         walk(roots)
       })
       return Promise.resolve({
-        data: { new_dashboard_version_id: versionId, nodes }
+        data: {
+          new_dashboard_version_id: versionId,
+          nodes,
+          overlay_user_directory: []
+        }
       })
     }
     if (url === '/meeting_dashboard/comment_nodes') {
@@ -139,6 +144,11 @@ function createHttpMock (overrides = {}) {
     if (url === '/meeting_dashboard/dashboard_node_comments') {
       return Promise.resolve({
         data: { comments: overrides.initialComments || [] }
+      })
+    }
+    if (url === '/users/reviewers') {
+      return Promise.resolve({
+        data: [{ id: 9, name: 'Reviewer Nine' }]
       })
     }
     return Promise.resolve({ data: {} })
@@ -248,6 +258,34 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(wrapper.find('.nfd-all-comments-dialog').exists()).toBe(true)
   })
 
+  it('submitAssignPack posts assignment for current published version and refreshes overlay', async () => {
+    setEditorUserCookie()
+    const http = createHttpMock()
+    wrapper = mountFinal(http)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const fetchOverlay = jest.spyOn(wrapper.vm, 'fetchMeetingPackOverlay').mockResolvedValue()
+
+    wrapper.vm.assignPackStableId = 'sn-a'
+    wrapper.vm.assignPackSelectedUserId = 9
+    await wrapper.vm.submitAssignPack()
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledWith(
+      '/meeting_dashboard/assignments',
+      expect.objectContaining({
+        new_dashboard_version_id: DEFAULT_VERSION_ID,
+        stable_node_id: 'sn-a',
+        user_id: 9
+      })
+    )
+    expect(fetchOverlay).toHaveBeenCalled()
+    expect(wrapper.vm.showAssignPackModal).toBe(false)
+
+    fetchOverlay.mockRestore()
+  })
+
   it('Open review hub link targets NewTaskReviewHub with current dashboard_version_id', async () => {
     setEditorUserCookie()
     const http = createHttpMock()
@@ -285,6 +323,9 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(modal.props().visible).toBe(true)
     expect(modal.props().stableNodeId).toBe('sn-a')
     expect(modal.props().versionId).toBe(DEFAULT_VERSION_ID)
+    expect(modal.props().nodeContext).toBeTruthy()
+    expect(modal.props().nodeContext.taskDescription).toBe('First task')
+    expect(modal.props().nodeContext.nodeLabel).toBeTruthy()
   })
 
   it('onPackCommentSubmitted refetches overlay and comment list when show-comments mode is on', async () => {
@@ -441,7 +482,91 @@ describe('DashboardNodeCommentsModal (meeting pack thread)', () => {
     expect(wrapper.vm.comments[0].body).toBe('New note')
     expect(wrapper.emitted().submitted).toBeTruthy()
   })
-})
 
-// Future: when meeting_dashboard exposes PATCH/DELETE for dashboard_node_comments,
-// add edit/delete tests on DashboardNodeCommentsModal and integration here.
+  it('PUT updates own comment body', async () => {
+    setEditorUserCookie()
+    const http = {
+      secured: {
+        get: jest.fn(() =>
+          Promise.resolve({
+            data: {
+              comments: [
+                {
+                  id: 55,
+                  body: 'Old',
+                  user_id: 1,
+                  user_name: 'Ed Itor',
+                  created_at: '2026-04-04T12:00:00Z'
+                }
+              ]
+            }
+          })
+        ),
+        put: jest.fn(() => Promise.resolve({ data: { success: true } }))
+      }
+    }
+    const wrapper = mount(DashboardNodeCommentsModal, {
+      propsData: {
+        visible: false,
+        versionId: DEFAULT_VERSION_ID,
+        stableNodeId: 'sn-a',
+        currentUserId: 1,
+        userRole: 'editor'
+      },
+      mocks: { $http: http, $toast: { error: jest.fn(), success: jest.fn() } }
+    })
+    wrapper.setProps({ visible: true })
+    await flushPromises()
+    wrapper.vm.startEdit(wrapper.vm.comments[0])
+    wrapper.setData({ editBody: 'Revised' })
+    await wrapper.vm.saveEdit(55)
+    await flushPromises()
+    expect(http.secured.put).toHaveBeenCalledWith(
+      '/meeting_dashboard/dashboard_node_comments/55',
+      { body: 'Revised' }
+    )
+    expect(wrapper.vm.comments[0].body).toBe('Revised')
+    expect(wrapper.vm.editingCommentId).toBe(null)
+  })
+
+  it('DELETE removes comment and emits submitted', async () => {
+    setEditorUserCookie()
+    const http = {
+      secured: {
+        get: jest.fn(() =>
+          Promise.resolve({
+            data: {
+              comments: [
+                {
+                  id: 77,
+                  body: 'X',
+                  user_id: 1,
+                  user_name: 'Ed Itor',
+                  created_at: '2026-04-04T12:00:00Z'
+                }
+              ]
+            }
+          })
+        ),
+        delete: jest.fn(() => Promise.resolve({ data: { success: true } }))
+      }
+    }
+    const wrapper = mount(DashboardNodeCommentsModal, {
+      propsData: {
+        visible: false,
+        versionId: DEFAULT_VERSION_ID,
+        stableNodeId: 'sn-a',
+        currentUserId: 1,
+        userRole: 'editor'
+      },
+      mocks: { $http: http, $toast: { error: jest.fn(), success: jest.fn() } }
+    })
+    wrapper.setProps({ visible: true })
+    await flushPromises()
+    await wrapper.vm.confirmDelete(77)
+    await flushPromises()
+    expect(http.secured.delete).toHaveBeenCalledWith('/meeting_dashboard/dashboard_node_comments/77')
+    expect(wrapper.vm.comments.length).toBe(0)
+    expect(wrapper.emitted().submitted).toBeTruthy()
+  })
+})

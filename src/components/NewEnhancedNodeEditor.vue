@@ -62,6 +62,8 @@
             :assigned-node-ids="assignedNodeIds"
             :suppress-diff-highlights="suppressDiffHighlights"
             :enable-comment-shortcut="enableNodeCommentShortcut"
+            :meeting-editor-overlay="meetingEditorOverlay"
+            :meeting-pack-highlight-mode="meetingPackHighlightMode"
             @open-comment-for-node="$emit('open-comment-for-node', $event)"
             @update-node="updateNode"
             @delete-node="deleteNode"
@@ -99,6 +101,7 @@
 
 <script>
 import NewEnhancedNodeItem from './NewEnhancedNodeItem.vue'
+import { PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
 
 export default {
   name: 'NewEnhancedNodeEditor',
@@ -159,6 +162,15 @@ export default {
     enableNodeCommentShortcut: {
       type: Boolean,
       default: false
+    },
+    /** Per stable_node_id overlay from GET /meeting_dashboard/draft_editor_overlay (meeting modal parity). */
+    meetingEditorOverlay: {
+      type: Object,
+      default: () => ({})
+    },
+    meetingPackHighlightMode: {
+      type: String,
+      default: PACK_HIGHLIGHT_MODE.ALL
     }
   },
 

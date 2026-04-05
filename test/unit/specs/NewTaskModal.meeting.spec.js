@@ -4,6 +4,19 @@
 import { shallowMount } from '@vue/test-utils'
 import NewTaskModal from '@/components/NewTaskModal.vue'
 import { flushPromises, ymdDaysFromNow } from '../helpers/meeting-test-utils'
+import { PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
+
+const EditorStub = {
+  name: 'NewEnhancedNodeEditor',
+  props: [
+    'meetingEditorOverlay',
+    'meetingPackHighlightMode',
+    'initialNodes',
+    'taskVersionId',
+    'meetingDraftTaskId'
+  ],
+  template: '<div data-test="node-editor-stub" />'
+}
 
 jest.mock('@/utils/meetingDashboardUi', () => ({
   isMeetingDashboardUiEnabled: jest.fn(() => true)
@@ -168,5 +181,68 @@ describe('NewTaskModal.vue (meeting_dashboard draft)', () => {
         ])
       })
     )
+  })
+
+  it('edit: fetches draft_editor_overlay and passes overlay + pack mode to NewEnhancedNodeEditor', async () => {
+    const overlayNodes = {
+      'node-stable-1': {
+        assignment_users: [{ id: 1, name: 'A' }],
+        comment_count: 0
+      }
+    }
+    const get = jest.fn((url, config) => {
+      if (url.includes('/meeting_dashboard/tasks/77/nodes')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [{ node: { ...sampleTreeNode, stable_node_id: 'node-stable-1' }, children: [] }]
+          }
+        })
+      }
+      if (url.includes('/meeting_dashboard/draft_editor_overlay')) {
+        expect(config.params).toEqual({ new_dashboard_version_id: 42 })
+        return Promise.resolve({ data: { nodes: overlayNodes } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+
+    const task = {
+      id: 77,
+      meeting_dashboard_draft: true,
+      sector_division: 'S',
+      description: 'D',
+      responsibility: 'R',
+      original_date: '2026-01-10T00:00:00.000Z',
+      review_date: '2026-01-12T00:00:00.000Z',
+      tags: []
+    }
+
+    wrapper = shallowMount(NewTaskModal, {
+      propsData: {
+        task,
+        mode: 'edit',
+        meetingOverlayVersionId: 42,
+        packHighlightMode: PACK_HIGHLIGHT_MODE.RED
+      },
+      stubs: { NewEnhancedNodeEditor: EditorStub, datepicker: true },
+      mocks: {
+        $http: { secured: { get, put: jest.fn(), post: jest.fn() } },
+        $toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(get).toHaveBeenCalledWith(
+      '/meeting_dashboard/draft_editor_overlay',
+      expect.objectContaining({ params: { new_dashboard_version_id: 42 } })
+    )
+    expect(wrapper.vm.meetingEditorOverlay).toEqual(overlayNodes)
+
+    const editor = wrapper.findComponent(EditorStub)
+    expect(editor.exists()).toBe(true)
+    expect(editor.props('meetingEditorOverlay')).toEqual(overlayNodes)
+    expect(editor.props('meetingPackHighlightMode')).toBe(PACK_HIGHLIGHT_MODE.RED)
   })
 })

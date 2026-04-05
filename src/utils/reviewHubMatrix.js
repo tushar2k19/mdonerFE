@@ -92,9 +92,9 @@ export function statusLabel (statusKey) {
     case HUB_STATUS.ASSIGNED_COMMENTED:
       return 'Assigned & commented'
     case HUB_STATUS.UNASSIGNED_COMMENTED:
-      return 'Commented (unassigned)'
+      return 'Commented, not assigned'
     case HUB_STATUS.ASSIGNED_PENDING:
-      return 'Assigned — comment pending'
+      return 'Assigned, comment pending'
     default:
       return '—'
   }

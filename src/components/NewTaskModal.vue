@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay"  @click.self="$emit('close')">
+  <div class="modal-overlay new-task-modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
       <div class="modal-header">
         <h3>{{ mode === 'add' ? 'Add Task' : 'Edit Task' }}</h3>
@@ -118,6 +118,8 @@
             :task-version-id="taskVersionId"
             :meeting-draft-task-id="meetingDraftTaskIdForEditor"
             :initial-nodes="actionNodes"
+            :meeting-editor-overlay="meetingEditorOverlay"
+            :meeting-pack-highlight-mode="packHighlightMode"
             @nodes-changed="onNodesChanged"
           />
         </div>
@@ -145,6 +147,7 @@ import NewEnhancedNodeEditor from './NewEnhancedNodeEditor.vue'
 import MergeInterface from './MergeInterface.vue'
 import Datepicker from 'vuejs-datepicker'
 import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
+import { PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
 
 export default {
   name: 'NewTaskModal',
@@ -163,6 +166,16 @@ export default {
     mode: {
       type: String,
       default: 'add'
+    },
+    /** Published pack version id for meeting hub overlay (New Tentative parity). */
+    meetingOverlayVersionId: {
+      type: [Number, String],
+      default: null
+    },
+    /** Pack highlight filter; synced with NewTentativeDashboard.packHighlightMode. */
+    packHighlightMode: {
+      type: String,
+      default: PACK_HIGHLIGHT_MODE.ALL
     }
   },
 
@@ -190,6 +203,7 @@ export default {
       showTagDropdown: false,
       isLoadingTags: false,
       tagSearch: '',
+      meetingEditorOverlay: {},
       oldEditorConfig: {
         height: 425,
         menubar: true,
@@ -336,6 +350,12 @@ export default {
       this.actionNodes = []
       this.taskVersionId = null
     }
+    await this.fetchMeetingEditorOverlay()
+  },
+  watch: {
+    meetingOverlayVersionId () {
+      this.fetchMeetingEditorOverlay()
+    }
   },
   mounted() {
     this._onDocClick = (e) => {
@@ -353,6 +373,20 @@ export default {
   },
   
   methods: {
+    async fetchMeetingEditorOverlay () {
+      if (!this.meetingOverlayVersionId || !this.task || !this.task.meeting_dashboard_draft) {
+        this.meetingEditorOverlay = {}
+        return
+      }
+      try {
+        const { data } = await this.$http.secured.get('/meeting_dashboard/draft_editor_overlay', {
+          params: { new_dashboard_version_id: this.meetingOverlayVersionId }
+        })
+        this.meetingEditorOverlay = data.nodes || {}
+      } catch (e) {
+        this.meetingEditorOverlay = {}
+      }
+    },
     async loadActionNodes () {
       try {
         let response
@@ -941,5 +975,52 @@ export default {
   color: #9ca3af;
   background: #fafafa;
   cursor: not-allowed;
+}
+</style>
+
+<!--
+  Meeting pack hub tints for NewEnhancedNodeItem (parity with NewTentativeDashboard action column).
+  Unscoped + .new-task-modal-overlay prefix so we do not affect other uses of the editor.
+-->
+<style>
+.new-task-modal-overlay .enhanced-node-item.meeting-overlay-node {
+  position: relative;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-red {
+  background: rgba(254, 202, 202, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-green {
+  background: rgba(187, 247, 208, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-blue {
+  background: rgba(191, 219, 254, 0.9) !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+/* Hub row tint wins over .completed background; keep green text from .completed .node-content */
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-red.completed {
+  background: rgba(254, 202, 202, 0.9) !important;
+}
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-green.completed {
+  background: rgba(187, 247, 208, 0.9) !important;
+}
+.new-task-modal-overlay .enhanced-node-item.meeting-hub-blue.completed {
+  background: rgba(191, 219, 254, 0.9) !important;
+}
+/* Let outer hub strip show; avoid double-fill from structural reviewer highlight */
+.new-task-modal-overlay .enhanced-node-item.has-reviewer.meeting-hub-red > .node-content,
+.new-task-modal-overlay .enhanced-node-item.has-reviewer.meeting-hub-green > .node-content,
+.new-task-modal-overlay .enhanced-node-item.has-reviewer.meeting-hub-blue > .node-content {
+  background-color: transparent !important;
+  border-color: transparent !important;
 }
 </style>
