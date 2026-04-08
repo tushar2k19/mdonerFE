@@ -166,7 +166,11 @@
               <tr
                 v-for="row in filteredRows"
                 :key="row.stableNodeId"
-                :class="{ 'nth-row-resolved-pack': row.isResolved }"
+                :data-stable-node-id="row.stableNodeId || undefined"
+                :class="{
+                  'nth-row-resolved-pack': row.isResolved,
+                  'nth-row-focus-flash': row.stableNodeId && row.stableNodeId === focusHighlightStableNodeId
+                }"
               >
                 <td class="nth-td-sector">{{ row.sector || '—' }}</td>
                 <td class="nth-td-mono">{{ row.nodeLabel }}</td>
@@ -194,6 +198,16 @@
                       @click="sendReminder(row)"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    </button>
+                    <button
+                      v-if="dashboardVersionId && row.stableNodeId"
+                      type="button"
+                      class="nth-icon-btn nth-open-final-btn"
+                      :title="`Open ${row.nodeLabel || 'node'} in Final`"
+                      :aria-label="`Open ${row.nodeLabel || 'node'} in Final — ${row.sector || 'no sector'}`"
+                      @click="openInFinal(row)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     </button>
                     <template v-if="isHubEditor">
                       <button
@@ -257,6 +271,7 @@ import {
   HUB_STATUS
 } from '@/utils/reviewHubMatrix'
 import { exportReviewHubPdf } from '@/utils/reviewHubPdfExport'
+import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
 import {
   fetchCommentExcerptsForRows,
   buildExportRowViews
@@ -294,7 +309,10 @@ export default {
       sectorFilter: HUB_SECTOR_FILTER_ALL,
       lastReminderAt: {},
       exportMode: null,
-      resolveBusy: {}
+      resolveBusy: {},
+      /** Transient match for deep-link focus (see `focusStableNodeId` from query). */
+      focusHighlightStableNodeId: null,
+      _focusFlashTimer: null
     }
   },
   computed: {
@@ -411,6 +429,16 @@ export default {
     nextReviewLabel () {
       if (!this.nextReviewYmd) return '—'
       return this.formatYmdLong(this.nextReviewYmd)
+    },
+    focusStableNodeId () {
+      const raw = this.$route && this.$route.query
+        ? this.$route.query.focus_stable_node_id
+        : null
+      if (raw == null || raw === '') return null
+      const s = String(raw).trim()
+      // Allowlist stable node IDs from URL before using in DOM queries.
+      if (!/^[A-Za-z0-9:_-]+$/.test(s)) return null
+      return s
     }
   },
   mounted () {
@@ -436,6 +464,10 @@ export default {
     if (this._hubFilterDocKeydown) {
       document.removeEventListener('keydown', this._hubFilterDocKeydown)
     }
+    if (this._focusFlashTimer) {
+      clearTimeout(this._focusFlashTimer)
+      this._focusFlashTimer = null
+    }
   },
   watch: {
     dashboardVersionId: {
@@ -457,6 +489,15 @@ export default {
         }
         this.loadData()
       }
+    },
+    focusStableNodeId: {
+      immediate: true,
+      handler () {
+        this.$nextTick(() => this.maybeApplyDeepLinkFocus(0))
+      }
+    },
+    filteredRows () {
+      this.$nextTick(() => this.maybeApplyDeepLinkFocus(0))
     }
   },
   methods: {
@@ -534,19 +575,57 @@ export default {
       const mins = Math.ceil(ms / 60000)
       return `Wait ${mins} min before next reminder`
     },
-    sendReminder (row) {
+    async sendReminder (row) {
       if (!row.assigneeNames) return
       if (this.remindCooldownRemaining(row) > 0) return
+      if (!this.dashboardVersionId || !row.stableNodeId) return
       const names = row.assigneeNames
-      const msg = `Reminder: please review node ${row.nodeLabel} (${row.sector || '—'}) — ${names}`
-      this.$store.commit('ADD_NOTIFICATION', {
-        id: `hub-remind-${Date.now()}-${row.stableNodeId}`,
-        message: msg,
-        created_at: new Date().toISOString(),
-        read: false
-      })
-      this.$toast && this.$toast.success(`Reminder recorded for ${names}`)
-      this.$set(this.lastReminderAt, this.remindKey(row), Date.now())
+      try {
+        await this.$http.secured.post('/meeting_dashboard/hub_reminder', {
+          new_dashboard_version_id: this.dashboardVersionId,
+          stable_node_id: row.stableNodeId
+        })
+        this.$set(this.lastReminderAt, this.remindKey(row), Date.now())
+        this.$toast && this.$toast.success(`Reminder sent to ${names}`)
+      } catch (err) {
+        const body = (err.response && err.response.data) || {}
+        const retry = Number(body.retry_after_seconds || 0)
+        if (retry > 0) {
+          const waitMs = Math.max(1000, retry * 1000)
+          this.$set(this.lastReminderAt, this.remindKey(row), Date.now() - (REMINDER_COOLDOWN_MS - waitMs))
+        }
+        const msg =
+          (typeof body.error === 'string' && body.error) ||
+          err.message ||
+          'Could not send reminder.'
+        this.$toast && this.$toast.error(msg)
+      }
+    },
+    maybeApplyDeepLinkFocus (attempt = 0) {
+      const stableNodeId = this.focusStableNodeId
+      if (!stableNodeId || this.loading || !Array.isArray(this.filteredRows) || !this.filteredRows.length) {
+        return
+      }
+      const exists = this.filteredRows.some((r) => String(r.stableNodeId || '') === stableNodeId)
+      if (!exists) return
+
+      const safeId = stableNodeId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      const selector = `tr[data-stable-node-id="${safeId}"]`
+      const rowEl = this.$el && this.$el.querySelector ? this.$el.querySelector(selector) : null
+      if (!rowEl) {
+        if (attempt < 2) {
+          this.$nextTick(() => this.maybeApplyDeepLinkFocus(attempt + 1))
+        }
+        return
+      }
+      if (rowEl.scrollIntoView) {
+        rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+      this.focusHighlightStableNodeId = stableNodeId
+      if (this._focusFlashTimer) clearTimeout(this._focusFlashTimer)
+      this._focusFlashTimer = setTimeout(() => {
+        this.focusHighlightStableNodeId = null
+      }, 2500)
     },
     resolvedEditorTitle (row) {
       const parts = []
@@ -752,6 +831,7 @@ export default {
         this.overlayNodes = typeof nodes === 'object' && nodes !== null ? nodes : {}
         const ds = settingsRes.data || {}
         this.nextReviewYmd = ds.target_meeting_date || null
+        this.$nextTick(() => this.maybeApplyDeepLinkFocus(0))
       } catch (err) {
         const st = err.response && err.response.status
         const body = (err.response && err.response.data) || {}
@@ -769,6 +849,21 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    openInFinal (row) {
+      if (!this.dashboardVersionId || !row.stableNodeId) return
+      if (!isMeetingDashboardUiEnabled()) {
+        this.$toast && this.$toast.error('Final dashboard is not available in this mode.')
+        return
+      }
+      this.$router.push({
+        name: 'NewFinalDashboard',
+        query: {
+          focus_node: row.stableNodeId,
+          focus_task_id: row.taskId != null ? String(row.taskId) : undefined,
+          dashboard_version_id: this.dashboardVersionId
+        }
+      })
     },
     goBack () {
       if (window.history.length > 1) {
@@ -930,6 +1025,19 @@ code {
   animation: nth-spin 0.8s linear infinite;
 }
 @keyframes nth-spin { to { transform: rotate(360deg); } }
+
+.nth-row-focus-flash {
+  animation: nth-row-focus-pulse 2.5s ease-out;
+}
+
+@keyframes nth-row-focus-pulse {
+  0% {
+    box-shadow: inset 0 0 0 9999px rgba(14, 116, 144, 0.2);
+  }
+  100% {
+    box-shadow: inset 0 0 0 9999px rgba(14, 116, 144, 0);
+  }
+}
 
 /* ════════════════════════════════════════════
    HERO CARD — Northeast Forest-Teal Gradient
@@ -1490,6 +1598,23 @@ code {
 }
 .nth-resolve-btn--resolved:hover:not(:disabled) {
   box-shadow: 0 4px 14px rgba(34,197,94,0.4);
+}
+
+/* Open in Final (redirect deep-link) */
+.nth-open-final-btn {
+  color: var(--c-accent);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.nth-open-final-btn:hover:not(:disabled) {
+  background: rgba(13, 122, 95, 0.08);
+  border-color: var(--c-accent);
+  color: var(--c-accent-2);
+}
+.nth-open-final-btn:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
 }
 
 /* Resolved readonly badge */

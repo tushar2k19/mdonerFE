@@ -1,4 +1,22 @@
 // src/services/NotificationService.js
+let sharedLegacyEventSource = null
+
+function bindLegacyHandlers (eventSource, onMessage, onError) {
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (onMessage) onMessage(data)
+    } catch (e) {
+      console.error('Error parsing SSE data:', e)
+    }
+  }
+
+  eventSource.onerror = (error) => {
+    console.error('SSE Error:', error)
+    if (onError) onError(error)
+  }
+}
+
 class NotificationService {
   constructor (axiosInstance) {
     this.http = axiosInstance
@@ -12,6 +30,25 @@ class NotificationService {
       console.error('Error fetching notifications:', error)
       return []
     }
+  }
+
+  subscribeToStream (onMessage, onError) {
+    const token = localStorage.getItem('jwt_access')
+    if (!token) return null
+
+    if (
+      sharedLegacyEventSource &&
+      (sharedLegacyEventSource.readyState === EventSource.OPEN ||
+        sharedLegacyEventSource.readyState === EventSource.CONNECTING)
+    ) {
+      bindLegacyHandlers(sharedLegacyEventSource, onMessage, onError)
+      return sharedLegacyEventSource
+    }
+
+    const baseUrl = this.http.defaults.baseURL || ''
+    sharedLegacyEventSource = new EventSource(`${baseUrl}/notifications/stream?token=${token}`)
+    bindLegacyHandlers(sharedLegacyEventSource, onMessage, onError)
+    return sharedLegacyEventSource
   }
 
   async markAsRead (notificationId) {

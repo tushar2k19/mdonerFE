@@ -12,6 +12,7 @@ import jsPDF from 'jspdf'
  * @param {Document|HTMLElement} [opts.root=document]
  * @param {(rowClone: HTMLElement) => void} [opts.prepareRowClone] — e.g. strip Status/Actions on Tentative
  * @param {(rowClone: HTMLElement) => void} [opts.positionReviewerBadgesForClone]
+ * @param {number[]} [opts.columnWidths] — relative widths for 7 exported columns
  * @param {() => void | Promise<void>} [opts.onStart]
  * @param {() => void} [opts.onEnd] — always called (finally), including early exit
  */
@@ -22,6 +23,7 @@ export async function exportMeetingDashboardPdf (opts = {}) {
     root = document,
     prepareRowClone = () => {},
     positionReviewerBadgesForClone,
+    columnWidths = [4, 9, 9, 135, 8, 9, 8],
     onStart,
     onEnd
   } = opts
@@ -67,7 +69,6 @@ export async function exportMeetingDashboardPdf (opts = {}) {
 
     position += 1
 
-    const columnWidths = [4, 9, 9, 135, 8, 9, 8]
     const headers = [
       'S No.',
       'Sector/Division',
@@ -130,6 +131,9 @@ export async function exportMeetingDashboardPdf (opts = {}) {
 
       const tableInRow = rowClone.querySelector('table')
       if (!tableInRow) continue
+
+      // Remove any runtime colgroup from live UI; PDF capture injects a canonical one.
+      tableInRow.querySelectorAll('colgroup:not([data-pdf-export-cols])').forEach((cg) => cg.remove())
 
       // Percent widths match jsPDF blue header (same ratios as scaledColumnWidths / bodyWidthMm).
       const colPercents = scaledColumnWidths.map((wmm) =>

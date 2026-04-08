@@ -242,6 +242,7 @@
             </div>
           </div>
         </div>
+      <router-link to="/import-dashboard-html" class="import-link-legacy">Import SNs</router-link>
       <button @click="openAddTaskModal" class="create-task-btn">Create task</button>
       <button @click="downloadPDF" class="download-pdf-btn">Download PDF</button>
       </div>
@@ -3894,6 +3895,27 @@ td.action-content-cell .action-node.level-4 {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+.import-link-legacy {
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  color: #4f46e5 !important;
+  background: #f5f3ff !important;
+  padding: 0.5rem 0.8rem !important;
+  border-radius: 8px !important;
+  border: 1px solid #c7d2fe !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 38px !important;
+  box-sizing: border-box !important;
+}
+.import-link-legacy:hover {
+  background: #ede9fe !important;
+  border-color: #a5b4fc !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1px) !important;
 }
 </style>
 

@@ -76,8 +76,13 @@
         >
           {{ meetingUiToggleLabel }}
         </button>
+        <NewMeetingNotificationPanel
+          v-if="isAuthenticated && meetingDashboardEnabled"
+          class="notification-wrapper"
+          :is-loading="isLoading"
+        />
         <NotificationComponent
-          v-if="isAuthenticated"
+          v-else-if="isAuthenticated"
           class="notification-wrapper"
           :is-loading="isLoading"
         />
@@ -125,6 +130,7 @@
 
 <script>
 import NotificationComponent from './NotificationComponent.vue'
+import NewMeetingNotificationPanel from './NewMeetingNotificationPanel.vue'
 import {
   isMeetingDashboardUiEnabled,
   isWebpackDevelopment,
@@ -136,7 +142,8 @@ import {
 export default {
   name: 'Header',
   components: {
-    NotificationComponent
+    NotificationComponent,
+    NewMeetingNotificationPanel
   },
   props: {
     isLoading: {
@@ -202,24 +209,31 @@ export default {
     filteredNavigationRoutes () {
       const tentativePath = this.meetingDashboardEnabled ? '/new-tentative' : '/tentative'
       const finalPath = this.meetingDashboardEnabled ? '/new-final' : '/final'
+      const dailyPath = this.meetingDashboardEnabled ? '/new-daily-dashboard' : '/daily-dashboard'
       // Custom logic for editor and reviewer roles
       if (this.userRole === 'editor') {
-        return [
+        const routes = [
           { path: '/', label: 'Home' },
-          { path: '/daily-dashboard', label: 'Daily Dashboard' },
+          { path: dailyPath, label: 'Daily Dashboard' },
           { path: tentativePath, label: 'Editor Dashboard' },
-          { path: finalPath, label: 'Full Dashboard' },
+          { path: finalPath, label: 'Full Dashboard' }
           // { path: '/completed-tasks', label: 'Completed Tasks' }, // COMMENTED OUT
-          { path: '/review-tasks', label: 'Review Tasks' },
           // { path: '/system-logs', label: 'System Logs' } // COMMENTED OUT
         ]
+        if (!this.meetingDashboardEnabled) {
+          routes.push({ path: '/review-tasks', label: 'Review Tasks' })
+        }
+        return routes
       } else if (this.userRole === 'reviewer') {
-        return [
+        const routes = [
           { path: '/', label: 'Home' },
-          { path: '/daily-dashboard', label: 'Daily Dashboard' },
-          { path: finalPath, label: 'Full Dashboard' },
-          { path: '/review-tasks', label: 'Review Tasks' }
+          { path: dailyPath, label: 'Daily Dashboard' },
+          { path: finalPath, label: 'Full Dashboard' }
         ]
+        if (!this.meetingDashboardEnabled) {
+          routes.push({ path: '/review-tasks', label: 'Review Tasks' })
+        }
+        return routes
       } else {
         // Default: show only Home
         return [
@@ -257,9 +271,13 @@ export default {
       if (!next) {
         if (p === '/new-tentative') this.$router.replace('/tentative')
         else if (p === '/new-final') this.$router.replace('/final')
+        else if (p === '/new-daily-dashboard') this.$router.replace('/daily-dashboard')
+        else if (p === '/meeting-review-hub') this.$router.replace('/review-tasks')
       } else {
         if (p === '/tentative' && this.userRole === 'editor') this.$router.replace('/new-tentative')
         else if (p === '/final') this.$router.replace('/new-final')
+        else if (p === '/daily-dashboard') this.$router.replace('/new-daily-dashboard')
+        else if (p === '/review-tasks') this.$router.replace('/meeting-review-hub')
       }
     },
     isNavActive (routePath) {
@@ -269,7 +287,11 @@ export default {
         (routePath === '/tentative' && p === '/new-tentative')
       const finalPair = (routePath === '/new-final' && p === '/final') ||
         (routePath === '/final' && p === '/new-final')
-      return editorPair || finalPair
+      const dailyPair = (routePath === '/new-daily-dashboard' && p === '/daily-dashboard') ||
+        (routePath === '/daily-dashboard' && p === '/new-daily-dashboard')
+      const reviewPair = (routePath === '/meeting-review-hub' && p === '/review-tasks') ||
+        (routePath === '/review-tasks' && p === '/meeting-review-hub')
+      return editorPair || finalPair || dailyPair || reviewPair
     },
     async handleSignOut () {
       try {
@@ -445,10 +467,16 @@ html, body {
   align-items: center;
 }
 
+/* Do not use overflow-x: hidden here: it forces overflow-y to clip in browsers,
+   which cuts off absolutely positioned dropdowns (e.g. meeting notifications panel). */
 .header-container {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: visible;
   box-sizing: border-box;
+}
+
+.nav-center--desktop {
+  min-width: 0;
 }
 
 .flex-1 {

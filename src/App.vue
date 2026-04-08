@@ -25,7 +25,7 @@ const AuthenticatedLayout = {
   components: { Header1 },
   props: ['isLoading'],
   template: `
-    <div>
+    <div class="authenticated-layout">
       <Header1 class="header" :is-loading="isLoading"/>
       <div class="content-wrapper">
         <slot></slot>
@@ -263,15 +263,25 @@ li {
   min-height: 100vh;
 }
 
-.content-wrapper {
+.authenticated-layout {
   display: flex;
+  flex-direction: column;
   width: 100%;
-  min-height: calc(100vh - 60px);
+  min-height: 100vh;
+}
+
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
   align-items: stretch;
 }
 
 .router-view-container {
   flex: 1;
+  width: 100%;
   background: white;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);

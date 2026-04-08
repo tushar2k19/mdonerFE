@@ -1,5 +1,5 @@
 /**
- * New meeting-centric Final dashboard — published pack, overlay, comments navigation, hub link.
+ * New meeting-centric Final dashboard — published pack, overlay, comment thread modal, hub link.
  *
  * Dashboard node comments: GET/POST/PUT/DELETE on `/meeting_dashboard/dashboard_node_comments`.
  * Thread edit/delete is exercised via DashboardNodeCommentsModal integration-style tests below.
@@ -71,29 +71,33 @@ function createHttpMock (overrides = {}) {
   const tasks = overrides.tasks != null ? overrides.tasks : sampleTasks()
   const versionId = overrides.versionId != null ? overrides.versionId : DEFAULT_VERSION_ID
   const meetingDate = overrides.meetingDate != null ? overrides.meetingDate : DEFAULT_MEETING_DATE
-  const commentNodes = overrides.commentNodes != null
-    ? overrides.commentNodes
-    : [
-        { new_task_id: 501, stable_node_id: 'sn-a' },
-        { new_task_id: 502, stable_node_id: 'sn-b' }
-      ]
 
   const get = jest.fn((url, config) => {
     if (typeof overrides.get === 'function') {
-      return overrides.get(url, config, { tasks, versionId, meetingDate, commentNodes })
+      return overrides.get(url, config, { tasks, versionId, meetingDate })
     }
     if (url === '/meeting_dashboard/meeting_dates') {
       return Promise.resolve({
         data: {
           meeting_dates: [
-            { meeting_date: meetingDate, new_dashboard_version_id: versionId, set_at: null }
+            {
+              meeting_date: meetingDate,
+              new_dashboard_version_id: versionId,
+              set_at: null,
+              published_at: '2026-04-04T10:00:00Z',
+              source: 'schedule'
+            }
           ]
         }
       })
     }
     if (url === '/meeting_dashboard/published') {
       const params = (config && config.params) || {}
-      expect(params.meeting_date).toBe(meetingDate)
+      if (params.new_dashboard_version_id) {
+        expect(String(params.new_dashboard_version_id)).toBe(String(versionId))
+      } else {
+        expect(params.meeting_date).toBe(meetingDate)
+      }
       return Promise.resolve({
         data: {
           tasks,
@@ -132,13 +136,6 @@ function createHttpMock (overrides = {}) {
           nodes,
           overlay_user_directory: []
         }
-      })
-    }
-    if (url === '/meeting_dashboard/comment_nodes') {
-      const params = (config && config.params) || {}
-      expect(params.new_dashboard_version_id).toBe(versionId)
-      return Promise.resolve({
-        data: { new_dashboard_version_id: versionId, nodes: commentNodes }
       })
     }
     if (url === '/meeting_dashboard/dashboard_node_comments') {
@@ -190,7 +187,7 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     jest.clearAllMocks()
   })
 
-  it('loads published pack, stores version id, fetches overlay and comment_nodes', async () => {
+  it('loads published pack, stores version id, and fetches overlay', async () => {
     setEditorUserCookie()
     const http = createHttpMock()
     wrapper = mountFinal(http)
@@ -198,11 +195,9 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.vm.currentVersionId).toBe(DEFAULT_VERSION_ID)
-    expect(wrapper.vm.selectedMeetingDate).toBe(DEFAULT_MEETING_DATE)
-    expect(wrapper.vm.commentNavNodes.length).toBe(2)
+    expect(String(wrapper.vm.selectedPublishedVersionId)).toBe(String(DEFAULT_VERSION_ID))
 
     expect(http.get.mock.calls.filter((c) => c[0] === '/meeting_dashboard/draft_editor_overlay').length).toBeGreaterThanOrEqual(1)
-    expect(http.get.mock.calls.filter((c) => c[0] === '/meeting_dashboard/comment_nodes').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows full dashboard: all published tasks in displayTasks with no reviewer filter', async () => {
@@ -219,44 +214,7 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(wrapper.vm.assignedNavNodes.length).toBe(0)
   })
 
-  it('show comments mode toggles, loads nodes, and prev/next wraps index', async () => {
-    setEditorUserCookie()
-    const http = createHttpMock()
-    wrapper = mountFinal(http)
-    await flushPromises()
-    await wrapper.vm.$nextTick()
-
-    const scrollSpy = jest.spyOn(wrapper.vm, 'scrollToStableNode').mockImplementation(() => {})
-
-    expect(wrapper.vm.showCommentsNavMode).toBe(false)
-    await wrapper.vm.toggleCommentsNavMode()
-    expect(wrapper.vm.showCommentsNavMode).toBe(true)
-    expect(wrapper.vm.commentNavNodes.length).toBe(2)
-    expect(wrapper.vm.commentNavIndex).toBe(0)
-    expect(scrollSpy).toHaveBeenCalled()
-
-    wrapper.vm.commentNavNext()
-    expect(wrapper.vm.commentNavIndex).toBe(1)
-    wrapper.vm.commentNavNext()
-    expect(wrapper.vm.commentNavIndex).toBe(0)
-
-    scrollSpy.mockRestore()
-  })
-
-  it('browse commented nodes opens aggregate modal and lists comment nodes', async () => {
-    setEditorUserCookie()
-    const http = createHttpMock()
-    wrapper = mountFinal(http)
-    await flushPromises()
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.vm.allCommentsModalVisible).toBe(false)
-    await wrapper.vm.openAllCommentsModal()
-    await flushPromises()
-    expect(wrapper.vm.allCommentsModalVisible).toBe(true)
-    expect(wrapper.vm.commentNavNodes.length).toBe(2)
-    expect(wrapper.find('.nfd-all-comments-dialog').exists()).toBe(true)
-  })
+  // Removed redundant "Show comments" and "Browse commented nodes" flows.
 
   it('submitAssignPack posts assignment for current published version and refreshes overlay', async () => {
     setEditorUserCookie()
@@ -302,7 +260,7 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(String(hub.props().to.query.dashboard_version_id)).toBe(String(DEFAULT_VERSION_ID))
   })
 
-  it('openThreadForNode opens DashboardNodeCommentsModal with version and stable id', async () => {
+  it('openDashboardCommentsModal opens DashboardNodeCommentsModal with version and stable id', async () => {
     setEditorUserCookie()
     const http = createHttpMock()
     wrapper = mount(NewFinalDashboard, {
@@ -315,7 +273,7 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     await flushPromises()
     await wrapper.vm.$nextTick()
 
-    wrapper.vm.openThreadForNode('sn-a')
+    wrapper.vm.openDashboardCommentsModal('sn-a')
     await wrapper.vm.$nextTick()
 
     const modal = wrapper.findComponent(DashboardNodeCommentsModal)
@@ -328,7 +286,7 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(modal.props().nodeContext.nodeLabel).toBeTruthy()
   })
 
-  it('onPackCommentSubmitted refetches overlay and comment list when show-comments mode is on', async () => {
+  it('onPackCommentSubmitted refetches overlay', async () => {
     setEditorUserCookie()
     const http = createHttpMock()
     wrapper = mountFinal(http)
@@ -336,16 +294,11 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     await wrapper.vm.$nextTick()
 
     const fetchOverlay = jest.spyOn(wrapper.vm, 'fetchMeetingPackOverlay').mockResolvedValue()
-    const loadNav = jest.spyOn(wrapper.vm, 'loadCommentNavNodes').mockResolvedValue()
-
-    wrapper.setData({ showCommentsNavMode: true })
     await wrapper.vm.onPackCommentSubmitted()
 
     expect(fetchOverlay).toHaveBeenCalled()
-    expect(loadNav).toHaveBeenCalled()
 
     fetchOverlay.mockRestore()
-    loadNav.mockRestore()
   })
 
   it('builds ordered assignedNavNodes for selected reviewer', async () => {
@@ -386,11 +339,6 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
           }
         })
       }
-      if (url === '/meeting_dashboard/comment_nodes') {
-        return Promise.resolve({
-          data: { new_dashboard_version_id: DEFAULT_VERSION_ID, nodes: [] }
-        })
-      }
       return Promise.resolve({ data: {} })
     })
     const http2 = { get: fullGet, post: jest.fn(() => Promise.resolve({ data: {} })) }
@@ -405,6 +353,106 @@ describe('NewFinalDashboard.vue (meeting published flow)', () => {
     expect(nav.length).toBe(1)
     expect(nav[0].stable_node_id).toBe('sn-a')
     expect(nav[0].new_task_id).toBe(501)
+    expect(wrapper.vm.hasActiveFilters).toBe(true)
+    expect(wrapper.vm.displayTasks.length).toBe(1)
+    expect(wrapper.vm.displayTasks[0].id).toBe(501)
+  })
+
+  it('defaults published meeting to latest published_at, not largest calendar meeting_date', async () => {
+    setEditorUserCookie()
+    const http = {
+      get: jest.fn((url, config) => {
+        if (url === '/meeting_dashboard/meeting_dates') {
+          return Promise.resolve({
+            data: {
+              meeting_dates: [
+                {
+                  meeting_date: '2026-04-08',
+                  new_dashboard_version_id: 100,
+                  published_at: '2026-04-05T10:00:00Z',
+                  set_at: null
+                },
+                {
+                  meeting_date: '2026-04-07',
+                  new_dashboard_version_id: 101,
+                  published_at: '2026-04-06T12:00:00Z',
+                  set_at: null
+                }
+              ]
+            }
+          })
+        }
+        if (url === '/meeting_dashboard/published') {
+          const vid = config && config.params && config.params.new_dashboard_version_id
+          expect(String(vid)).toBe('101')
+          return Promise.resolve({
+            data: {
+              tasks: sampleTasks(),
+              empty: false,
+              meeting_date: '2026-04-07',
+              meeting_dashboard_version_id: 101,
+              published_at: '2026-04-06T12:00:00Z'
+            }
+          })
+        }
+        if (url === '/meeting_dashboard/draft_editor_overlay') {
+          return Promise.resolve({
+            data: {
+              new_dashboard_version_id: 101,
+              nodes: {},
+              overlay_user_directory: []
+            }
+          })
+        }
+        return Promise.resolve({ data: {} })
+      }),
+      post: jest.fn(() => Promise.resolve({ data: {} }))
+    }
+    wrapper = mountFinal(http)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.selectedPublishedVersionId).toBe('101')
+  })
+
+  it('loadTagsForFilter builds allTagsForFilter from published task tags (numeric and string ids)', async () => {
+    setEditorUserCookie()
+    const tasks = sampleTasks()
+    tasks[0].tags = [{ id: 1, name: 'Alpha' }]
+    tasks[1].tags = [{ id: '2', name: 'Beta' }]
+    const http = createHttpMock({ tasks })
+    wrapper = mountFinal(http)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.vm.loadTagsForFilter()
+    await wrapper.vm.$nextTick()
+
+    const names = wrapper.vm.allTagsForFilter.map((t) => t.name).sort()
+    expect(names).toEqual(['Alpha', 'Beta'])
+    expect(wrapper.vm.allTagsForFilter.find((t) => t.name === 'Alpha').id).toBe(1)
+    expect(wrapper.vm.allTagsForFilter.find((t) => t.name === 'Beta').id).toBe(2)
+  })
+
+  it('meeting review date range filter narrows displayTasks', async () => {
+    setEditorUserCookie()
+    const http = createHttpMock()
+    wrapper = mountFinal(http)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.useMeetingPublishedSource).toBe(true)
+    expect(wrapper.vm.displayTasks.length).toBe(2)
+
+    await wrapper.setData({
+      reviewDateMode: 'range',
+      reviewDateFromYmd: '2026-04-05',
+      reviewDateToYmd: '2026-04-05'
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.reviewDateFilterActive).toBe(true)
+    expect(wrapper.vm.displayTasks.length).toBe(1)
+    expect(wrapper.vm.displayTasks[0].id).toBe(501)
   })
 })
 

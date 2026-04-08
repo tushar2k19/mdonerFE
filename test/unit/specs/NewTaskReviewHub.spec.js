@@ -7,6 +7,10 @@ jest.mock('@/utils/reviewHubPdfExport', () => ({
   exportReviewHubPdf: jest.fn()
 }))
 
+jest.mock('@/utils/meetingDashboardUi', () => ({
+  isMeetingDashboardUiEnabled: jest.fn(() => true)
+}))
+
 const localVue = createLocalVue()
 localVue.use(Vuex)
 
@@ -69,6 +73,7 @@ function mountHub (opts = {}) {
       }
     })
   )
+  const post = opts.post || jest.fn(() => Promise.resolve({ data: { success: true } }))
 
   const toast = { success: jest.fn(), error: jest.fn() }
 
@@ -82,15 +87,15 @@ function mountHub (opts = {}) {
     localVue,
     store,
     mocks: {
-      $http: { secured: { get, patch } },
+        $http: { secured: { get, patch, post } },
       $route: {
-        query: { dashboard_version_id: '42' }
+          query: opts.routeQuery || { dashboard_version_id: '42' }
       },
       $router: { back: jest.fn(), push: jest.fn() },
       $toast: toast
     }
   })
-  return { wrapper, get, patch, toast }
+  return { wrapper, get, patch, post, toast }
 }
 
 describe('NewTaskReviewHub', () => {
@@ -122,11 +127,11 @@ describe('NewTaskReviewHub', () => {
     expect(w.text()).toContain('Version #42')
     expect(w.text()).toContain('IFD')
     expect(w.text()).toContain('Reviewer Nine')
-    const legendDots = w.findAll('.nth-legend .nth-status-dot')
-    expect(legendDots.length).toBe(3)
-    const rowDot = w.find('.nth-row-green .nth-status-dot')
-    expect(rowDot.exists()).toBe(true)
-    expect(rowDot.attributes('aria-label')).toBe('Assigned & commented')
+    const legendBadges = w.findAll('.nth-legend .nth-badge')
+    expect(legendBadges.length).toBe(3)
+    const rowBadge = w.find('.nth-badge.nth-badge--green')
+    expect(rowBadge.exists()).toBe(true)
+    expect(rowBadge.attributes('title')).toBe('Assigned & commented')
   })
 
   it('shows warning when dashboard_version_id missing', () => {
@@ -185,7 +190,7 @@ describe('NewTaskReviewHub', () => {
     })
     await flushPromises()
 
-    const markBtn = w.find('.nth-resolve-tick:not(.nth-resolve-tick--resolved)')
+    const markBtn = w.find('.nth-resolve-btn:not(.nth-resolve-btn--resolved)')
     expect(markBtn.exists()).toBe(true)
     expect(markBtn.attributes('aria-label')).toBe('Mark node resolved')
 
@@ -202,7 +207,7 @@ describe('NewTaskReviewHub', () => {
 
     expect(toast.success).toHaveBeenCalledWith('Marked resolved.')
 
-    const resolvedBtn = w.find('.nth-resolve-tick--resolved')
+    const resolvedBtn = w.find('.nth-resolve-btn--resolved')
     expect(resolvedBtn.exists()).toBe(true)
     expect(resolvedBtn.attributes('aria-label')).toMatch(/Resolved/)
   })
@@ -240,8 +245,8 @@ describe('NewTaskReviewHub', () => {
     })
     await flushPromises()
 
-    expect(w.find('.nth-resolve-tick').exists()).toBe(false)
-    expect(w.find('.nth-resolve-tick--resolved').exists()).toBe(false)
+    expect(w.find('.nth-resolve-btn').exists()).toBe(false)
+    expect(w.find('.nth-resolve-btn--resolved').exists()).toBe(false)
     const ro = w.find('.nth-resolved-readonly')
     expect(ro.exists()).toBe(true)
     expect(ro.text()).toContain('Resolved')
@@ -278,7 +283,7 @@ describe('NewTaskReviewHub', () => {
     })
     await flushPromises()
 
-    expect(w.find('.nth-resolve-tick').exists()).toBe(false)
+    expect(w.find('.nth-resolve-btn').exists()).toBe(false)
     expect(w.find('.nth-resolved-readonly').exists()).toBe(false)
   })
 
@@ -353,7 +358,7 @@ describe('NewTaskReviewHub', () => {
       }
     })
     await flushPromises()
-    w.find('.nth-resolve-tick:not(.nth-resolve-tick--resolved)').trigger('click')
+    w.find('.nth-resolve-btn:not(.nth-resolve-btn--resolved)').trigger('click')
     await flushPromises()
     expect(toast.error).toHaveBeenCalledWith('Forbidden')
   })
@@ -399,7 +404,7 @@ describe('NewTaskReviewHub', () => {
     })
     await flushPromises()
 
-    const doneBtn = w.find('.nth-resolve-tick--resolved')
+    const doneBtn = w.find('.nth-resolve-btn--resolved')
     expect(doneBtn.exists()).toBe(true)
     expect(doneBtn.attributes('aria-label')).toMatch(/unresolved/)
 
@@ -416,7 +421,7 @@ describe('NewTaskReviewHub', () => {
 
     expect(toast.success).toHaveBeenCalledWith('Marked unresolved.')
 
-    expect(w.find('.nth-resolve-tick:not(.nth-resolve-tick--resolved)').exists()).toBe(true)
+    expect(w.find('.nth-resolve-btn:not(.nth-resolve-btn--resolved)').exists()).toBe(true)
   })
 
   it('shows toast error on PATCH 422 with server message', async () => {
@@ -493,7 +498,7 @@ describe('NewTaskReviewHub', () => {
       }
     })
     await flushPromises()
-    w.find('.nth-resolve-tick:not(.nth-resolve-tick--resolved)').trigger('click')
+    w.find('.nth-resolve-btn:not(.nth-resolve-btn--resolved)').trigger('click')
     await flushPromises()
     expect(toast.error).toHaveBeenCalledWith('stable_node_id is required')
   })
@@ -660,5 +665,168 @@ describe('NewTaskReviewHub', () => {
     sel.trigger('change')
     await w.vm.$nextTick()
     expect(w.vm.filteredRows).toHaveLength(0)
+  })
+
+  it('openInFinal calls $router.push with correct query for a row', async () => {
+    const tasks = [
+      {
+        id: 7,
+        sector_division: 'Exhibitions',
+        description: 'Exhibition and Summits',
+        current_version: {
+          action_nodes: [
+            {
+              stable_node_id: 'sn-exhibit-1',
+              display_counter: '1',
+              children: [
+                {
+                  stable_node_id: 'sn-exhibit-1a',
+                  display_counter: 'a',
+                  children: [
+                    {
+                      stable_node_id: 'sn-exhibit-1ai',
+                      display_counter: 'i',
+                      children: []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+    const overlayNodes = {
+      'sn-exhibit-1ai': {
+        assignment_users: [{ id: 3, name: 'Tushar Reviewer' }],
+        comment_count: 2
+      }
+    }
+    const { wrapper: w } = mountHub({ tasks, overlayNodes, role: 'editor' })
+    await flushPromises()
+
+    const btn = w.find('.nth-open-final-btn')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('title')).toMatch(/in Final/)
+
+    btn.trigger('click')
+    expect(w.vm.$router.push).toHaveBeenCalledWith({
+      name: 'NewFinalDashboard',
+      query: {
+        focus_node: 'sn-exhibit-1ai',
+        focus_task_id: '7',
+        dashboard_version_id: '42'
+      }
+    })
+  })
+
+  it('openInFinal button is hidden when row has no stableNodeId', async () => {
+    const tasks = [
+      {
+        id: 8,
+        sector_division: 'TestSector',
+        description: 'Task without nodes',
+        current_version: {
+          action_nodes: []
+        }
+      }
+    ]
+    // flattenHubRows returns nothing for tasks with no overlay
+    const overlayNodes = {}
+    const { wrapper: w } = mountHub({ tasks, overlayNodes, role: 'editor' })
+    await flushPromises()
+
+    const btn = w.find('.nth-open-final-btn')
+    expect(btn.exists()).toBe(false)
+  })
+
+  it('sends reminder via meeting_dashboard/hub_reminder and starts cooldown', async () => {
+    const tasks = [
+      {
+        id: 1,
+        sector_division: 'IFD',
+        description: 'Task one',
+        current_version: {
+          action_nodes: [
+            {
+              stable_node_id: 'sn-x',
+              display_counter: '1',
+              children: []
+            }
+          ]
+        }
+      }
+    ]
+    const overlayNodes = {
+      'sn-x': {
+        assignment_users: [{ id: 9, name: 'Reviewer Nine' }],
+        comment_count: 0
+      }
+    }
+    const { wrapper: w, post, toast } = mountHub({ tasks, overlayNodes, role: 'editor' })
+    await flushPromises()
+
+    w.find('.nth-remind-btn').trigger('click')
+    await flushPromises()
+
+    expect(post).toHaveBeenCalledWith('/meeting_dashboard/hub_reminder', {
+      new_dashboard_version_id: '42',
+      stable_node_id: 'sn-x'
+    })
+    expect(toast.success).toHaveBeenCalledWith('Reminder sent to Reviewer Nine')
+    expect(w.vm.remindCooldownRemaining({ stableNodeId: 'sn-x' })).toBeGreaterThan(0)
+  })
+
+  it('applies focus_stable_node_id row flash on load', async () => {
+    jest.useFakeTimers()
+    const prevScroll = window.HTMLElement.prototype.scrollIntoView
+    window.HTMLElement.prototype.scrollIntoView = jest.fn()
+    try {
+      const tasks = [
+        {
+          id: 1,
+          sector_division: 'IFD',
+          description: 'Task one',
+          current_version: {
+            action_nodes: [
+              {
+                stable_node_id: 'sn-focus',
+                display_counter: '1',
+                children: []
+              }
+            ]
+          }
+        }
+      ]
+      const overlayNodes = {
+        'sn-focus': {
+          assignment_users: [{ id: 9, name: 'Reviewer Nine' }],
+          comment_count: 1
+        }
+      }
+
+      const { wrapper: w } = mountHub({
+        tasks,
+        overlayNodes,
+        routeQuery: {
+          dashboard_version_id: '42',
+          focus_stable_node_id: 'sn-focus'
+        }
+      })
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(w.vm.focusHighlightStableNodeId).toBe('sn-focus')
+      const row = w.find('tr[data-stable-node-id="sn-focus"]')
+      expect(row.exists()).toBe(true)
+      expect(row.classes()).toContain('nth-row-focus-flash')
+
+      jest.advanceTimersByTime(2600)
+      await w.vm.$nextTick()
+      expect(w.vm.focusHighlightStableNodeId).toBe(null)
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = prevScroll
+      jest.useRealTimers()
+    }
   })
 })

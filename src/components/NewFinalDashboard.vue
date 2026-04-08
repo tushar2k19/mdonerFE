@@ -4,39 +4,22 @@
     :class="{ 'new-final-meeting-readonly': useMeetingPublishedSource, 'dashboard-pdf-capture': pdfMode }"
   >
     <div v-if="useMeetingPublishedSource" class="new-final-meeting-bar">
-      <div class="new-final-meeting-bar-row new-final-meeting-bar-row-top">
-        <label class="meeting-date-label">
-          <span class="meeting-bar-label-text">Published meeting</span>
-          <select
-            v-model="selectedMeetingDate"
-            class="meeting-date-select"
-            @change="onMeetingDateChange"
-          >
-            <option
-              v-for="opt in meetingDateOptions"
-              :key="String(opt.meeting_date)"
-              :value="meetingDateInputValue(opt.meeting_date)"
-            >
-              {{ formatMeetingDateLabel(opt.meeting_date) }}
-            </option>
-            <option
-              v-if="meetingDateOptions.length === 0 && selectedMeetingDate"
-              :value="selectedMeetingDate"
-            >
-              {{ formatMeetingDateLabel(selectedMeetingDate) }} (no schedule yet)
-            </option>
-          </select>
-        </label>
-        <span v-if="publishedMeta && publishedMeta.published_at" class="meeting-published-meta">
-          Published {{ formatPublishedAt(publishedMeta.published_at) }}
-        </span>
-        <span v-else-if="publishedLoadEmpty" class="meeting-published-empty">No published snapshot for this date yet.</span>
-      </div>
       <div class="new-final-meeting-bar-row new-final-live-status">
         <span class="live-status-label">Live review status</span>
-        <span v-if="currentVersionId" class="live-status-counts">
-          {{ overlayStats.assignedNodes }} assigned · {{ overlayStats.commentedNodes }} with comments
-        </span>
+        <div v-if="currentVersionId" class="live-status-badges" aria-label="Pack node status counts">
+          <span class="live-status-badge live-status-badge--green" title="Assigned and commented">
+            <span class="live-status-badge-icon" aria-hidden="true"></span>
+            <span class="live-status-badge-count">{{ packColorCounts.green }}</span>
+          </span>
+          <span class="live-status-badge live-status-badge--blue" title="Not assigned but has comments">
+            <span class="live-status-badge-icon" aria-hidden="true"></span>
+            <span class="live-status-badge-count">{{ packColorCounts.blue }}</span>
+          </span>
+          <span class="live-status-badge live-status-badge--red" title="Assigned, no comments yet">
+            <span class="live-status-badge-icon" aria-hidden="true"></span>
+            <span class="live-status-badge-count">{{ packColorCounts.red }}</span>
+          </span>
+        </div>
         <span v-else class="live-status-counts muted">No pack loaded</span>
         <router-link
           v-if="currentVersionId"
@@ -61,30 +44,6 @@
           <input v-model="agendaDateTo" type="date" class="meeting-date-input" @change="onAgendaRangeChange">
         </label>
         <button type="button" class="new-final-ghost-btn" @click="clearAgendaRange">Clear highlight</button>
-      </div>
-      <div class="new-final-meeting-bar-row new-final-comment-nav-row">
-        <button
-          type="button"
-          class="new-final-ghost-btn"
-          :class="{ active: showCommentsNavMode }"
-          :disabled="!currentVersionId || commentNavNodes.length === 0"
-          @click="toggleCommentsNavMode"
-        >
-          Show comments
-        </button>
-        <div v-if="showCommentsNavMode && commentNavNodes.length" class="comment-nav-arrows">
-          <button type="button" class="new-final-ghost-btn" @click="commentNavPrev">↑ Prev</button>
-          <span class="comment-nav-pos">{{ commentNavIndex + 1 }} / {{ commentNavNodes.length }}</span>
-          <button type="button" class="new-final-ghost-btn" @click="commentNavNext">Next ↓</button>
-        </div>
-        <button
-          type="button"
-          class="new-final-ghost-btn"
-          :disabled="!currentVersionId || commentNavNodes.length === 0"
-          @click="openAllCommentsModal"
-        >
-          Browse commented nodes
-        </button>
       </div>
     </div>
     <!-- Advanced Search Bar + Actions Row -->
@@ -128,6 +87,36 @@
           </span>
         </div>
       </div>
+      <div
+        v-if="useMeetingPublishedSource"
+        class="toolbar-date-slot"
+        role="group"
+        aria-label="Published meeting selection"
+      >
+        <span class="toolbar-date-label">Published meeting</span>
+        <select
+          v-model="selectedPublishedVersionId"
+          class="toolbar-date-select"
+          @change="onMeetingDateChange"
+        >
+          <option
+            v-for="opt in meetingDateOptions"
+            :key="String(opt.new_dashboard_version_id)"
+            :value="String(opt.new_dashboard_version_id)"
+          >
+            {{ formatMeetingDateLabel(opt.meeting_date) }}
+          </option>
+          <option
+            v-if="meetingDateOptions.length === 0 && selectedPublishedVersionId"
+            :value="selectedPublishedVersionId"
+          >
+            Snapshot (v{{ selectedPublishedVersionId }}) (no schedule yet)
+          </option>
+        </select>
+        <span v-if="publishedLoadEmpty" class="toolbar-date-meta muted">
+          No published snapshot
+        </span>
+      </div>
       <!-- Action Buttons -->
       <div class="dashboard-actions-inline">
         <!-- Enhanced Filter Button -->
@@ -145,46 +134,25 @@
           <!-- Filter Dropdown -->
           <div v-if="showFilterDropdown" class="filter-dropdown">
             <div v-if="useMeetingPublishedSource" class="filter-section">
-              <h4 class="filter-section-title">Pack highlight</h4>
-              <p class="new-final-filter-hint">Same as Tentative: off, all pack colors, or filter rows by node state.</p>
-              <select
-                v-model="packHighlightMode"
-                class="meeting-date-select"
-                style="width:100%;margin-bottom:4px;"
-                @change="onPackHighlightModeChange"
-              >
-                <option
-                  v-for="opt in packHighlightSelectOptions"
-                  :key="opt.value"
-                  :value="opt.value"
-                >
-                  {{ opt.label }}
-                </option>
-              </select>
+              <h4 class="filter-section-title">Follow-up status</h4>
+              <FilterPrettySelect
+                :value="packHighlightMode"
+                :options="followUpStatusSelectOptions"
+                aria-label="Follow-up status"
+                @input="onFinalPackHighlightSelect"
+              />
             </div>
             <div
               v-if="currentVersionId && assignmentReviewerOptions.length"
               class="filter-section"
             >
               <h4 class="filter-section-title">Assigned reviewer</h4>
-              <p class="new-final-filter-hint">
-                Highlights this user’s pack footprint only. Red = assigned to them, no comments; green = assigned + comments; blue = not pack-assigned, but they commented. Works together with Pack highlight (off / all / one color).
-              </p>
-              <select
-                v-model="selectedReviewerUserId"
-                class="meeting-date-select"
-                style="width:100%;margin-bottom:8px;"
-                @change="onReviewerFilterChange"
-              >
-                <option value="">All nodes (full dashboard)</option>
-                <option
-                  v-for="u in assignmentReviewerOptions"
-                  :key="u.id"
-                  :value="String(u.id)"
-                >
-                  {{ u.name }}
-                </option>
-              </select>
+              <FilterPrettySelect
+                :value="selectedReviewerUserId"
+                :options="reviewerFilterOptions"
+                aria-label="Assigned reviewer filter"
+                @input="onFinalReviewerSelect"
+              />
               <p
                 v-if="selectedReviewerUserId && !assignedNavNodes.length"
                 class="new-final-filter-hint"
@@ -193,65 +161,84 @@
                 No nodes for this reviewer (not assigned to them and no comments by them on unassigned nodes).
               </p>
             </div>
-            <div class="filter-section">
-              <h4 class="filter-section-title">Review Date</h4>
-              <div class="filter-options">
-                <label class="filter-option">
-                  <input 
-                    type="radio" 
-                    v-model="filters.reviewDate" 
-                    value="all"
-                    @change="applyFilters"
-                  />
-                  <span class="filter-option-text">All dates</span>
-                </label>
-                <label class="filter-option">
-                  <input 
-                    type="radio" 
-                    v-model="filters.reviewDate" 
-                    value="today"
-                    @change="applyFilters"
-                  />
-                  <span class="filter-option-text">Today</span>
-                </label>
-                <label class="filter-option">
-                  <input 
-                    type="radio" 
-                    v-model="filters.reviewDate" 
-                    value="yesterday"
-                    @change="applyFilters"
-                  />
-                  <span class="filter-option-text">Yesterday</span>
-                </label>
-                <label class="filter-option">
-                  <input 
-                    type="radio" 
-                    v-model="filters.reviewDate" 
-                    value="tomorrow"
-                    @change="applyFilters"
-                  />
-                  <span class="filter-option-text">Tomorrow</span>
-                </label>
-                <label class="filter-option">
-                  <input 
-                    type="radio" 
-                    v-model="filters.reviewDate" 
-                    value="custom"
-                    @change="applyFilters"
-                  />
-                  <span class="filter-option-text">Custom date</span>
-                </label>
-              </div>
-              
-              <!-- Custom Date Picker -->
-              <div v-if="filters.reviewDate === 'custom'" class="custom-date-picker">
-                <input 
-                  type="date" 
-                  v-model="filters.customDate"
-                  @change="applyFilters"
-                  class="date-input"
+            <div class="filter-section filter-section--review-date-final">
+              <template v-if="useMeetingPublishedSource">
+                <div class="filter-section-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M8 2V5M16 2V5M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>Review Date</span>
+                </div>
+                <TentativeDateRangePicker
+                  :preset-key="reviewDateSelectValue"
+                  :from-ymd="reviewDateFromYmd"
+                  :to-ymd="reviewDateToYmd"
+                  :calendar-range="calendarRangeValue"
+                  :quick-select-options="reviewDateQuickSelectOptionsWithCounts"
+                  @preset-change="onReviewDatePresetChangeWrapper"
+                  @calendar-input="onReviewCalendarInput"
+                  @from-change="val => { reviewDateFromYmd = val; onReviewBoundChange() }"
+                  @to-change="val => { reviewDateToYmd = val; onReviewBoundChange() }"
                 />
-              </div>
+              </template>
+              <template v-else>
+                <h4 class="filter-section-title">Review Date</h4>
+                <div class="filter-options">
+                  <label class="filter-option">
+                    <input
+                      type="radio"
+                      v-model="filters.reviewDate"
+                      value="all"
+                      @change="applyFilters"
+                    >
+                    <span class="filter-option-text">All dates</span>
+                  </label>
+                  <label class="filter-option">
+                    <input
+                      type="radio"
+                      v-model="filters.reviewDate"
+                      value="today"
+                      @change="applyFilters"
+                    >
+                    <span class="filter-option-text">Today</span>
+                  </label>
+                  <label class="filter-option">
+                    <input
+                      type="radio"
+                      v-model="filters.reviewDate"
+                      value="yesterday"
+                      @change="applyFilters"
+                    >
+                    <span class="filter-option-text">Yesterday</span>
+                  </label>
+                  <label class="filter-option">
+                    <input
+                      type="radio"
+                      v-model="filters.reviewDate"
+                      value="tomorrow"
+                      @change="applyFilters"
+                    >
+                    <span class="filter-option-text">Tomorrow</span>
+                  </label>
+                  <label class="filter-option">
+                    <input
+                      type="radio"
+                      v-model="filters.reviewDate"
+                      value="custom"
+                      @change="applyFilters"
+                    >
+                    <span class="filter-option-text">Custom date</span>
+                  </label>
+                </div>
+                <div v-if="filters.reviewDate === 'custom'" class="custom-date-picker">
+                  <input
+                    type="date"
+                    v-model="filters.customDate"
+                    @change="applyFilters"
+                    class="date-input"
+                  >
+                </div>
+              </template>
             </div>
 
             <!-- Tags Filter (Searchable dropdown like Tentative) -->
@@ -311,30 +298,6 @@
               </div>
             </div>
             
-            <!-- Meeting pack tools (mirror top bar; quick access from Filter menu) -->
-            <div v-if="useMeetingPublishedSource && currentVersionId" class="filter-section">
-              <h4 class="filter-section-title">Published pack</h4>
-              <p class="new-final-filter-hint">Use the meeting bar for comment navigation and reviewer hops.</p>
-              <button
-                type="button"
-                class="clear-filters-btn"
-                style="width:100%;margin-bottom:8px;"
-                :disabled="commentNavNodes.length === 0"
-                @click="toggleCommentsNavFromFilter"
-              >
-                {{ showCommentsNavMode ? 'Exit show comments mode' : 'Show comments (navigate)' }}
-              </button>
-              <button
-                type="button"
-                class="close-filter-btn"
-                style="width:100%;"
-                :disabled="commentNavNodes.length === 0"
-                @click="openAllCommentsModalFromFilter"
-              >
-                Browse all commented nodes
-              </button>
-            </div>
-
             <!-- Filter Actions -->
             <div class="filter-actions">
               <button @click="clearAllFilters" class="clear-filters-btn">
@@ -383,6 +346,15 @@
     <!-- Table Headers -->
     <div class="table-headers">
       <table>
+        <colgroup>
+          <col style="width: 2%">
+          <col style="width: 7%">
+          <col style="width: 7%">
+          <col style="width: 71%">
+          <col style="width: 4%">
+          <col style="width: 5%">
+          <col style="width: 4%">
+        </colgroup>
         <tr>
           <th>S No.</th>
           <th>Sector/Division</th>
@@ -406,6 +378,15 @@
            'agenda-range-row-highlight': useMeetingPublishedSource && meetingAgendaUiEnabled && taskInAgendaRange(task)
          }">
       <table>
+        <colgroup>
+          <col style="width: 2%">
+          <col style="width: 7%">
+          <col style="width: 7%">
+          <col style="width: 71%">
+          <col style="width: 4%">
+          <col style="width: 5%">
+          <col style="width: 4%">
+        </colgroup>
         <tr>
           <td><strong>{{ getDisplayIndex(index) }}</strong></td>
           <td><strong>{{ task.sector_division }}</strong></td>
@@ -465,69 +446,76 @@
     />
 
     <!-- Pack assignments attach to published version V (currentVersionId), not Tentative draft. -->
+    <!-- Pack assignments attach to published version V (currentVersionId), not Tentative draft. -->
     <div
       v-if="showAssignPackModal"
-      class="meeting-reset-modal-overlay nfd-assign-pack-overlay no-print"
+      class="meeting-reset-modal-overlay ntd-assign-pack-overlay no-print"
       @click.self="closeAssignPackModal"
     >
-      <div class="meeting-reset-modal assign-pack-modal" role="dialog" aria-modal="true">
-        <h3 class="meeting-reset-modal-title">Assign input reviewer</h3>
-        <p v-if="assignPackModalContext" class="meeting-reset-modal-text">
-          <strong>{{ assignPackModalContext.taskDescription }}</strong><br>
-          Node {{ assignPackModalContext.nodeLabel }}
-        </p>
-        <div class="assign-pack-fields">
-          <label class="assign-pack-label">Reviewer</label>
-          <select v-model="assignPackSelectedUserId" class="assign-pack-select">
-            <option value="">Select user…</option>
-            <option v-for="u in assignPackReviewers" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
+      <div class="meeting-reset-modal ntd-assign-pack-modal" role="dialog" aria-modal="true">
+        <div class="ntd-assign-modal-header">
+          <h3 id="ntd-assign-pack-title" class="ntd-assign-modal-title">Assign reviewer</h3>
+          <button type="button" class="ntd-assign-modal-close" @click="closeAssignPackModal" aria-label="Close">×</button>
         </div>
-        <div class="meeting-reset-modal-actions">
-          <button type="button" class="meeting-reset-cancel" @click="closeAssignPackModal">Cancel</button>
-          <button
-            type="button"
-            class="meeting-reset-confirm"
-            :disabled="assignPackSaving"
-            @click="submitAssignPack"
-          >
-            {{ assignPackSaving ? 'Saving…' : 'Assign' }}
-          </button>
-        </div>
-      </div>
-    </div>
+        
+        <div class="ntd-assign-pack-body">
+          <div v-if="assignPackModalContext" class="ntd-assign-context-info">
+            <div class="ntd-assign-task-desc">{{ assignPackModalContext.taskSector }}</div>
+            <div class="ntd-assign-node-label">Node {{ assignPackModalContext.nodeLabel }}</div>
+          </div>
 
-    <div
-      v-if="allCommentsModalVisible"
-      class="nfd-all-comments-overlay no-print"
-      @click.self="allCommentsModalVisible = false"
-    >
-      <div class="nfd-all-comments-dialog" role="dialog" aria-modal="true">
-        <div class="nfd-all-comments-head">
-          <h3>Nodes with comments (this pack)</h3>
-          <button type="button" class="nfd-all-comments-close" aria-label="Close" @click="allCommentsModalVisible = false">×</button>
-        </div>
-        <div class="nfd-all-comments-body">
-          <p v-if="!commentNavNodes.length" class="nfd-muted">No comments on this dashboard version.</p>
-          <div v-else class="nfd-all-comments-cards">
-            <div
-              v-for="(item, idx) in commentNavNodes"
-              :key="item.stable_node_id + '-' + idx"
-              class="nfd-comment-card"
-            >
-              <div class="nfd-comment-card-header">
-                <strong>{{ taskLabelForCommentNode(item) }}</strong>
-                <span class="nfd-comment-node-label">Node {{ nodeLabelForCommentNode(item) }}</span>
-              </div>
-              <div class="nfd-comment-card-preview">
-                {{ getNodeContentPreview(item.stable_node_id, 150) }}
-              </div>
-              <div class="nfd-comment-card-actions">
-                <button type="button" class="nfd-linkish" @click="goToCommentNode(item)">↗ Go to node</button>
-                <button type="button" class="nfd-linkish" @click="openThreadForNode(item.stable_node_id)">💬 Open thread</button>
+          <div class="ntd-assign-current-section">
+            <label class="ntd-assign-section-label">Current Reviewers</label>
+            <div class="ntd-assign-current-list">
+              <span v-if="!assignPackCurrentReviewers.length" class="ntd-assign-empty-text">N/A</span>
+              <div v-else class="ntd-assign-reviewer-chips">
+                <span v-for="u in assignPackCurrentReviewers" :key="u.id" class="ntd-reviewer-chip">
+                  <span class="ntd-reviewer-avatar">{{ (u.name || "?")[0].toUpperCase() }}</span>
+                  <span class="ntd-reviewer-name">{{ u.name }}</span>
+                  <button
+                    v-if="u.assignment_id"
+                    type="button"
+                    class="ntd-reviewer-remove"
+                    title="Remove assignment"
+                    aria-label="Remove assignment"
+                    @click="removeAssignPack(u.assignment_id)"
+                  >
+                    ×
+                  </button>
+                </span>
               </div>
             </div>
           </div>
+
+          <div class="ntd-assign-field">
+            <label class="ntd-assign-section-label" for="nfd-assign-pack-select">Assign New Reviewer</label>
+            <div class="ntd-assign-select-wrapper">
+              <select
+                id="nfd-assign-pack-select"
+                v-model="assignPackSelectedUserId"
+                class="ntd-assign-pack-select"
+              >
+                <option value="">Select user…</option>
+                <option v-for="u in assignPackAvailableReviewers" :key="u.id" :value="u.id">{{ u.name }}</option>
+              </select>
+              <div class="ntd-assign-select-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ntd-assign-modal-footer">
+          <button type="button" class="ntd-assign-btn-cancel" @click="closeAssignPackModal">Cancel</button>
+          <button
+            type="button"
+            class="ntd-assign-btn-confirm"
+            :disabled="assignPackSaving || !assignPackSelectedUserId"
+            @click="submitAssignPack"
+          >
+            <span v-if="assignPackSaving" class="ntd-spinner"></span>
+            {{ assignPackSaving ? 'Saving…' : 'Assign' }}
+          </button>
         </div>
       </div>
     </div>
@@ -572,6 +560,7 @@
  * stack lives in NewTentativeDashboard + NewTaskModal + NewEnhancedNodeEditor/Item — those
  * shared components carry hierarchy/order fixes; do not reintroduce legacy editors here.
  */
+import { calendarYmdInTimeZone } from '@/utils/calendarYmd'
 import { exportMeetingDashboardPdf } from '@/utils/meetingDashboardPdfExport'
 import { isMeetingDashboardUiEnabled } from '@/utils/meetingDashboardUi'
 import {
@@ -579,7 +568,7 @@ import {
   MEETING_HUB_HIGHLIGHT_CLASSES
 } from '@/utils/meetingHubNodeHighlight'
 import {
-  PACK_HIGHLIGHT_OPTIONS,
+  FOLLOW_UP_STATUS_FILTER_OPTIONS,
   packModeToHubClass,
   packHighlightShowsHubColors,
   packHighlightRestrictsTaskList,
@@ -591,18 +580,42 @@ import {
 } from '@/utils/meetingPackHighlightNav'
 import { reviewerScopedHubClass } from '@/utils/meetingReviewerNodeHighlight'
 import DashboardNodeCommentsModal from '@/components/DashboardNodeCommentsModal.vue'
+import FilterPrettySelect from '@/components/FilterPrettySelect.vue'
+import TentativeDateRangePicker from '@/components/TentativeDateRangePicker.vue'
+import 'v-calendar/src/styles/base.css'
+import {
+  ymdFromDate,
+  presetKeyToYmdRange,
+  ymdPairToDateRange,
+  taskMatchesReviewDateFilter,
+  isDateFilterActive,
+  countTasksMatchingDateFilter
+} from '@/utils/tentativeReviewDateFilter'
+
+/** Same quick presets as NewTentativeDashboard (meeting Final review-date filter). */
+const REVIEW_DATE_QUICK_SELECT = [
+  { value: 'all', label: 'All dates' },
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'tomorrow', label: 'Tomorrow' },
+  { value: 'last7', label: 'Last 7 days' },
+  { value: 'last30', label: 'Last 30 days' },
+  { value: 'custom', label: 'Custom range' }
+]
 
 export default {
   name: 'NewFinalDashboard',
 
   components: {
-    DashboardNodeCommentsModal
+    DashboardNodeCommentsModal,
+    FilterPrettySelect,
+    TentativeDateRangePicker
   },
 
   data () {
     return {
       selectedDate: new Date(),
-      selectedMeetingDate: '',
+      selectedPublishedVersionId: '',
       meetingDateOptions: [],
       publishedMeta: null,
       publishedLoadEmpty: false,
@@ -614,15 +627,11 @@ export default {
       meetingAgendaUiEnabled: false,
       agendaDateFrom: '',
       agendaDateTo: '',
-      commentNavNodes: [],
-      commentNavIndex: 0,
-      showCommentsNavMode: false,
       selectedReviewerUserId: '',
       assignedNavIndex: 0,
       commentsModalVisible: false,
       commentsModalStableId: '',
       commentsModalNodeContext: null,
-      allCommentsModalVisible: false,
       approvedTasks: [],
       pdfVisible: false,
       resizeTimeout: null,
@@ -632,10 +641,17 @@ export default {
       searchSuggestions: [],
       searchStats: null,
       showFilterDropdown: false,
+      /** Legacy Final only — meeting published uses reviewDate* + TentativeDateRangePicker */
       filters: {
         reviewDate: 'all',
         customDate: ''
       },
+      /** Meeting published: parity with NewTentativeDashboard review_date filter */
+      reviewDateMode: 'all',
+      reviewDatePresetKey: 'today',
+      reviewDateFromYmd: '',
+      reviewDateToYmd: '',
+      calendarRangeValue: null,
       // Tags filter (NEW)
       selectedTagsFilter: [],
       allTagsForFilter: [],
@@ -701,7 +717,26 @@ export default {
       }
     },
     pdfMode (v) {
-      if (v && this.$el) stripPackHighlightNavFocusClass(this.$el)
+      if (v && this.$el) {
+        stripPackHighlightNavFocusClass(this.$el)
+        // Strip redirect spotlight on PDF capture
+        this.$el.querySelectorAll('.hub-redirect-spotlight').forEach(function (el) {
+          el.classList.remove('hub-redirect-spotlight')
+        })
+      }
+    },
+    '$route.query.focus_node': {
+      handler: function (newVal) {
+        if (!newVal) return
+        var q = this.$route.query
+        var isRedirect = !!(q.dashboard_version_id)
+        var self = this
+        this.$nextTick(function () {
+          setTimeout(function () {
+            self.scrollToStableNodeWithSpotlight(q.focus_task_id || null, newVal, isRedirect)
+          }, 300)
+        })
+      }
     }
   },
 
@@ -740,22 +775,69 @@ export default {
       })
     },
     hasActiveFilters() {
-      return this.filters.reviewDate !== 'all' ||
-             (this.filters.reviewDate === 'custom' && this.filters.customDate) ||
-             (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) ||
-             (this.useMeetingPublishedSource && packHighlightRestrictsTaskList(this.packHighlightMode))
+      const legacyDateActive =
+        !this.useMeetingPublishedSource &&
+        (this.filters.reviewDate !== 'all' ||
+          (this.filters.reviewDate === 'custom' && this.filters.customDate))
+      const meetingDateActive =
+        this.useMeetingPublishedSource && this.reviewDateFilterActive
+      return (
+        legacyDateActive ||
+        meetingDateActive ||
+        (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) ||
+        (this.useMeetingPublishedSource && packHighlightRestrictsTaskList(this.packHighlightMode)) ||
+        (this.useMeetingPublishedSource && !!this.selectedReviewerUserId)
+      )
+    },
+    assignPackCurrentReviewers () {
+      const sid = this.assignPackStableId
+      if (!sid || !this.editorOverlay) return []
+      const o = this.editorOverlay[sid]
+      return (o && o.assignment_users) || []
+    },
+    assignPackAvailableReviewers () {
+      const currentIds = new Set(this.assignPackCurrentReviewers.map(u => u.id))
+      return this.assignPackReviewers.filter(u => !currentIds.has(u.id))
     },
     activeFiltersCount() {
       let count = 0
-      if (this.filters.reviewDate !== 'all') count++
+      if (this.useMeetingPublishedSource) {
+        if (this.reviewDateFilterActive) count++
+      } else if (this.filters.reviewDate !== 'all') {
+        count++
+      }
       if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) count++
       if (this.useMeetingPublishedSource && packHighlightRestrictsTaskList(this.packHighlightMode)) count++
-      if (this.useMeetingPublishedSource && this.showCommentsNavMode) count++
       if (this.useMeetingPublishedSource && this.selectedReviewerUserId) count++
       return count
     },
-    packHighlightSelectOptions () {
-      return PACK_HIGHLIGHT_OPTIONS
+    reviewDateQuickSelectOptions () {
+      return REVIEW_DATE_QUICK_SELECT
+    },
+    reviewDateFilterContext () {
+      return {
+        mode: this.reviewDateMode,
+        presetKey: this.reviewDatePresetKey,
+        fromYmd: this.reviewDateFromYmd || '',
+        toYmd: this.reviewDateToYmd || ''
+      }
+    },
+    reviewDateFilterActive () {
+      return isDateFilterActive(this.reviewDateFilterContext)
+    },
+    reviewDateSelectValue () {
+      if (this.reviewDateMode === 'range') return 'custom'
+      if (this.reviewDateMode === 'all') return 'all'
+      return this.reviewDatePresetKey
+    },
+    reviewDateQuickSelectOptionsWithCounts () {
+      return this.reviewDateQuickSelectOptions.map(opt => ({
+        ...opt,
+        count: this.datePresetOptionCount(opt.value)
+      }))
+    },
+    followUpStatusSelectOptions () {
+      return FOLLOW_UP_STATUS_FILTER_OPTIONS
     },
     packHighlightListFilterActive () {
       return this.useMeetingPublishedSource && packHighlightRestrictsTaskList(this.packHighlightMode)
@@ -804,6 +886,22 @@ export default {
       })
       return { assignedNodes, commentedNodes }
     },
+    packColorCounts () {
+      const nodes = this.editorOverlay || {}
+      let red = 0
+      let green = 0
+      let blue = 0
+      Object.keys(nodes).forEach((sid) => {
+        const o = nodes[sid]
+        if (!o) return
+        const assigned = Array.isArray(o.assignment_users) && o.assignment_users.length > 0
+        const commented = (o.comment_count || 0) > 0
+        if (assigned && commented) green++
+        else if (assigned && !commented) red++
+        else if (!assigned && commented) blue++
+      })
+      return { red, green, blue }
+    },
     assignmentReviewerOptions () {
       if (Array.isArray(this.overlayUserDirectory) && this.overlayUserDirectory.length) {
         return this.overlayUserDirectory.map((u) => ({
@@ -831,6 +929,14 @@ export default {
       return Array.from(byId.values()).sort((a, b) =>
         String(a.name).localeCompare(String(b.name))
       )
+    },
+    reviewerFilterOptions () {
+      const base = [{ value: '', label: 'All nodes (full dashboard)' }]
+      const dynamic = (this.assignmentReviewerOptions || []).map((u) => ({
+        value: String(u.id),
+        label: u.name
+      }))
+      return base.concat(dynamic)
     },
     // Ordered { new_task_id, stable_node_id, pathLabel } for reviewer hops. When task-level
     // pagination ships, use this list as the source of truth and add a hook in scrollToStableNode
@@ -1205,27 +1311,42 @@ export default {
       try {
         const res = await this.$http.secured.get('/meeting_dashboard/meeting_dates')
         const rows = Array.isArray(res.data.meeting_dates) ? res.data.meeting_dates : []
-        this.meetingDateOptions = rows
-        if (!this.selectedMeetingDate) {
-          if (rows.length) {
-            this.selectedMeetingDate = this.meetingDateInputValue(rows[0].meeting_date)
-          } else {
-            this.selectedMeetingDate = this.selectedDate.toISOString().split('T')[0]
+        // Dropdown: descending calendar meeting date (upcoming / latest slot first in list).
+        this.meetingDateOptions = [...rows].sort((a, b) => {
+          const da = this.meetingDateInputValue(a.meeting_date)
+          const db = this.meetingDateInputValue(b.meeting_date)
+          return db.localeCompare(da)
+        })
+        if (!this.selectedPublishedVersionId && rows.length) {
+          const pick = [...rows].sort((a, b) => {
+            const ta = a.published_at ? new Date(a.published_at).getTime() : 0
+            const tb = b.published_at ? new Date(b.published_at).getTime() : 0
+            if (tb !== ta) return tb - ta
+            const da = this.meetingDateInputValue(a.meeting_date)
+            const db = this.meetingDateInputValue(b.meeting_date)
+            return db.localeCompare(da)
+          })[0]
+          if (pick && pick.new_dashboard_version_id != null) {
+            this.selectedPublishedVersionId = String(pick.new_dashboard_version_id)
           }
         }
       } catch (e) {
         console.error('loadMeetingDates failed', e)
         this.meetingDateOptions = []
-        if (!this.selectedMeetingDate) {
-          this.selectedMeetingDate = this.selectedDate.toISOString().split('T')[0]
-        }
+        this.selectedPublishedVersionId = this.selectedPublishedVersionId || ''
       }
     },
 
     meetingDateInputValue (d) {
       if (d == null || d === '') return ''
-      const s = String(d)
-      return s.includes('T') ? s.split('T')[0] : s
+      const s = String(d).trim()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+        const parsed = new Date(s)
+        if (isNaN(parsed.getTime())) return ''
+        return calendarYmdInTimeZone(parsed, 'Asia/Kolkata')
+      }
+      return s
     },
 
     formatMeetingDateLabel (d) {
@@ -1263,9 +1384,22 @@ export default {
         }
 
         if (isMeetingDashboardUiEnabled()) {
-          const dateParam = this.selectedMeetingDate || this.selectedDate.toISOString().split('T')[0]
+          // Redirect path: when arriving from Review Hub with a specific version_id,
+          // fetch that exact published pack by new_dashboard_version_id
+          var qVid = this.$route && this.$route.query && this.$route.query.dashboard_version_id
+          var params = {}
+          if (qVid && !this._versionResolved) {
+            params.new_dashboard_version_id = qVid
+            this._versionResolved = true
+          } else {
+            if (this.selectedPublishedVersionId) {
+              params.new_dashboard_version_id = this.selectedPublishedVersionId
+            } else {
+              params.meeting_date = calendarYmdInTimeZone(this.selectedDate, 'Asia/Kolkata')
+            }
+          }
           const response = await this.$http.secured.get('/meeting_dashboard/published', {
-            params: { meeting_date: dateParam }
+            params: params
           })
           const body = response.data || {}
           this.publishedLoadEmpty = body.empty === true
@@ -1281,15 +1415,14 @@ export default {
           const tasks = Array.isArray(body.tasks) ? body.tasks : []
           this.approvedTasks = sortTasksByReviewDate([...tasks])
           await this.fetchMeetingPackOverlay()
-          await this.loadCommentNavNodes()
-          if (this.showCommentsNavMode) {
-            this.commentNavIndex = 0
-            this.commentNavScrollToCurrent()
+          // Sync picker from response when arriving via version_id redirect
+          if (qVid && body.meeting_dashboard_version_id) {
+            this.selectedPublishedVersionId = String(body.meeting_dashboard_version_id)
           }
         } else {
           const response = await this.$http.secured.get('/tasks/approved', {
             params: {
-              date: this.selectedDate.toISOString().split('T')[0]
+              date: calendarYmdInTimeZone(this.selectedDate, 'Asia/Kolkata')
             }
           })
           this.publishedLoadEmpty = false
@@ -1297,7 +1430,6 @@ export default {
           this.currentVersionId = null
           this.editorOverlay = {}
           this.overlayUserDirectory = []
-          this.commentNavNodes = []
           this.approvedTasks = sortTasksByReviewDate(response.data.tasks || [])
         }
 
@@ -1498,6 +1630,7 @@ export default {
       try {
         await exportMeetingDashboardPdf({
           fileName: 'final-dashboard.pdf',
+          columnWidths: [2, 7, 7, 71, 4, 5, 4],
           prepareRowClone: (rowClone) => {
             rowClone.querySelectorAll('.meeting-pack-resolution-chip').forEach((el) => el.remove())
             rowClone.querySelectorAll('.meeting-pack-marker-with-tick').forEach((slot) => {
@@ -1689,10 +1822,10 @@ export default {
 
     toggleFilterDropdown() {
       this.showFilterDropdown = !this.showFilterDropdown
-    if (this.showFilterDropdown) {
-      // Recompute in-use tags from approvedTasks when opening
-      this.loadTagsForFilter()
-    }
+      if (this.showFilterDropdown) {
+        // Recompute in-use tags from approvedTasks when opening
+        this.loadTagsForFilter()
+      }
     },
 
     applyFilters() {
@@ -1703,10 +1836,14 @@ export default {
     clearAllFilters() {
       this.filters.reviewDate = 'all'
       this.filters.customDate = ''
+      this.reviewDateMode = 'all'
+      this.reviewDatePresetKey = 'today'
+      this.reviewDateFromYmd = ''
+      this.reviewDateToYmd = ''
+      this.calendarRangeValue = null
       this.selectedTagsFilter = []
       if (this.useMeetingPublishedSource) {
         this.clearAgendaRange()
-        this.showCommentsNavMode = false
         this.selectedReviewerUserId = ''
         this.assignedNavIndex = 0
       }
@@ -1721,8 +1858,13 @@ export default {
       }
     },
 
+    onFinalPackHighlightSelect (val) {
+      this.packHighlightMode = val
+      this.onPackHighlightModeChange()
+    },
+
     getPackHighlightFilterLabel () {
-      const row = PACK_HIGHLIGHT_OPTIONS.find(o => o.value === this.packHighlightMode)
+      const row = FOLLOW_UP_STATUS_FILTER_OPTIONS.find(o => o.value === this.packHighlightMode)
       return (row && row.label) || this.packHighlightMode
     },
 
@@ -1736,50 +1878,61 @@ export default {
     },
 
     applyFiltersToTasks(tasks) {
-      // First apply review date filter
-      let filtered = tasks.filter(task => {
-        if (this.filters.reviewDate !== 'all') {
-          const taskReviewDate = task.review_date ? new Date(task.review_date) : null
-          if (!taskReviewDate) return false
+      let filtered = tasks
 
-          // Use the same logic as TentativeDashboard - compare local dates
-          const taskDate = new Date(task.review_date)
-          taskDate.setHours(0, 0, 0, 0)
-          
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-
-          switch (this.filters.reviewDate) {
-            case 'today':
-              return taskDate.getTime() === today.getTime()
-            case 'yesterday': {
-              const yesterday = new Date(today)
-              yesterday.setDate(today.getDate() - 1)
-              return taskDate.getTime() === yesterday.getTime()
-            }
-            case 'tomorrow': {
-              const tomorrow = new Date(today)
-              tomorrow.setDate(today.getDate() + 1)
-              return taskDate.getTime() === tomorrow.getTime()
-            }
-            case 'custom':
-              if (!this.filters.customDate) return false
-              const customDate = new Date(this.filters.customDate)
-              customDate.setHours(0, 0, 0, 0)
-              return taskDate.getTime() === customDate.getTime()
-            default:
-              return true
-          }
+      if (this.useMeetingPublishedSource) {
+        if (this.reviewDateFilterActive) {
+          filtered = filtered.filter(task =>
+            taskMatchesReviewDateFilter(task, this.reviewDateFilterContext)
+          )
         }
-        return true
-      })
+      } else {
+        filtered = tasks.filter(task => {
+          if (this.filters.reviewDate !== 'all') {
+            const taskReviewDate = task.review_date ? new Date(task.review_date) : null
+            if (!taskReviewDate) return false
+
+            const taskDate = new Date(task.review_date)
+            taskDate.setHours(0, 0, 0, 0)
+
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+
+            switch (this.filters.reviewDate) {
+              case 'today':
+                return taskDate.getTime() === today.getTime()
+              case 'yesterday': {
+                const yesterday = new Date(today)
+                yesterday.setDate(today.getDate() - 1)
+                return taskDate.getTime() === yesterday.getTime()
+              }
+              case 'tomorrow': {
+                const tomorrow = new Date(today)
+                tomorrow.setDate(today.getDate() + 1)
+                return taskDate.getTime() === tomorrow.getTime()
+              }
+              case 'custom':
+                if (!this.filters.customDate) return false
+                const customDate = new Date(this.filters.customDate)
+                customDate.setHours(0, 0, 0, 0)
+                return taskDate.getTime() === customDate.getTime()
+              default:
+                return true
+            }
+          }
+          return true
+        })
+      }
 
       // Then apply tags filter (ANY)
       if (this.selectedTagsFilter && this.selectedTagsFilter.length > 0) {
+        const selected = new Set(this.selectedTagsFilter.map(id => Number(id)))
         filtered = filtered.filter(task => {
           if (!task || !Array.isArray(task.tags) || task.tags.length === 0) return false
-          const ids = task.tags.map(t => t.id)
-          return ids.some(id => this.selectedTagsFilter.includes(id))
+          return task.tags.some(t => {
+            const id = typeof t.id === 'number' ? t.id : Number(t.id)
+            return Number.isFinite(id) && selected.has(id)
+          })
         })
       }
 
@@ -1789,24 +1942,105 @@ export default {
         )
       }
 
+      // Assigned reviewer: list only tasks that have at least one overlay node where this user
+      // is assigned, or (unassigned node) they commented — same rules as assignedNavNodes.
+      if (this.useMeetingPublishedSource && this.selectedReviewerUserId) {
+        const want = Number(this.selectedReviewerUserId)
+        if (Number.isFinite(want)) {
+          const involvedTaskIds = new Set(this.assignedNavNodes.map(n => n.new_task_id))
+          filtered = filtered.filter(t => t && involvedTaskIds.has(t.id))
+        }
+      }
+
       return filtered
     },
 
     // Build tags list from approvedTasks for filter chips
-    loadTagsForFilter () {
-      const idToName = new Map()
-      const source = Array.isArray(this.approvedTasks) ? this.approvedTasks : []
-      source.forEach(task => {
-        if (task && Array.isArray(task.tags)) {
-          task.tags.forEach(t => {
-            if (t && typeof t.id === 'number' && t.name) {
-              idToName.set(t.id, t.name)
-            }
-          })
-        }
+    async loadTagsForFilter () {
+      try {
+        this.isLoadingTags = true
+        const idToName = new Map()
+        const source = Array.isArray(this.approvedTasks) ? this.approvedTasks : []
+        source.forEach(task => {
+          if (task && Array.isArray(task.tags)) {
+            task.tags.forEach(t => {
+              if (!t || t.name == null || t.name === '') return
+              const id = typeof t.id === 'number' ? t.id : Number(t.id)
+              if (!Number.isFinite(id)) return
+              idToName.set(id, t.name)
+            })
+          }
+        })
+        this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      } finally {
+        this.isLoadingTags = false
+      }
+    },
+
+    // --- Meeting review date (parity with NewTentativeDashboard) ---
+    datePresetOptionCount (value) {
+      if (value === 'all' || value === 'custom') return this.approvedTasks.length
+      return countTasksMatchingDateFilter(this.approvedTasks, {
+        mode: 'preset',
+        presetKey: value,
+        fromYmd: '',
+        toYmd: ''
       })
-      this.allTagsForFilter = Array.from(idToName, ([id, name]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    onReviewDatePresetChangeWrapper (val) {
+      this.onReviewDatePresetChange({ target: { value: val } })
+    },
+    onReviewDatePresetChange (e) {
+      const v = e.target.value
+      if (v === 'custom') {
+        this.reviewDateMode = 'range'
+        this.reviewDateFromYmd = ''
+        this.reviewDateToYmd = ''
+        this.calendarRangeValue = null
+        this.applyFilters()
+        return
+      }
+      if (v === 'all') {
+        this.reviewDateMode = 'all'
+        this.reviewDateFromYmd = ''
+        this.reviewDateToYmd = ''
+        this.calendarRangeValue = null
+        this.applyFilters()
+        return
+      }
+      this.reviewDateMode = 'preset'
+      this.reviewDatePresetKey = v
+      const { fromYmd, toYmd } = presetKeyToYmdRange(v)
+      this.reviewDateFromYmd = fromYmd
+      this.reviewDateToYmd = toYmd
+      this.calendarRangeValue = ymdPairToDateRange(fromYmd, toYmd)
+      this.applyFilters()
+    },
+    onReviewCalendarInput (val) {
+      if (val && val.start && val.end) {
+        this.reviewDateMode = 'range'
+        this.reviewDateFromYmd = ymdFromDate(val.start)
+        this.reviewDateToYmd = ymdFromDate(val.end)
+        this.calendarRangeValue = val
+      } else {
+        this.calendarRangeValue = val
+        if (!val) {
+          this.reviewDateMode = 'all'
+          this.reviewDateFromYmd = ''
+          this.reviewDateToYmd = ''
+        }
+      }
+      this.applyFilters()
+    },
+    onReviewBoundChange () {
+      this.reviewDateMode = 'range'
+      if (this.reviewDateFromYmd && this.reviewDateToYmd) {
+        this.calendarRangeValue = ymdPairToDateRange(this.reviewDateFromYmd, this.reviewDateToYmd)
+      } else {
+        this.calendarRangeValue = null
+      }
+      this.applyFilters()
     },
 
     // Select from FD tag suggestions
@@ -2091,28 +2325,16 @@ export default {
             ev.preventDefault()
             this.openDashboardCommentsModal(sid)
           })
-          const viewWrap = document.createElement('span')
-          viewWrap.className = 'final-node-view-wrap'
-          const viewBtn = document.createElement('button')
-          viewBtn.type = 'button'
-          viewBtn.className = 'final-node-icon-btn final-node-eye' + (hasC ? ' has-comments' : '')
-          viewBtn.setAttribute('aria-label', 'View comments on this node')
-          viewBtn.title = 'View comments'
-          viewBtn.innerHTML = '&#128065;'
-          viewBtn.addEventListener('click', (ev) => {
-            ev.stopPropagation()
-            ev.preventDefault()
-            this.openDashboardCommentsModal(sid)
-          })
-          viewWrap.appendChild(viewBtn)
+          const addWrap = document.createElement('span')
+          addWrap.className = 'final-node-view-wrap'
+          addWrap.appendChild(addBtn)
           if (hasC) {
             const badge = document.createElement('span')
             badge.className = 'final-node-comment-count-badge'
             badge.textContent = String(o.comment_count)
-            viewWrap.appendChild(badge)
+            addWrap.appendChild(badge)
           }
-          actions.appendChild(addBtn)
-          actions.appendChild(viewWrap)
+          actions.appendChild(addWrap)
           el.appendChild(actions)
         })
         this.$nextTick(() => {
@@ -2226,60 +2448,17 @@ export default {
       else this.packHighlightNavNext()
     },
 
-    async toggleCommentsNavMode () {
-      this.showCommentsNavMode = !this.showCommentsNavMode
-      if (this.showCommentsNavMode) {
-        await this.loadCommentNavNodes()
-        this.commentNavIndex = 0
-        this.commentNavScrollToCurrent()
-      }
-    },
-
-    toggleCommentsNavFromFilter () {
-      this.toggleCommentsNavMode()
-      if (!this.showCommentsNavMode) return
-      this.closeFilterDropdown()
-    },
-
-    async loadCommentNavNodes () {
-      if (!this.currentVersionId) {
-        this.commentNavNodes = []
-        return
-      }
-      try {
-        const { data } = await this.$http.secured.get('/meeting_dashboard/comment_nodes', {
-          params: { new_dashboard_version_id: this.currentVersionId }
-        })
-        this.commentNavNodes = data.nodes || []
-      } catch (e) {
-        this.commentNavNodes = []
-      }
-    },
-
-    commentNavPrev () {
-      if (!this.commentNavNodes.length) return
-      this.commentNavIndex = (this.commentNavIndex - 1 + this.commentNavNodes.length) % this.commentNavNodes.length
-      this.commentNavScrollToCurrent()
-    },
-
-    commentNavNext () {
-      if (!this.commentNavNodes.length) return
-      this.commentNavIndex = (this.commentNavIndex + 1) % this.commentNavNodes.length
-      this.commentNavScrollToCurrent()
-    },
-
-    commentNavScrollToCurrent () {
-      const item = this.commentNavNodes[this.commentNavIndex]
-      if (!item) return
-      this.scrollToStableNode(item.new_task_id, item.stable_node_id)
-    },
-
     scheduleFocusNodeFromRoute () {
-      const focusNode = this.$route && this.$route.query && this.$route.query.focus_node
+      var q = this.$route && this.$route.query
+      if (!q) return
+      var focusNode = q.focus_node
       if (!focusNode) return
-      this.$nextTick(() => {
-        setTimeout(() => {
-          this.scrollToStableNode(null, focusNode)
+      var focusTaskId = q.focus_task_id || null
+      var isRedirect = !!(q.dashboard_version_id)
+      var self = this
+      this.$nextTick(function () {
+        setTimeout(function () {
+          self.scrollToStableNodeWithSpotlight(focusTaskId, focusNode, isRedirect)
         }, 500)
       })
     },
@@ -2316,6 +2495,88 @@ export default {
       })
     },
 
+    /**
+     * Deep-link focus with optional 4-second spotlight (for Hub redirect).
+     * Falls back to comment-nav-flash for non-redirect callers.
+     * Bounded retry: max 3 attempts (350 ms apart) if DOM not ready.
+     */
+    scrollToStableNodeWithSpotlight (taskId, stableNodeId, useSpotlight, attempt) {
+      if (useSpotlight === undefined) useSpotlight = false
+      if (attempt === undefined) attempt = 0
+      if (!stableNodeId || !this.$el) return
+      var sid = stableNodeId
+      var esc = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(sid)
+        : String(sid).replace(/\\/g, '\\\\')
+
+      var selector = taskId
+        ? '[data-task-id="' + taskId + '"] .action-node[data-stable-node-id="' + esc + '"]'
+        : '.action-node[data-stable-node-id="' + esc + '"]'
+
+      var el = this.$el.querySelector(selector)
+      var self = this
+
+      if (!el) {
+        if (attempt < 3) {
+          setTimeout(function () {
+            self.scrollToStableNodeWithSpotlight(taskId, stableNodeId, useSpotlight, attempt + 1)
+          }, 350)
+        } else {
+          self.$toast && self.$toast.error('Node not found in the current view. It may have been filtered or renamed.')
+        }
+        return
+      }
+
+      // Scroll task row into view first, then center the node
+      var row = el.closest('[data-task-id]')
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      this.$nextTick(function () {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (useSpotlight) {
+          self._applyHubSpotlight(el)
+        } else {
+          // Normal comment-nav flash (unchanged 1.5s timing)
+          el.classList.add('comment-nav-flash')
+          setTimeout(function () { el.classList.remove('comment-nav-flash') }, 1500)
+        }
+        // Focus management for keyboard / screen-reader users
+        if (el.tabIndex < 0) el.setAttribute('tabindex', '-1')
+        el.focus({ preventScroll: true })
+        // Strip focus params from URL after successful scroll
+        self._stripFocusQueryParams()
+      })
+    },
+
+    /**
+     * Apply the 4-second spotlight glow + outline for Hub redirect.
+     * Does not interfere with existing persistent green box highlights.
+     */
+    _applyHubSpotlight (el) {
+      el.classList.remove('hub-redirect-spotlight')
+      void el.offsetWidth // reflow to re-trigger animation
+      el.classList.add('hub-redirect-spotlight')
+      clearTimeout(this._spotlightTimer)
+      var self = this
+      this._spotlightTimer = setTimeout(function () {
+        el.classList.remove('hub-redirect-spotlight')
+      }, 4000)
+    },
+
+    /**
+     * Remove focus_node and focus_task_id from URL after spotlight completes,
+     * so page refresh doesn't re-trigger. Keep dashboard_version_id for context.
+     */
+    _stripFocusQueryParams () {
+      var q = Object.assign({}, (this.$route && this.$route.query) || {})
+      delete q.focus_node
+      delete q.focus_task_id
+      try {
+        this.$router.replace({ name: this.$route.name, query: q })
+      } catch (e) {
+        // ignore NavigationDuplicated
+      }
+    },
+
     onReviewerFilterChange () {
       this.assignedNavIndex = 0
       if (this.useMeetingPublishedSource) {
@@ -2324,6 +2585,11 @@ export default {
       if (this.selectedReviewerUserId && this.assignedNavNodes.length) {
         this.$nextTick(() => this.assignedNavScrollToCurrent())
       }
+    },
+
+    onFinalReviewerSelect (val) {
+      this.selectedReviewerUserId = val
+      this.onReviewerFilterChange()
     },
 
     assignedNavPrev () {
@@ -2344,70 +2610,11 @@ export default {
       this.scrollToStableNode(item.new_task_id, item.stable_node_id)
     },
 
-    async openAllCommentsModal () {
-      await this.loadCommentNavNodes()
-      this.allCommentsModalVisible = true
-    },
-
-    async openAllCommentsModalFromFilter () {
-      await this.openAllCommentsModal()
-      this.closeFilterDropdown()
-    },
-
-    taskLabelForCommentNode (item) {
-      const t = (this.approvedTasks || []).find((x) => x.id === item.new_task_id)
-      return t ? (t.description || `Task ${item.new_task_id}`).slice(0, 120) : `Task ${item.new_task_id}`
-    },
-
-    nodeLabelForCommentNode (item) {
-      const t = (this.approvedTasks || []).find((x) => x.id === item.new_task_id)
-      if (!t || !t.current_version || !t.current_version.action_nodes) return item.stable_node_id || 'Node'
-      let found = ''
-      const walk = (nodes, prefix) => {
-        if (!Array.isArray(nodes) || found) return
-        nodes.forEach((n, i) => {
-          if (found) return
-          const c = n.display_counter != null ? String(n.display_counter) : String(i + 1)
-          const path = prefix ? `${prefix}.${c}` : c
-          if (n.stable_node_id === item.stable_node_id) {
-            found = path
-            return
-          }
-          if (n.children && n.children.length) walk(n.children, path)
-        })
-      }
-      walk(t.current_version.action_nodes, '')
-      return found || item.stable_node_id || 'Node'
-    },
-
-    goToCommentNode (item) {
-      this.allCommentsModalVisible = false
-      this.$nextTick(() => this.scrollToStableNode(item.new_task_id, item.stable_node_id))
-    },
-
-    openThreadForNode (stableId) {
-      this.allCommentsModalVisible = false
-      this.openDashboardCommentsModal(stableId)
-    },
-
     truncatePlainText (str, maxChars) {
       const s = String(str || '').trim()
       if (!s) return ''
       if (s.length <= maxChars) return s
       return s.slice(0, maxChars) + '…'
-    },
-
-    getNodeContentPreview (stableNodeId, maxChars) {
-      if (!stableNodeId) return '(node content unavailable)'
-      const list = this.approvedTasks || []
-      for (const task of list) {
-        const node = this.findNodeInTaskTreeByStableId(task, stableNodeId)
-        if (node) {
-          const plain = this.stripHtmlForCommentPreview(node.content)
-          return this.truncatePlainText(plain, maxChars)
-        }
-      }
-      return '(node content unavailable)'
     },
 
     stripHtmlForCommentPreview (html) {
@@ -2583,16 +2790,10 @@ export default {
 
     async onPackCommentSubmitted () {
       await this.fetchMeetingPackOverlay()
-      if (this.showCommentsNavMode) {
-        await this.loadCommentNavNodes()
-      }
     },
 
     async onPackNodeResolutionChanged () {
       await this.fetchMeetingPackOverlay()
-      if (this.showCommentsNavMode) {
-        await this.loadCommentNavNodes()
-      }
     }
   }
 }
@@ -2617,6 +2818,7 @@ export default {
   margin-bottom: 1.5rem;
   width: 100%;
   position: relative;
+  flex-wrap: wrap;
 }
 
 .search-wrapper {
@@ -2630,6 +2832,7 @@ export default {
   align-items: center;
   gap: 0.75rem;
   margin-left: 1.25rem;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 900px) {
@@ -2901,9 +3104,13 @@ export default {
   position: absolute;
   top: 100%;
   right: 0;
-  width: 280px;
-  background: white;
-  border: 1px solid #e5e7eb;
+  width: min(320px, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   z-index: 50;
@@ -2924,19 +3131,21 @@ export default {
 }
 
 .filter-section {
-  padding: 1.25rem;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.filter-section:last-child {
-  border-bottom: none;
+  padding: 14px 16px;
+  margin: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .filter-section-title {
-  margin: 0 0 1rem 0;
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #374151;
+  color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -2947,8 +3156,11 @@ export default {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  color: #374151;
-  margin-bottom: 10px;
+  color: #0f172a;
+  font-size: 0.86rem;
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .filter-options {
@@ -3055,9 +3267,12 @@ export default {
 .filter-actions {
   display: flex;
   gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  background: #f9fafb;
-  border-top: 1px solid #f3f4f6;
+  padding: 12px 14px;
+  margin: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .clear-filters-btn {
@@ -3135,14 +3350,14 @@ export default {
 
 .table-headers th {
   color: white;
-  font-size: 0.65rem; /* Reduced from 0.875rem */
+  font-size: 0.65rem;
   font-weight: 600;
   text-align: left;
-  padding: 0.75rem; /* Reduced from 1rem */
+  padding: 0.85rem 0.5rem;
   white-space: normal;
   border-right: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
-  line-height: 1.3; /* Compact line height */
+  line-height: 1.3;
 }
 
 .table-headers th:last-child {
@@ -3173,7 +3388,8 @@ export default {
   border-spacing: 0;
 }
 
-.table-row td {
+.table-row > table > tr > td,
+.table-row > table > tbody > tr > td {
   vertical-align: top !important;
   padding: 0.75rem;
   border-bottom: 1px solid #e2e8f0;
@@ -3183,55 +3399,63 @@ export default {
   background: #fff;
 }
 
-.table-row td:last-child {
+.table-row > table > tr > td:last-child,
+.table-row > table > tbody > tr > td:last-child {
   border-right: none;
 }
 
-/* Adjusted Column widths to total exactly 100% */
+/* Column widths (2/7/7/71/4/5/4) — tentative parity without Status */
 .table-headers th:nth-child(1),
-.table-row td:nth-child(1) { 
-  width: 5%; 
-  min-width: 50px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(1),
+.table-row > table > tbody > tr > td:nth-child(1) {
+  width: 2% !important;
+  min-width: 32px;
 }
 
 .table-headers th:nth-child(2),
-.table-row td:nth-child(2) { 
-  width: 10%; 
-  min-width: 100px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(2),
+.table-row > table > tbody > tr > td:nth-child(2) {
+  width: 7% !important;
+  min-width: 60px;
 }
 
 .table-headers th:nth-child(3),
-.table-row td:nth-child(3) { 
-  width: 12%; 
-  min-width: 120px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(3),
+.table-row > table > tbody > tr > td:nth-child(3) {
+  width: 7% !important;
+  min-width: 55px;
 }
 
 .table-headers th:nth-child(4),
-.table-row td:nth-child(4) { 
-  width: 55%; 
-  min-width: 400px; /* Reduced min-width */
-  overflow: hidden !important; /* Changed from visible to hidden */
+.table-row > table > tr > td:nth-child(4),
+.table-row > table > tbody > tr > td:nth-child(4) {
+  width: 71% !important;
+  min-width: 400px;
+  overflow: hidden !important;
   word-wrap: break-word;
   white-space: normal;
   text-align: left !important;
 }
 
 .table-headers th:nth-child(5),
-.table-row td:nth-child(5) { 
-  width: 6%; 
-  min-width: 70px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(5),
+.table-row > table > tbody > tr > td:nth-child(5) {
+  width: 4% !important;
+  min-width: 45px;
 }
 
 .table-headers th:nth-child(6),
-.table-row td:nth-child(6) { 
-  width: 8%; 
-  min-width: 90px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(6),
+.table-row > table > tbody > tr > td:nth-child(6) {
+  width: 5% !important;
+  min-width: 50px;
 }
 
 .table-headers th:nth-child(7),
-.table-row td:nth-child(7) { 
-  width: 4%; 
-  min-width: 50px; /* Reduced min-width */
+.table-row > table > tr > td:nth-child(7),
+.table-row > table > tbody > tr > td:nth-child(7) {
+  width: 4% !important;
+  min-width: 45px;
 }
 
 /* Action Content Styling - More Compact with Auto-scaling */
@@ -3279,48 +3503,68 @@ export default {
   flex-shrink: 0;
 }
 
-/* More compact table styling within action content */
-.action-content-cell table {
+/* More compact table styling within action content (excludes preserved complex tables) */
+.action-content-cell table:not(.dashboard-import-table) {
   width: 100% !important;
   max-width: 100% !important;
   border-collapse: collapse !important;
-  margin: 0.4rem 0 !important; /* Reduced margin */
-  font-size: 0.75rem !important; /* Reduced font size */
+  margin: 0.4rem 0 !important;
+  font-size: 0.75rem !important;
   table-layout: auto !important;
   overflow-wrap: break-word !important;
-  /* Smooth transition for table scaling */
   transition: transform 0.3s ease;
   transform-origin: top left;
 }
 
-.action-content-cell table th,
-.action-content-cell table td {
+.action-content-cell table:not(.dashboard-import-table) th,
+.action-content-cell table:not(.dashboard-import-table) td {
   border: 1px solid #d1d5db !important;
-  padding: 4px 6px !important; /* Reduced padding */
+  padding: 4px 6px !important;
   text-align: left !important;
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
-  font-size: 0.7rem !important; /* Reduced font size */
+  font-size: 0.7rem !important;
 }
 
-.action-content-cell table th {
+.action-content-cell table:not(.dashboard-import-table) th {
   background-color: #f3f4f6 !important;
   font-weight: 600 !important;
-  font-size: 0.7rem !important; /* Reduced font size */
+  font-size: 0.7rem !important;
 }
 
-.action-content-cell table td {
-  font-size: 0.7rem !important; /* Reduced font size */
+.action-content-cell table:not(.dashboard-import-table) td {
+  font-size: 0.7rem !important;
 }
 
 /* 🎯 UNIFIED: Clean Action Node Hierarchical Styling with DEEP SELECTORS */
 .action-content-cell /deep/ .action-node {
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: baseline !important;
   margin: 3px 0 !important; /* Reduced margin */
   padding: 2px 0 !important; /* Reduced padding */
   line-height: 1.4 !important;
   font-size: inherit !important;
+  transition: all 0.2s ease-in-out;
+  border: 1px solid transparent;
+  position: relative;
+  border-radius: 4px;
+}
+
+.action-content-cell /deep/ .action-node:hover {
+  border-color: rgba(66, 153, 225, 0.5) !important;
+  box-shadow: 0 0 8px rgba(66, 153, 225, 0.3) !important;
+  transform: scale(1.01) !important;
+  background-color: rgba(66, 153, 225, 0.02) !important;
+  z-index: 10;
+}
+
+@media print {
+  .action-content-cell /deep/ .action-node {
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background-color: transparent !important;
+  }
 }
 
 .action-content-cell /deep/ .action-node .node-marker {
@@ -3328,12 +3572,17 @@ export default {
   margin-right: 8px !important;
   font-weight: bold !important;
   min-width: 24px !important;
+  display: inline-flex !important;
+  align-items: baseline !important;
+  line-height: inherit !important;
   text-align: left !important;
 }
 
 .action-content-cell /deep/ .action-node .node-content {
   flex: 1 !important;
+  min-width: 0 !important;
   word-break: break-word !important;
+  line-height: inherit !important;
   color: #000 !important;
 }
 
@@ -3634,9 +3883,10 @@ export default {
 }
 
 /* Ensure minimum cell width is always maintained */
-.table-row td:nth-child(4) {
-  min-width: 400px !important; /* Force minimum width for action column */
-  width: 55% !important;
+.table-row > table > tr > td:nth-child(4),
+.table-row > table > tbody > tr > td:nth-child(4) {
+  min-width: 400px !important;
+  width: 71% !important;
   max-width: none !important;
 }
 
@@ -3902,8 +4152,26 @@ export default {
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
-  flex-shrink: 0;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 15;
+}
+
+.action-content-cell /deep/ .action-node:hover .final-node-actions {
+  opacity: 0.6;
+}
+
+.action-content-cell /deep/ .final-node-actions:hover {
+  opacity: 1 !important;
+}
+
+@media print {
+  .action-content-cell /deep/ .final-node-actions {
+    display: none !important;
+  }
 }
 .action-content-cell /deep/ .final-node-icon-btn {
   width: 28px;
@@ -3954,6 +4222,51 @@ export default {
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
+/* Hub redirect spotlight — 4s transient; layered over existing green highlight */
+.action-content-cell /deep/ .action-node.hub-redirect-spotlight {
+  animation: hubRedirectSpotlight 4s ease-out forwards;
+  position: relative;
+  z-index: 1001;
+  transition: transform 0.3s ease;
+}
+@keyframes hubRedirectSpotlight {
+  0% {
+    transform: scale(1.1);
+    outline: 5px solid #000000;
+    outline-offset: 0px;
+    box-shadow: 0 0 20px 10px rgba(59, 130, 246, 0.5);
+  }
+  70% {
+    transform: scale(1.1);
+    outline: 5px solid #000000;
+    outline-offset: 0px;
+    box-shadow: 0 0 20px 10px rgba(59, 130, 246, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    outline: 0px solid transparent;
+    outline-offset: 0px;
+    box-shadow: none;
+  }
+}
+/* Reduced motion: static highlight only, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .action-content-cell /deep/ .action-node.hub-redirect-spotlight {
+    animation: none;
+    outline: 5px solid #000000;
+    transform: scale(1.1);
+    box-shadow: 0 0 20px 10px rgba(59, 130, 246, 0.4);
+  }
+}
+/* Print / PDF capture: strip spotlight effects */
+@media print {
+  .action-content-cell /deep/ .action-node.hub-redirect-spotlight {
+    animation: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
 .nfd-assign-pack-overlay {
   z-index: 100050;
 }
@@ -4010,128 +4323,239 @@ export default {
   font-weight: 600;
   cursor: pointer;
 }
-.assign-pack-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.assign-pack-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #334155;
-}
-.assign-pack-select {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  font-size: 0.85rem;
+.ntd-assign-pack-overlay {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
 }
 
-.nfd-all-comments-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  z-index: 100040;
+.ntd-assign-pack-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.ntd-assign-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ntd-assign-modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ntd-assign-modal-close {
+  background: #f8fafc;
+  border: none;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.nfd-all-comments-dialog {
-  background: #fff;
-  border-radius: 12px;
-  max-width: 520px;
-  width: 100%;
-  max-height: 85vh;
+
+.ntd-assign-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ntd-assign-pack-body {
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  gap: 1.5rem;
 }
-.nfd-all-comments-head {
+
+.ntd-assign-context-info {
+  background: #f1f5f9;
+  padding: 0.875rem 1rem;
+  border-radius: 10px;
+  border-left: 4px solid #4f46e5;
+}
+
+.ntd-assign-task-desc {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.ntd-assign-node-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ntd-assign-current-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ntd-assign-section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.ntd-assign-empty-text {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.ntd-assign-reviewer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ntd-reviewer-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 4px 10px 4px 6px;
+  border-radius: 9999px;
+  gap: 6px;
+}
+
+.ntd-reviewer-avatar {
+  width: 24px;
+  height: 24px;
+  background: #6366f1;
+  color: white;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
-.nfd-all-comments-head h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: #0f172a;
+
+.ntd-reviewer-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
 }
-.nfd-all-comments-close {
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  color: #64748b;
-}
-.nfd-all-comments-body {
-  padding: 12px 14px 16px;
-  overflow-y: auto;
-}
-.nfd-muted {
-  color: #64748b;
-  font-size: 0.9rem;
-}
-.nfd-all-comments-cards {
+
+.ntd-assign-field {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
-.nfd-comment-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+
+.ntd-assign-select-wrapper {
+  position: relative;
+}
+
+.ntd-assign-pack-select {
+  width: 100%;
+  appearance: none;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
   border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
-  border-left: 3px solid #3b82f6;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.nfd-comment-card-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.nfd-comment-card-header strong {
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
   color: #0f172a;
-  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s;
+  cursor: pointer;
 }
-.nfd-comment-node-label {
-  font-size: 0.8rem;
-  color: #64748b;
-  font-weight: 600;
+
+.ntd-assign-pack-select:focus {
+  border-color: #6366f1;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
 }
-.nfd-comment-card-preview {
-  color: #64748b;
-  font-size: 13px;
-  font-style: italic;
-  line-height: 1.4;
-  margin-bottom: 10px;
-  word-break: break-word;
+
+.ntd-assign-select-icon {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #94a3b8;
 }
-.nfd-comment-card-actions {
+
+.ntd-assign-modal-footer {
+  padding: 1.25rem 1.5rem;
+  background: #f8fafc;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 1px solid #f1f5f9;
 }
-.nfd-linkish {
-  border: none;
-  background: none;
-  color: #1d4ed8;
-  font-size: 0.8rem;
+
+.ntd-assign-btn-cancel {
+  padding: 0.625rem 1.25rem;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  transition: all 0.2s;
 }
-.nfd-linkish:hover {
-  text-decoration: underline;
+
+.ntd-assign-btn-cancel:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ntd-assign-btn-confirm {
+  padding: 0.625rem 1.5rem;
+  border-radius: 10px;
+  background: #4f46e5;
+  border: none;
+  color: white;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ntd-assign-btn-confirm:hover:not(:disabled) {
+  background: #4338ca;
+  box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+}
+
+.ntd-assign-btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ntd-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: ntd-spin 0.6s linear infinite;
+}
+
+@keyframes ntd-spin {
+  to { transform: rotate(360deg); }
 }
 </style>
 
@@ -4263,15 +4687,13 @@ export default {
 }
 
 /* Table styling for tables inside 'Action to be Taken' (dashboard and PDF) */
-.action-content-cell table,
-.action-content-cell th,
-.action-content-cell td,
-.pdf-capture-mode .action-content-cell table,
-.pdf-capture-mode .action-content-cell th,
-.pdf-capture-mode .action-content-cell td,
-.action-content-cell table table,
-.action-content-cell table th,
-.action-content-cell table td {
+/* Excludes .dashboard-import-table so preserved Word/LibreOffice tables keep their native layout */
+.action-content-cell table:not(.dashboard-import-table),
+.action-content-cell table:not(.dashboard-import-table) th,
+.action-content-cell table:not(.dashboard-import-table) td,
+.pdf-capture-mode .action-content-cell table:not(.dashboard-import-table),
+.pdf-capture-mode .action-content-cell table:not(.dashboard-import-table) th,
+.pdf-capture-mode .action-content-cell table:not(.dashboard-import-table) td {
   border: 1px solid #222 !important;
   border-collapse: collapse !important;
   padding: 3px !important;
@@ -4281,7 +4703,7 @@ export default {
   vertical-align: top !important;
 }
 
-.action-content-cell table {
+.action-content-cell table:not(.dashboard-import-table) {
   width: 100% !important;
   table-layout: fixed !important;
   margin: 0 !important;
@@ -4293,10 +4715,10 @@ export default {
   color: #222 !important;
 }
 
-/* Ensure nested tables also get the same styling */
-.action-content-cell table table,
-.action-content-cell table th,
-.action-content-cell table td {
+/* Ensure nested tables also get the same styling (exclude preserved complex tables) */
+.action-content-cell table:not(.dashboard-import-table) table,
+.action-content-cell table:not(.dashboard-import-table) th,
+.action-content-cell table:not(.dashboard-import-table) td {
   border: 1px solid #222 !important;
   padding: 1px !important;
   background: #fff !important;
@@ -4372,17 +4794,18 @@ export default {
 }
 
 .new-final-meeting-bar {
-  margin: 0 1rem 0.75rem;
-  padding: 0.65rem 1rem;
+  margin: 0 1rem 0.9rem;
+  padding: 0.35rem 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.5rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-size: 0.92rem;
   color: #0f172a;
+  box-shadow: none;
 }
 .new-final-meeting-bar .meeting-date-label {
   display: inline-flex;
@@ -4419,12 +4842,30 @@ export default {
   gap: 0.5rem 1rem;
 }
 .new-final-live-status {
-  padding-top: 0.35rem;
-  border-top: 1px solid #bfdbfe;
+  /* Add a subtle, modern divider without a “card” container */
+  position: relative;
+}
+.new-final-live-status::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.20), rgba(16, 185, 129, 0.14), rgba(239, 68, 68, 0.14));
+  opacity: 0.7;
+}
+.new-final-live-status {
+  padding: 8px 2px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .live-status-label {
-  font-weight: 600;
-  color: #0f172a;
+  font-weight: 800;
+  color: #0b1220;
+  letter-spacing: 0.01em;
 }
 .live-status-counts {
   font-size: 0.85rem;
@@ -4433,20 +4874,114 @@ export default {
 .live-status-counts.muted {
   color: #94a3b8;
 }
+.live-status-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.live-status-badge {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+  user-select: none;
+  position: relative;
+}
+.live-status-badge-icon {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+.live-status-badge-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  font-size: 0.95rem;
+  color: #0b1220;
+  position: relative;
+  z-index: 1;
+}
+.live-status-badge--green { background: rgba(187, 247, 208, 0.98); }
+.live-status-badge--blue  { background: rgba(191, 219, 254, 0.98); }
+.live-status-badge--red   { background: rgba(254, 202, 202, 0.98); }
+.live-status-badge--green .live-status-badge-icon { box-shadow: inset 0 0 0 7px rgba(34, 197, 94, 0.24); }
+.live-status-badge--blue  .live-status-badge-icon { box-shadow: inset 0 0 0 7px rgba(59, 130, 246, 0.24); }
+.live-status-badge--red   .live-status-badge-icon { box-shadow: inset 0 0 0 7px rgba(239, 68, 68, 0.24); }
 .new-final-review-hub-link {
   margin-left: auto;
   font-size: 0.85rem;
-  font-weight: 600;
-  color: #1d4ed8;
+  font-weight: 800;
+  color: #0b1220;
   text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.95) 0%, rgba(236, 253, 245, 0.9) 100%);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.10);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .new-final-review-hub-link:hover {
-  text-decoration: underline;
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.14);
+}
+.new-final-review-hub-link::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(16, 185, 129, 0.20));
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.22);
 }
 .new-final-agenda-row .meeting-bar-sublabel {
   font-size: 0.75rem;
   color: #64748b;
   margin-right: 4px;
+}
+.toolbar-date-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(255, 251, 235, 0.95) 100%);
+  border-radius: 12px;
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.10);
+  white-space: nowrap;
+}
+.toolbar-date-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+.toolbar-date-select {
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.75);
+  color: #0f172a;
+  cursor: pointer;
+}
+.toolbar-date-select:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+}
+.toolbar-date-meta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+}
+.toolbar-date-meta.muted {
+  color: #94a3b8;
 }
 .new-final-agenda-field {
   display: inline-flex;
@@ -4481,23 +5016,12 @@ export default {
   background: #eff6ff;
   color: #1e40af;
 }
-.comment-nav-arrows {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
 .fd-reviewer-filter-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
   margin-top: 4px;
-}
-.comment-nav-pos {
-  font-size: 0.8rem;
-  color: #64748b;
-  min-width: 3.5rem;
-  text-align: center;
 }
 .new-final-reviewer-filter {
   display: flex;
@@ -4509,5 +5033,43 @@ export default {
   font-size: 0.8rem;
   color: #64748b;
   margin: 0 0 8px;
+}
+
+/* Keep preserved Word/LibreOffice tables at native grid width and scroll horizontally. */
+.action-content-cell div[style*="overflow-x: auto"] {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+}
+
+/* Match NewEnhancedNodeItem.vue: preserved/complex tables show same grid as in the editor modal. */
+.action-content-cell table.dashboard-import-table {
+  width: auto !important;
+  max-width: none !important;
+  table-layout: auto !important;
+  border-collapse: collapse !important;
+}
+
+/* PDF capture must fit preserved tables into Action column; do not keep max-content width. */
+.pdf-capture-mode .action-content-cell /deep/ div[style*="overflow-x: auto"] {
+  overflow: visible !important;
+  max-width: 100% !important;
+}
+
+.pdf-capture-mode .action-content-cell /deep/ table.dashboard-import-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  table-layout: auto !important;
+}
+
+.action-content-cell table.dashboard-import-table th,
+.action-content-cell table.dashboard-import-table td {
+  white-space: normal !important;
+  border: 1px solid #222 !important;
+  box-sizing: border-box !important;
+}
+
+.action-content-cell table.dashboard-import-table th {
+  background-color: inherit !important;
 }
 </style>

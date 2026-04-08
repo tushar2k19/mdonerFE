@@ -12,6 +12,7 @@ import ReviewInterface from '../components/ReviewInterface.vue'
 import ReviewDashboard from '../components/ReviewDashboard.vue'
 import TaskReviewHub from '../components/TaskReviewHub.vue'
 import NewTaskReviewHub from '../components/NewTaskReviewHub.vue'
+import NewDailyDashboard from '../components/NewDailyDashboard.vue'
 import UnderDevelopment from '../components/UnderDevelopment.vue'
 import DailyReviewSlideshow from '../components/DailyReviewSlideshow.vue'
 import ImportDashboardHtml from '../components/ImportDashboardHtml.vue'
@@ -79,6 +80,12 @@ const router = new Router({
       path: '/new-final',
       name: 'NewFinalDashboard',
       component: NewFinalDashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/new-daily-dashboard',
+      name: 'NewDailyDashboard',
+      component: NewDailyDashboard,
       meta: { requiresAuth: true }
     },
     {
@@ -182,6 +189,14 @@ router.beforeEach((to, from, next) => {
       }
       if (to.name === 'NewFinalDashboard' && !isMeetingDashboardUiEnabled()) {
         next({ path: '/final' })
+        return
+      }
+      if (to.name === 'NewDailyDashboard' && !isMeetingDashboardUiEnabled()) {
+        next({ path: '/daily-dashboard' })
+        return
+      }
+      if (to.name === 'DailyDashboard' && isMeetingDashboardUiEnabled()) {
+        next({ path: '/new-daily-dashboard' })
         return
       }
       next()

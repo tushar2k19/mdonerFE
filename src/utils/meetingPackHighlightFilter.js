@@ -24,6 +24,18 @@ export const PACK_HIGHLIGHT_OPTIONS = [
   { value: PACK_HIGHLIGHT_MODE.BLUE, label: 'Not assigned, commented (blue)' }
 ]
 
+/**
+ * Consultant-facing labels for filter UI (same values as PACK_HIGHLIGHT_MODE).
+ * `accent` is consumed by FilterPrettySelect for color cues (not sent to API).
+ */
+export const FOLLOW_UP_STATUS_FILTER_OPTIONS = [
+  { value: PACK_HIGHLIGHT_MODE.OFF, label: 'OFF', accent: null },
+  { value: PACK_HIGHLIGHT_MODE.ALL, label: 'ALL', accent: 'triple' },
+  { value: PACK_HIGHLIGHT_MODE.RED, label: 'No reply yet', accent: 'red' },
+  { value: PACK_HIGHLIGHT_MODE.GREEN, label: 'Replied (assigned)', accent: 'green' },
+  { value: PACK_HIGHLIGHT_MODE.BLUE, label: 'Replied (not assigned)', accent: 'blue' }
+]
+
 export function packModeToHubClass (mode) {
   switch (mode) {
     case PACK_HIGHLIGHT_MODE.RED:

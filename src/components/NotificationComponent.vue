@@ -61,7 +61,8 @@ export default {
       showNotifications: false,
       notifications: [],
       refreshInterval: null,
-      notificationService: null
+      notificationService: null,
+      eventSource: null
     }
   },
 
@@ -78,7 +79,9 @@ export default {
   },
 
   mounted () {
-    this.refreshInterval = setInterval(() => this.fetchNotifications(), 30000)
+    this.setupStream()
+    // Increase polling interval to 60s as a fallback
+    this.refreshInterval = setInterval(() => this.fetchNotifications(), 60000)
   },
 
   beforeDestroy () {
@@ -86,9 +89,28 @@ export default {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval)
     }
+    if (this.eventSource) {
+      this.eventSource.close()
+    }
   },
 
   methods: {
+    setupStream () {
+      this.eventSource = this.notificationService.subscribeToStream(
+        (data) => {
+          // Add new notification to the top
+          const index = this.notifications.findIndex(n => n.id === data.id)
+          if (index !== -1) {
+            this.notifications.splice(index, 1, data)
+          } else {
+            this.notifications.unshift(data)
+          }
+        },
+        (error) => {
+          console.debug('SSE disconnected, it usually auto-reconnects. Polling is active as fallback.', error)
+        }
+      )
+    },
     async initializeNotifications () {
       await this.fetchNotifications()
     },

@@ -96,7 +96,7 @@
               ref="richEditor"
               contenteditable="true"
               @input="onContentChange"
-              @paste="onContentChange"
+              @paste="handlePaste"
               @keyup="onContentChange"
               @contextmenu="handleTableContextMenu"
               class="rich-editor"
@@ -515,6 +515,7 @@ import { getReviewDateHighlightClasses, getReviewDateHighlightClassesIfSet } fro
 import { hasReviewerMetadata, reviewerIdKey, sanitizeReviewerName } from '../utils/reviewerDiffHint'
 import { meetingHubHighlightClass } from '@/utils/meetingHubNodeHighlight'
 import { shouldApplyMeetingHubTint, PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
+import { hasComplexTable, normalizeComplexTableHtml, sanitizePastedHtml } from '@/utils/complexTableNormalizer'
 
 const REVIEW_EXTENSION_REASON_OPTIONS = [
   { value: 'operational', label: 'Operational reasons' },
@@ -1226,6 +1227,28 @@ export default {
     execCommand (command, value = null) {
       document.execCommand(command, false, value)
       this.$refs.richEditor.focus()
+    },
+
+    handlePaste (event) {
+      const clipboardData = event.clipboardData || window.clipboardData
+      if (!clipboardData) return
+
+      const pastedHtml = clipboardData.getData('text/html')
+      if (pastedHtml && hasComplexTable(pastedHtml)) {
+        event.preventDefault()
+
+        const sanitized = sanitizePastedHtml(pastedHtml)
+        const normalized = normalizeComplexTableHtml(sanitized)
+
+        document.execCommand('insertHTML', false, normalized)
+        this.onContentChange()
+        return
+      }
+
+      // For non-complex-table pastes, let browser handle normally then sync
+      this.$nextTick(() => {
+        this.onContentChange()
+      })
     },
 
     onContentChange () {
@@ -1960,16 +1983,31 @@ export default {
   /* background-color: yellow !important; */
 }
 
-.rich-text-display /deep/ table th,
-.rich-text-display /deep/ table td,
-.rich-text-display >>> table th,
-.rich-text-display >>> table td {
+.rich-text-display /deep/ table:not(.dashboard-import-table) th,
+.rich-text-display /deep/ table:not(.dashboard-import-table) td,
+.rich-text-display >>> table:not(.dashboard-import-table) th,
+.rich-text-display >>> table:not(.dashboard-import-table) td {
   border: 2px solid #000 !important;
   padding: 8px !important;
   text-align: left !important;
   display: table-cell !important;
   visibility: visible !important;
   background-color: white !important;
+}
+
+.rich-text-display /deep/ table.dashboard-import-table,
+.rich-text-display >>> table.dashboard-import-table {
+  width: auto !important;
+  max-width: none !important;
+  border-collapse: collapse !important;
+  table-layout: auto !important;
+}
+
+.rich-text-display /deep/ table.dashboard-import-table th,
+.rich-text-display /deep/ table.dashboard-import-table td,
+.rich-text-display >>> table.dashboard-import-table th,
+.rich-text-display >>> table.dashboard-import-table td {
+  border: 1px solid #222 !important;
 }
 
 .rich-text-display /deep/ table th,
@@ -2075,8 +2113,8 @@ export default {
   visibility: visible !important;
 }
 
-.rich-editor /deep/ table th,
-.rich-editor /deep/ table td {
+.rich-editor /deep/ table:not(.dashboard-import-table) th,
+.rich-editor /deep/ table:not(.dashboard-import-table) td {
   border: 1px solid #ddd !important;
   padding: 8px !important;
   text-align: left !important;
@@ -2084,9 +2122,21 @@ export default {
   visibility: visible !important;
 }
 
-.rich-editor /deep/ table th {
+.rich-editor /deep/ table:not(.dashboard-import-table) th {
   background-color: #f2f2f2 !important;
   font-weight: 600 !important;
+}
+
+.rich-editor /deep/ table.dashboard-import-table {
+  width: auto !important;
+  max-width: none !important;
+  border-collapse: collapse !important;
+  table-layout: auto !important;
+}
+
+.rich-editor /deep/ table.dashboard-import-table th,
+.rich-editor /deep/ table.dashboard-import-table td {
+  border: 1px solid #222 !important;
 }
 
 .rich-editor /deep/ table thead {
