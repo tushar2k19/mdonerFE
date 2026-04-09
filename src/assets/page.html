@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Action Items - Assam Health Sector | Northeast Govt Projects</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Variables for Trustworthy Govt Theme */
+        :root {
+            /* Backgrounds and Overlays */
+            --bg-body: #f9fafb;
+            --bg-card: #ffffff;
+            --bg-sidebar: #111827; /* Deep Navy, almost black */
+
+            /* Professional Accent Colors (Trust, Govt) */
+            --primary: #1e40af; /* Trusted Navy Blue */
+            --primary-hover: #1d4ed8;
+            --accent: #06b6d4; /* Vibrant Cyan for interaction */
+            --accent-hover: #0891b2;
+
+            /* Neutral Gray Scale */
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --bg-meta-pill: #e0f7fa; /* Light cyan overlay */
+            --text-meta-pill: #006064;
+
+            /* Shadows for Depth */
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            --shadow-float: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Base Resets */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            margin: 0;
+            color: var(--text-main);
+            font-size: 14px; /* Standard 10pt approx */
+            line-height: 1.6;
+        }
+
+        /* App Shell Layout */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Simplified Sidebar */
+        .sidebar {
+            width: 200px;
+            background-color: var(--bg-sidebar);
+            color: #fff;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #d1d5db;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .sidebar-item:hover, .sidebar-item.active {
+            color: #fff;
+        }
+
+        /* Main Workspace */
+        .workspace {
+            flex: 1;
+            padding: 40px;
+        }
+
+        /* Workspace Header */
+        .workspace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .project-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .project-title {
+            color: var(--primary);
+            font-size: 1.875rem; /* ~24pt approx */
+            font-weight: 700;
+            margin: 0;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--text-muted);
+            color: var(--text-main);
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: #fff;
+            border: 1px solid var(--accent);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        /* Main Editor Card */
+        .editor-card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--border);
+            padding: 32px;
+        }
+
+        /* Improved Sticky Toolbar */
+        .editor-toolbar {
+            position: sticky;
+            top: 20px;
+            background-color: #fff;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-float);
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 4px;
+            border-right: 1px solid var(--border);
+            padding-right: 12px;
+            margin-right: 12px;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+            padding-right: 0;
+            margin-right: 0;
+        }
+
+        .toolbar-btn {
+            padding: 6px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .toolbar-btn:hover, .toolbar-btn.active {
+            background-color: #f3f4f6;
+            color: var(--primary);
+        }
+
+        /* New Native Color Inputs styled professionally */
+        input[type="color"].toolbar-btn {
+            padding: 2px;
+            width: 32px;
+            height: 32px;
+            appearance: none;
+        }
+
+        /* Nodes List (Core Data) */
+        .node-list {
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Node Item Row */
+        .node-item {
+            display: flex;
+            gap: 20px;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+            align-items: flex-start;
+        }
+
+        /* Node Number/Index */
+        .node-number {
+            font-weight: 700;
+            color: var(--text-muted);
+            width: 30px;
+            text-align: right;
+            padding-top: 4px; /* Alignment fix */
+        }
+
+        /* Enhanced Content Editor Area */
+        .node-content-editor {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid transparent; /* Hidden until focus */
+            outline: none;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .node-content-editor:focus {
+            border-color: var(--accent);
+            background-color: #fff;
+        }
+
+        /* Metadata Section (Dates, Reviewers) Integrated Smoothly */
+        .node-meta-pills {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+            width: 140px;
+            padding-top: 4px;
+        }
+
+        /* Stylized Rounded Tag (Badge) */
+        .meta-pill {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+            background-color: var(--bg-meta-pill);
+            color: var(--text-meta-pill);
+        }
+
+        /* Professional Embedded Table Design */
+        .integrated-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .integrated-table th, .integrated-table td {
+            border: 1px solid var(--border);
+            padding: 12px;
+            text-align: left;
+        }
+
+        .integrated-table th {
+            background-color: #f9fafb;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .integrated-table tr:nth-child(even) {
+            background-color: #fafbfc;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-layout">
+        <div class="sidebar">
+            <h3 style="color:var(--accent); margin-top:0;">NERDD</h3>
+            <p style="font-size: 11px; color: #d1d5db; margin-bottom: 30px;">
+                Northeast Regional Development Dashboard
+            </p>
+            <a href="#" class="sidebar-item">Dashboard</a>
+            <a href="#" class="sidebar-item active">Projects</a>
+            <a href="#" class="sidebar-item">Reports</a>
+            <a href="#" class="sidebar-item">Settings</a>
+        </div>
+
+        <div class="workspace">
+            <div class="workspace-header">
+                <div>
+                    <div class="project-meta">NERDD / DEVELOPMENT GOALS 2026 / **Edit Action Items**</div>
+                    <h1 class="project-title">Assam Health Sector Refining</h1>
+                </div>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-ghost">Discard Changes</button>
+                    <button class="btn btn-primary" style="padding-left:40px; padding-right:40px;">Save Draft</button>
+                </div>
+            </div>
+
+            <div class="editor-card">
+                <div class="editor-toolbar">
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn active" title="Bold">B</button>
+                        <button class="toolbar-btn" title="Italic">*I*</button>
+                        <button class="toolbar-btn" title="Underline">U</button>
+                        <button class="toolbar-btn" title="Strikeout">S</button>
+                    </div>
+                    <div class="toolbar-group">
+                        <select class="btn-ghost" style="font-size:13px; font-weight:400;">
+                            <option>10pt</option>
+                            <option>12pt</option>
+                        </select>
+                    </div>
+                    <div class="toolbar-group">
+                        <input type="color" value="#111827" class="toolbar-btn" title="Text Color">
+                        <input type="color" value="#ffffff" class="toolbar-btn" title="Background Color">
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn">Bullets</button>
+                        <button class="toolbar-btn">Numbers</button>
+                        <button class="toolbar-btn">Table</button>
+                        <button class="toolbar-btn">Link</button>
+                    </div>
+                </div>
+
+                <div class="node-list">
+                    <div class="node-item">
+                        <div class="node-number">1.</div>
+                        <div class="node-content-editor" contenteditable="true">
+                            Welcome to the Northeast India Regional Development refining workspace. The editor now adopts a smooth, light-themed government project aesthetic, focusing on clean lines, ample whitespace, and strict professionalism. The text follows the 10pt standard, and all underlying node logic regarding counters and nesting remains completely intact.
+                        </div>
+                        <div class="node-meta-pills">
+                            <span class="meta-pill">📅 10 Apr 2026</span>
+                            <span class="meta-pill">👤 Rev: A. Sharma</span>
+                        </div>
+                    </div>
+
+                    <div class="node-item">
+                        <div class="node-number">2.</div>
+                        <div class="node-content-editor" contenteditable="true">
+                            Below is an example of nested table content within a single node, styled with professional shading and clean borders to ensure legibility.
+                            <table class="integrated-table">
+                                <thead>
+                                    <tr>
+                                        <th>S.N.</th>
+                                        <th>States</th>
+                                        <th>Primary Focus USP</th>
+                                        <th>Current Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>1</td>
+                                        <td>Assam</td>
+                                        <td>Orthodox Tea, Wildlife Tourism</td>
+                                        <td>Value chain enhancement project initiated.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2</td>
+                                        <td>Meghalaya</td>
+                                        <td>Organic Spices (Lakadong Turmeric)</td>
+                                        <td>Processing units being modernized in Jaintia Hills.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="node-meta-pills">
+                            <span class="meta-pill">📅 12 Apr 2026</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

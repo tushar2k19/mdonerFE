@@ -882,16 +882,6 @@ export default {
   }
 }
 
-/* Styles for TinyMCE */
-:deep(.tox-tinymce) {
-  border-radius: 8px !important;
-  border-color: rgba(0, 70, 128, 0.2) !important;
-}
-
-:deep(.tox-tinymce:focus-within) {
-  border-color: #004680 !important;
-  box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1) !important;
-}
 
 .tag-suggest-dropdown {
   position: relative;

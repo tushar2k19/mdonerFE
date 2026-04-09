@@ -1861,6 +1861,7 @@ export default {
     onFinalPackHighlightSelect (val) {
       this.packHighlightMode = val
       this.onPackHighlightModeChange()
+      this.closeFilterDropdown()
     },
 
     getPackHighlightFilterLabel () {
@@ -1999,6 +2000,7 @@ export default {
         this.reviewDateToYmd = ''
         this.calendarRangeValue = null
         this.applyFilters()
+        this.closeFilterDropdown()
         return
       }
       if (v === 'all') {
@@ -2007,6 +2009,7 @@ export default {
         this.reviewDateToYmd = ''
         this.calendarRangeValue = null
         this.applyFilters()
+        this.closeFilterDropdown()
         return
       }
       this.reviewDateMode = 'preset'
@@ -2016,6 +2019,7 @@ export default {
       this.reviewDateToYmd = toYmd
       this.calendarRangeValue = ymdPairToDateRange(fromYmd, toYmd)
       this.applyFilters()
+      this.closeFilterDropdown()
     },
     onReviewCalendarInput (val) {
       if (val && val.start && val.end) {
@@ -2032,6 +2036,7 @@ export default {
         }
       }
       this.applyFilters()
+      this.closeFilterDropdown()
     },
     onReviewBoundChange () {
       this.reviewDateMode = 'range'
@@ -2047,10 +2052,7 @@ export default {
     selectFdFilterTag (tag) {
       this.toggleTagFilter(tag.id)
       this.filterTagQuery = ''
-      this.$nextTick(() => {
-        const input = this.$el.querySelector('.fd-tag-search-input')
-        if (input) input.focus()
-      })
+      this.closeFilterDropdown()
     },
 
     // Open/close searchable dropdown with flip logic
@@ -2590,6 +2592,7 @@ export default {
     onFinalReviewerSelect (val) {
       this.selectedReviewerUserId = val
       this.onReviewerFilterChange()
+      this.closeFilterDropdown()
     },
 
     assignedNavPrev () {

@@ -1783,20 +1783,22 @@ export default {
 
 <style scoped>
 .enhanced-node-item {
-  margin-bottom: 0.75rem;
-  transition: all 0.2s ease;
+  margin-bottom: 0;
+  transition: all 0.2s ease-in-out;
+  position: relative;
 }
 
 .enhanced-node-item.completed {
-  background-color: rgba(16, 185, 129, 0.1);
-  border-left: 3px solid #10b981;
-  border-radius: 4px;
-  padding: 4px 8px;
+  background-color: transparent;
+  border-left: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .enhanced-node-item.completed .node-content {
   color: #059669;
   font-weight: 500;
+  background-color: rgba(16, 185, 129, 0.05);
 }
 
 .enhanced-node-item.completed .node-marker {
@@ -1807,19 +1809,24 @@ export default {
 /* Distinct from diff-added (green): shows node-level reviewer assignment on THIS row only.
    Use direct child (>) so nested subpoints do not inherit yellow from a parent's has-reviewer. */
 .enhanced-node-item.has-reviewer > .node-content {
-  background-color: rgba(255, 237, 180, 0.45);
-  border-color: rgba(217, 119, 6, 0.28);
+  background-color: rgba(251, 191, 36, 0.06);
+  border-color: transparent;
 }
 
 .node-content {
   display: flex;
   align-items: flex-start;
   gap: 1.25rem;
-  padding: 0.875rem 1rem;
+  padding: 1rem 0.5rem;
   border: 1px solid transparent;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  min-height: 3rem; /* Ensure adequate height */
+  border-bottom: 1px solid #f3f4f6;
+  border-radius: 0;
+  transition: all 0.2s ease-in-out;
+  min-height: 3rem;
+}
+
+.node-content:hover {
+  background-color: #f9fafb;
 }
 
 .node-marker {
@@ -1827,22 +1834,22 @@ export default {
   align-items: flex-start;
   justify-content: flex-end;
   flex-shrink: 0;
-  min-width: 3rem;
-  padding: 0.125rem 0.75rem 0 0;
-  font-weight: 600;
-  color: #6b7280;
+  min-width: 2.5rem;
+  padding: 0.125rem 0.5rem 0 0;
+  font-weight: 700;
+  color: #9ca3af;
   font-size: 0.875rem;
   line-height: 1.5;
   text-align: right;
 }
 
 .counter {
-  font-family: monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   text-align: right;
 }
 
 .counter-suffix {
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 .node-editor-container {
@@ -1858,13 +1865,18 @@ export default {
 
 .rich-text-display {
   min-height: 2.5rem;
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
   line-height: 1.6;
   word-wrap: break-word;
+}
+
+.rich-text-display:hover {
+  background-color: #fafafa;
+  border-color: #e5e7eb;
 }
 
 /* Table styles for display mode - using Vue 2 deep selectors for v-html content */
@@ -1873,31 +1885,33 @@ export default {
 .rich-text-display >>> table {
   width: 100% !important;
   border-collapse: collapse !important;
-  margin: 0.5rem 0 !important;
+  margin: 0.75rem 0 !important;
   display: table !important;
   visibility: visible !important;
-  /* Temporary debug styles to make tables super obvious */
-  /* border: 3px solid red !important; */
-  /* background-color: yellow !important; */
+  font-size: 13px !important;
 }
 
 .rich-text-display /deep/ table th,
 .rich-text-display /deep/ table td,
 .rich-text-display >>> table th,
 .rich-text-display >>> table td {
-  border: 2px solid #000 !important;
-  padding: 8px !important;
+  border: 1px solid #e5e7eb !important;
+  padding: 12px !important;
   text-align: left !important;
   display: table-cell !important;
   visibility: visible !important;
-  background-color: white !important;
 }
 
 .rich-text-display /deep/ table th,
 .rich-text-display >>> table th {
-  /* background-color: #ff0000 !important; */
-  font-weight: 600 !important;
-  color: black !important;
+  background-color: #f9fafb !important;
+  color: #1e40af !important;
+  font-weight: 700 !important;
+}
+
+.rich-text-display /deep/ table tr:nth-child(even),
+.rich-text-display >>> table tr:nth-child(even) {
+  background-color: #fafbfc !important;
 }
 
 .rich-text-display /deep/ table thead,
@@ -1936,25 +1950,31 @@ export default {
   align-items: center;
   gap: 0.25rem;
   padding-right: 0.5rem;
+  margin-right: 0.5rem;
   border-right: 1px solid #e5e7eb;
 }
 
 .toolbar-group:last-child {
   border-right: none;
+  padding-right: 0;
+  margin-right: 0;
 }
 
 .toolbar-btn {
   padding: 0.375rem 0.5rem;
-  border: 1px solid #d1d5db;
-  background: white;
+  border: 1px solid transparent;
+  background: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.75rem;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
+  color: #6b7280;
 }
 
 .toolbar-btn:hover {
-  background: #f3f4f6;
+  background-color: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
 }
 
 .toolbar-btn.save-btn {
@@ -1963,10 +1983,20 @@ export default {
   border-color: #10b981;
 }
 
+.toolbar-btn.save-btn:hover {
+  background: #059669;
+  border-color: #059669;
+}
+
 .toolbar-btn.cancel-btn {
   background: #ef4444;
   color: white;
   border-color: #ef4444;
+}
+
+.toolbar-btn.cancel-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
 }
 
 .color-picker,
@@ -1986,28 +2016,40 @@ export default {
   padding: 0.75rem;
   outline: none;
   line-height: 1.5;
+  background: #ffffff;
+}
+
+.rich-editor:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(6, 182, 212, 0.2);
 }
 
 .rich-editor /deep/ table {
   width: 100% !important;
   border-collapse: collapse !important;
-  margin: 0.5rem 0 !important;
+  margin: 0.75rem 0 !important;
   display: table !important;
   visibility: visible !important;
+  font-size: 13px !important;
 }
 
 .rich-editor /deep/ table th,
 .rich-editor /deep/ table td {
-  border: 1px solid #ddd !important;
-  padding: 8px !important;
+  border: 1px solid #e5e7eb !important;
+  padding: 12px !important;
   text-align: left !important;
   display: table-cell !important;
   visibility: visible !important;
 }
 
 .rich-editor /deep/ table th {
-  background-color: #f2f2f2 !important;
-  font-weight: 600 !important;
+  background-color: #f9fafb !important;
+  color: #1e40af !important;
+  font-weight: 700 !important;
+}
+
+.rich-editor /deep/ table tr:nth-child(even) {
+  background-color: #fafbfc !important;
 }
 
 .rich-editor /deep/ table thead {
@@ -2079,32 +2121,38 @@ export default {
 
 .date-input {
   padding: 0.375rem 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid #e5e7eb;
   border-radius: 4px;
   font-size: 0.75rem;
   outline: none;
 }
 
 .date-input:focus {
-  border-color: #3b82f6;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
 }
 
 .date-display {
-  padding: 0.375rem 0.5rem;
+  padding: 0.375rem 0.625rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 20px;
   font-size: 0.75rem;
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease-in-out;
+  background-color: #e0f7fa;
+  color: #006064;
+  font-weight: 600;
 }
 
 .date-display:hover {
-  border-color: #d1d5db;
+  background-color: #b2ebf2;
+  transform: scale(1.02);
 }
 
 .date-display.no-date {
   color: #9ca3af;
   font-style: italic;
+  background-color: #f3f4f6;
 }
 
 /* Completion Item Styles */
@@ -2133,6 +2181,7 @@ export default {
 .node-comment-shortcut-btn {
   flex-shrink: 0;
   line-height: 1;
+  transition: all 0.2s ease-in-out;
 }
 
 .node-comment-shortcut-svg {
@@ -2148,12 +2197,12 @@ export default {
 
 .action-btn {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid #e5e7eb;
   background: white;
   border-radius: 6px;
   cursor: pointer;
   color: #6b7280;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
   min-width: 40px;
   display: flex;
   align-items: center;
@@ -2162,8 +2211,10 @@ export default {
 }
 
 .action-btn:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: #f9fafb;
+  color: #111827;
+  border-color: #d1d5db;
+  transform: scale(1.05);
 }
 
 .action-menu {
@@ -2175,7 +2226,7 @@ export default {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   margin-top: 0.25rem;
   padding: 0.5rem 0;
 }
@@ -2191,11 +2242,13 @@ export default {
   cursor: pointer;
   font-size: 0.875rem;
   gap: 0.5rem;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease-in-out;
+  color: #111827;
 }
 
 .action-item:hover {
-  background-color: #f3f4f6;
+  background-color: #f9fafb;
+  transform: translateX(2px);
 }
 
 .action-item.delete-item {
@@ -2375,39 +2428,41 @@ export default {
 }
 
 .btn-primary {
-  background: #3b82f6;
+  background: #06b6d4;
   color: white;
+  transition: all 0.2s ease-in-out;
 }
 
 .btn-primary:hover {
-  background: #2563eb;
+  background: #0891b2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(6, 182, 212, 0.2);
 }
 
 .btn-secondary {
   background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease-in-out;
 }
 
 .btn-secondary:hover {
   background: #e5e7eb;
 }
 
-/* Table Context Menu Styles */
 .table-context-menu {
   position: fixed;
-  background: white;
-  border: 1px solid #d1d5db;
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
   padding: 0.5rem;
   z-index: 10050;
   min-width: 200px;
   max-width: 220px;
   max-height: 400px;
   overflow-y: auto;
-  backdrop-filter: blur(4px);
-  border: 2px solid rgba(59, 130, 246, 0.1);
 }
 
 .context-menu-group {
@@ -2430,28 +2485,30 @@ export default {
   text-align: left;
   width: 100%;
   border-radius: 4px;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease-in-out;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .context-menu-item:hover {
-  background-color: #f3f4f6;
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
 }
 
 .context-menu-divider {
   height: 1px;
-  background-color: #e5e7eb;
+  background-color: rgba(255, 255, 255, 0.1);
   margin: 0.5rem 0;
 }
 
 .context-menu-item.delete-item {
-  color: #ef4444;
+  color: #fca5a5;
 }
 
 .context-menu-item.delete-item:hover {
-  background-color: #fef2f2;
+  background-color: rgba(239, 68, 68, 0.2);
 }
 
 /* Ensure context menu is properly scrollable */
@@ -2478,49 +2535,10 @@ export default {
   padding: 0.5rem 0;
 }
 
-/* Reviewer Assignment Styles */
-.reviewer-assignment-section {
-  padding: 0.5rem 0;
-}
-
-.reviewer-assignment-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #6b7280;
-  margin-bottom: 0.5rem;
-}
-
-.reviewer-select {
-  width: 100%;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  background-color: white;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.reviewer-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px #3b82f6;
-}
-
-.current-reviewer {
-  font-size: 0.75rem;
-  color: #059669;
-  font-weight: 500;
-  padding: 0.25rem 0.5rem;
-  background-color: #ecfdf5;
-  border-radius: 4px;
-  border: 1px solid #d1fae5;
-}
-
 .color-picker-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.7);
   margin-bottom: 0.5rem;
   padding: 0 1rem;
   text-transform: uppercase;
@@ -2530,62 +2548,75 @@ export default {
 .color-picker-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.25rem;
+  gap: 0.35rem;
   padding: 0 1rem;
 }
 
 .color-picker-btn {
-  width: 24px;
-  height: 24px;
-  border: 2px solid #e5e7eb;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
   position: relative;
 }
 
 .color-picker-btn:hover {
-  border-color: #3b82f6;
+  border-color: #06b6d4;
   transform: scale(1.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
 }
 
-.color-picker-btn[style*="transparent"] {
-  background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
-                    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
-                    linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
-                    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+.current-reviewer {
+  font-size: 0.75rem;
+  color: #059669;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  background-color: #ecfdf5;
+  border-radius: 20px;
+  border: 1px solid #a7f3d0;
+  transition: all 0.2s ease-in-out;
+}
+
+.current-reviewer:hover {
+  background-color: #d1fae5;
+  transform: scale(1.02);
 }
 
 /* Diff Status Styling */
 .enhanced-node-item.diff-added {
-  background: rgba(34, 197, 94, 0.08);
-  border-left: 3px solid #22c55e;
+  background: rgba(34, 197, 94, 0.04);
+  border-left: 2px solid #22c55e;
+  padding-left: 0.5rem;
+  transition: all 0.2s ease-in-out;
 }
 
 .enhanced-node-item.diff-added .node-content {
-  border-color: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.1);
 }
 
 .enhanced-node-item.diff-modified {
-  background: rgba(245, 158, 11, 0.08);
-  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.04);
+  border-left: 2px solid #f59e0b;
+  padding-left: 0.5rem;
+  transition: all 0.2s ease-in-out;
 }
 
 .enhanced-node-item.diff-modified .node-content {
-  border-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.1);
 }
 
 .enhanced-node-item.diff-removed {
-  background: rgba(239, 68, 68, 0.08);
-  border-left: 3px solid #ef4444;
+  background: rgba(239, 68, 68, 0.04);
+  border-left: 2px solid #ef4444;
   opacity: 0.7;
+  padding-left: 0.5rem;
+  transition: all 0.2s ease-in-out;
 }
 
 .enhanced-node-item.diff-removed .node-content {
-  border-color: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.1);
   text-decoration: line-through;
 }
 
@@ -2670,16 +2701,17 @@ export default {
 
 .enhanced-node-item.dragging {
   opacity: 0.5;
-  transform: rotate(2deg);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+  transform: scale(0.98) rotate(1deg);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
   z-index: 1000;
+  transition: all 0.2s ease-in-out;
 }
 
 .enhanced-node-item.drag-over {
-  border: 2px solid #3b82f6;
-  background-color: rgba(59, 130, 246, 0.1);
-  transform: scale(1.02);
-  transition: all 0.2s ease;
+  border: 2px solid #06b6d4;
+  background-color: rgba(6, 182, 212, 0.05);
+  transform: scale(1.01);
+  transition: all 0.2s ease-in-out;
 }
 
 .enhanced-node-item.drag-over::before {
@@ -2688,14 +2720,15 @@ export default {
   top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  background: #3b82f6;
+  background: #06b6d4;
   color: white;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   z-index: 1001;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Table Styles */
@@ -2740,17 +2773,27 @@ export default {
 }
 .reviewer-modal {
   background: white;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 2rem;
   min-width: 320px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 .reviewer-select {
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
   border-radius: 6px;
-  border: 1px solid #d1d5db;
+  font-size: 0.875rem;
+  background-color: white;
+  color: #111827;
   margin-bottom: 1rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.reviewer-select:focus {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
 }
 .reviewer-modal-actions {
   display: flex;
@@ -2816,17 +2859,25 @@ export default {
   align-items: center;
 }
 .reviewer-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.8em;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
   margin-left: 8px;
   cursor: pointer;
   white-space: nowrap;
+  background-color: #e0f7fa;
+  color: #006064;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+}
+.reviewer-badge:hover {
+  background-color: #b2ebf2;
+  transform: scale(1.02);
 }
 .reviewer-badge.no-date:not(.yellow-bg-bold) {
   color: #9ca3af;
   font-style: italic;
-  background: transparent;
+  background: #f3f4f6;
 }
 .reviewer-hover-popup {
   position: absolute;

@@ -1,5 +1,5 @@
 <template>
-  <div class="enhanced-node-editor">
+  <div :class="['enhanced-node-editor', { 'editor-fullscreen': isFullscreen }]">
     <!-- Toolbar -->
     <div class="editor-toolbar">
       <div class="toolbar-section">
@@ -7,35 +7,110 @@
       </div>
       
       <div class="toolbar-section" v-if="!readonly">
-        <!-- Add Node Dropdown -->
-        <div class="dropdown" ref="addDropdown">
-          <button @click="toggleAddDropdown" class="btn btn-primary dropdown-toggle">
+        <!-- Split Add-Item button: left click adds with last-used style; chevron opens style picker -->
+        <div class="split-btn-wrap dropdown" ref="addDropdown">
+          <button @click="addNode(lastUsedStyle)" class="btn btn-primary split-main" :title="'Add ' + lastUsedStyleLabel + ' item (last used)'">
             <i class="fas fa-plus"></i> Add Item
+          </button>
+          <button @click="toggleAddDropdown" class="btn btn-primary split-arrow" :title="'Choose list style'">
             <i class="fas fa-chevron-down"></i>
           </button>
           <div v-if="showAddDropdown" class="dropdown-menu">
             <div class="dropdown-section">
               <h6>List Style</h6>
-              <button @click="addNode('decimal')" class="dropdown-item">
+              <button @click="addNodeWithStyle('decimal')" class="dropdown-item" :class="{ 'dropdown-item--active': lastUsedStyle === 'decimal' }">
                 <span class="preview">1. 2. 3.</span> Numbered List
               </button>
-              <button @click="addNode('lower-alpha')" class="dropdown-item">
+              <button @click="addNodeWithStyle('lower-alpha')" class="dropdown-item" :class="{ 'dropdown-item--active': lastUsedStyle === 'lower-alpha' }">
                 <span class="preview">a. b. c.</span> Alphabetic List
               </button>
-              <button @click="addNode('lower-roman')" class="dropdown-item">
+              <button @click="addNodeWithStyle('lower-roman')" class="dropdown-item" :class="{ 'dropdown-item--active': lastUsedStyle === 'lower-roman' }">
                 <span class="preview">i. ii. iii.</span> Roman List
               </button>
-              <button @click="addNode('bullet')" class="dropdown-item">
+              <button @click="addNodeWithStyle('bullet')" class="dropdown-item" :class="{ 'dropdown-item--active': lastUsedStyle === 'bullet' }">
                 <span class="preview">• • •</span> Bullet List
               </button>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Other Controls -->
-        <button @click="sortByDate" class="btn btn-secondary">
-          <i class="fas fa-sort"></i> Sort by Date
+      <!-- Fullscreen toggle (right side) -->
+      <div class="toolbar-section toolbar-section-right">
+        <button
+          type="button"
+          class="btn btn-ghost fullscreen-btn"
+          @click="isFullscreen = !isFullscreen"
+          :title="isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen editor'"
+        >
+          {{ isFullscreen ? '✕ Exit' : '⤢ Fullscreen' }}
         </button>
+      </div>
+    </div>
+
+    <!-- Global formatting bar: @mousedown.prevent keeps focus in the active node's contenteditable
+         so execCommand targets the current text selection without any cross-component wiring. -->
+    <div v-if="!readonly" class="global-format-bar">
+      <div class="gfb-group">
+        <button @mousedown.prevent="gfbExec('bold')" class="gfb-btn" title="Bold (Ctrl+B)"><strong>B</strong></button>
+        <button @mousedown.prevent="gfbExec('italic')" class="gfb-btn" title="Italic (Ctrl+I)"><em>I</em></button>
+        <button @mousedown.prevent="gfbExec('underline')" class="gfb-btn" title="Underline (Ctrl+U)"><u>U</u></button>
+      </div>
+      <div class="gfb-divider"></div>
+      <div class="gfb-group gfb-size-group">
+        <select
+          v-model="gfbFontPreset"
+          class="gfb-select"
+          title="Preset sizes"
+          @mousedown="saveCurrentSelection"
+          @change="onGfbFontPresetChange"
+        >
+          <option value="" disabled>Size</option>
+          <option value="1">8pt</option>
+          <option value="2">10pt</option>
+          <option value="3">12pt</option>
+          <option value="4">14pt</option>
+          <option value="5">16pt</option>
+          <option value="6">18pt</option>
+          <option value="7">24pt</option>
+        </select>
+        <div class="gfb-custom-pt" title="Exact size (pt) — applies as you type">
+          <input
+            v-model.number="gfbCustomPt"
+            type="number"
+            min="6"
+            max="96"
+            step="0.5"
+            class="gfb-pt-input"
+            @mousedown.stop
+            @click.stop
+            @input="scheduleGfbCustomPtApply"
+            @change="gfbApplyCustomPt"
+            @blur="gfbApplyCustomPt"
+          >
+        </div>
+      </div>
+      <div class="gfb-divider"></div>
+      <div class="gfb-group">
+        <label class="gfb-color-wrap" title="Text colour">
+          <span class="gfb-color-icon" :style="{ color: gfbFgColor }">A</span>
+          <input type="color" :value="gfbFgColor" @input="gfbApplyFg($event.target.value)" class="gfb-color-input">
+        </label>
+        <label class="gfb-color-wrap" title="Highlight colour">
+          <span class="gfb-color-icon gfb-bg-icon" :style="{ backgroundColor: gfbBgColor }">A</span>
+          <input type="color" :value="gfbBgColor" @input="gfbApplyBg($event.target.value)" class="gfb-color-input">
+        </label>
+      </div>
+      <div class="gfb-divider"></div>
+      <div class="gfb-group">
+        <button @mousedown.prevent="gfbExec('justifyLeft')" class="gfb-btn" title="Align left">&#8676;</button>
+        <button @mousedown.prevent="gfbExec('justifyCenter')" class="gfb-btn" title="Align centre">&#8633;</button>
+        <button @mousedown.prevent="gfbExec('justifyRight')" class="gfb-btn" title="Align right">&#8677;</button>
+      </div>
+      <div class="gfb-divider"></div>
+      <div class="gfb-group">
+        <button @mousedown.prevent="gfbExec('insertUnorderedList')" class="gfb-btn" title="Bullet list — Enter to add item, double-Enter to exit list">&#8226; list</button>
+        <button @mousedown.prevent="gfbExec('insertOrderedList')" class="gfb-btn" title="Numbered list — Enter to add item, double-Enter to exit list">1. list</button>
       </div>
     </div>
 
@@ -87,12 +162,9 @@
       <p v-else>No action items to display</p>
     </div>
 
-    <!-- Changes Indicator -->
+    <!-- Changes Indicator: which action pointers differ from last load (in-memory baseline). -->
     <div class="editor-footer" v-if="hasChanges && !readonly">
-      <div class="changes-indicator">
-        <i class="fas fa-exclamation-triangle"></i>
-        You have unsaved changes
-      </div>
+      <UnsavedNodeChangesBanner :summary="unsavedNodeChangeSummary" />
     </div>
 
 
@@ -101,13 +173,17 @@
 
 <script>
 import NewEnhancedNodeItem from './NewEnhancedNodeItem.vue'
+import UnsavedNodeChangesBanner from './UnsavedNodeChangesBanner.vue'
 import { PACK_HIGHLIGHT_MODE } from '@/utils/meetingPackHighlightFilter'
+import { summarizeUnsavedNodeChanges, nodeContentFingerprint } from '@/utils/actionNodeChangeSummary'
+import { legacyFontPresetKeyToPt } from '@/utils/execCommandFontSizePresets'
 
 export default {
   name: 'NewEnhancedNodeEditor',
 
   components: {
-    NewEnhancedNodeItem
+    NewEnhancedNodeItem,
+    UnsavedNodeChangesBanner
   },
 
   props: {
@@ -178,9 +254,19 @@ export default {
     return {
       nodes: [],
       hasChanges: false,
+      /** Persisted node id (string) → JSON.stringify(nodeContentFingerprint) at last initializeNodes — not sent to API. */
+      baselineById: {},
       nextTempId: -1,
       showAddDropdown: false,
-      contextMenuOpen: false
+      contextMenuOpen: false,
+      isFullscreen: false,
+      gfbFgColor: '#000000',
+      gfbBgColor: '#ffff00',
+      gfbFontPreset: '',
+      gfbCustomPt: 10,
+      gfbCustomPtDebounceTimer: null,
+      lastUsedStyle: 'decimal',
+      savedSelection: null
     }
   },
 
@@ -191,6 +277,19 @@ export default {
 
   beforeDestroy() {
     document.removeEventListener('click', this.handleClickOutside)
+    clearTimeout(this.gfbCustomPtDebounceTimer)
+  },
+
+  computed: {
+    lastUsedStyleLabel () {
+      const map = { decimal: 'numbered', 'lower-alpha': 'alphabetic', 'lower-roman': 'roman', bullet: 'bullet' }
+      return map[this.lastUsedStyle] || 'numbered'
+    },
+
+    unsavedNodeChangeSummary () {
+      if (!this.hasChanges) return null
+      return summarizeUnsavedNodeChanges(this.flattenNodes(this.nodes), this.baselineById)
+    }
   },
 
   watch: {
@@ -211,6 +310,19 @@ export default {
         this.nodes = []
       }
       this.hasChanges = false
+      this.captureBaselineFromCurrentTree()
+    },
+
+    /** In-memory snapshot for unsaved-summary only; cleared when props reload or user saves (parent refresh). */
+    captureBaselineFromCurrentTree () {
+      const next = {}
+      this.flattenNodes(this.nodes).forEach((n) => {
+        const idNum = Number(n.id)
+        if (idNum > 0) {
+          next[String(n.id)] = JSON.stringify(nodeContentFingerprint(n))
+        }
+      })
+      this.baselineById = next
     },
 
     /**
@@ -281,10 +393,124 @@ export default {
       this.showAddDropdown = !this.showAddDropdown
     },
 
+    addNodeWithStyle (style) {
+      this.lastUsedStyle = style
+      this.showAddDropdown = false
+      this.addNode(style)
+    },
+
     handleClickOutside(event) {
       if (this.$refs.addDropdown && !this.$refs.addDropdown.contains(event.target)) {
         this.showAddDropdown = false
       }
+    },
+
+    // ── Global format bar helpers ────────────────────────────────────────────
+    // execCommand targets whatever contenteditable currently has the selection;
+    // @mousedown.prevent on every button keeps that focus alive.
+    
+    /** 
+     * CRITICAL FIX: Save selection before clicking <select> dropdown.
+     * Browser clears selection when dropdown opens; we restore it before applying format.
+     */
+    saveCurrentSelection () {
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0) {
+        this.savedSelection = sel.getRangeAt(0).cloneRange()
+      }
+    },
+    
+    restoreSavedSelection () {
+      if (!this.savedSelection) return false
+      try {
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(this.savedSelection)
+        return true
+      } catch (e) {
+        console.warn('Failed to restore selection:', e)
+        return false
+      }
+    },
+    
+    gfbExec (command, value) {
+      document.execCommand(command, false, value || null)
+    },
+    gfbApplyFg (color) {
+      this.gfbFgColor = color
+      document.execCommand('foreColor', false, color)
+    },
+    gfbApplyBg (color) {
+      this.gfbBgColor = color
+      document.execCommand('hiliteColor', false, color)
+    },
+
+    onGfbFontPresetChange () {
+      const v = this.gfbFontPreset
+      if (v == null || v === '') return
+      
+      // Restore selection that was lost when dropdown opened
+      this.restoreSavedSelection()
+      
+      const pt = legacyFontPresetKeyToPt(v)
+      if (pt != null) this.gfbCustomPt = pt
+      
+      // Apply the font size
+      document.execCommand('fontSize', false, String(v))
+      
+      // CRITICAL: Reset to empty so same value can be clicked again
+      this.$nextTick(() => {
+        this.gfbFontPreset = ''
+      })
+      
+      // Trigger input event on active contenteditable to ensure change detection
+      const active = document.activeElement
+      if (active && active.getAttribute && active.getAttribute('contenteditable') === 'true') {
+        active.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    },
+
+    scheduleGfbCustomPtApply () {
+      clearTimeout(this.gfbCustomPtDebounceTimer)
+      this.gfbCustomPtDebounceTimer = setTimeout(() => {
+        this.gfbApplyCustomPt()
+      }, 280)
+    },
+
+    /** Exact pt size (Word-like); selection must be in a contenteditable. */
+    gfbApplyCustomPt () {
+      let pt = parseFloat(this.gfbCustomPt)
+      if (!Number.isFinite(pt)) return
+      pt = Math.min(96, Math.max(6, pt))
+      this.gfbCustomPt = pt
+      if (!this.applyFontSizePtToSelection(pt)) {
+        return
+      }
+      const active = document.activeElement
+      if (active && active.getAttribute && active.getAttribute('contenteditable') === 'true') {
+        active.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    },
+
+    applyFontSizePtToSelection (pt) {
+      const sel = window.getSelection()
+      if (!sel || !sel.rangeCount) return false
+      const range = sel.getRangeAt(0)
+      if (range.collapsed) return false
+      const span = document.createElement('span')
+      span.style.fontSize = pt + 'pt'
+      try {
+        range.surroundContents(span)
+      } catch (e) {
+        span.appendChild(range.extractContents())
+        range.insertNode(span)
+      }
+      sel.removeAllRanges()
+      const nr = document.createRange()
+      nr.selectNodeContents(span)
+      nr.collapse(false)
+      sel.addRange(nr)
+      return true
     },
 
     addNode(listStyle = 'decimal') {
@@ -1057,23 +1283,46 @@ export default {
 </script>
 
 <style scoped>
+/* ─── Phase 6: Design tokens ──────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
 .enhanced-node-editor {
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 1.25rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 252, 248, 0.95) 100%);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgba(249, 115, 22, 0.09), 0 2px 8px rgba(15, 23, 42, 0.04);
+  /* Design tokens — consumed by all child rules via var(--ed-*) */
+  --ed-bg: #f9fafb;
+  --ed-card-bg: #ffffff;
+  --ed-text: #111827;
+  --ed-text-muted: #6b7280;
+  --ed-accent: #1e40af;
+  --ed-accent-gold: #c6a059;
+  --ed-border: #e5e7eb;
+  --ed-badge-date-bg: #fef3c7;
+  --ed-badge-date-text: #92400e;
+  --ed-badge-rev-bg: #e0f2fe;
+  --ed-badge-rev-text: #1e3a8a;
+  --ed-radius: 12px;
+  --ed-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  font-family: var(--ed-font);
+  background: var(--ed-card-bg);
+  border: 1px solid var(--ed-border);
+  border-radius: var(--ed-radius);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
   overflow: hidden;
+  color: var(--ed-text);
 }
 
 .editor-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.85rem 1.2rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.75);
-  color: #1e293b;
+  padding: 0.65rem 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--ed-border);
+  color: var(--ed-text);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .toolbar-section {
@@ -1084,10 +1333,10 @@ export default {
 
 .toolbar-section h4 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #0f172a;
+  color: var(--ed-accent);
 }
 
 .dropdown {
@@ -1160,27 +1409,28 @@ export default {
 }
 
 .btn {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.875rem;
   border: none;
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  background: #06b6d4;
   color: #fff;
-  border: 1px solid #4338ca;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+  border: 1px solid #06b6d4;
+  box-shadow: 0 1px 3px rgba(6, 182, 212, 0.2);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.05);
+  background: #0891b2;
+  border-color: #0891b2;
 }
 
 .btn-secondary {
@@ -1202,6 +1452,8 @@ export default {
   transition: max-height 0.3s ease;
   position: relative;
   scroll-behavior: smooth;
+  background: #ffffff;
+  padding: 0.35rem 0.5rem 0.6rem;
 }
 
 /* Dynamic height adjustment when context menu is open */
@@ -1211,64 +1463,56 @@ export default {
   z-index: 1;
 }
 
-/* Ensure proper scrolling with context menu */
+/* Thin, neutral scrollbar */
 .nodes-container::-webkit-scrollbar {
-  width: 8px;
+  width: 5px;
 }
 
 .nodes-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
 }
 
 .nodes-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: var(--ed-border);
+  border-radius: 999px;
 }
 
 .nodes-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #94a3b8;
 }
 
 .empty-state {
   padding: 3rem 1.5rem;
   text-align: center;
-  color: #64748b;
-  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  color: var(--ed-text-muted);
+  background: var(--ed-bg);
 }
 
 .empty-icon {
   font-size: 2.5rem;
   margin-bottom: 0.75rem;
-  color: #cbd5e1;
+  color: var(--ed-accent);
+  opacity: 0.4;
 }
 
 .empty-state h5 {
   margin: 0 0 0.35rem 0;
-  color: #334155;
-  font-size: 1.05rem;
+  color: var(--ed-text);
+  font-size: 1rem;
   font-weight: 700;
 }
 
 .empty-state p {
   margin: 0;
   font-size: 0.8125rem;
-  line-height: 1.45;
+  line-height: 1.5;
+  color: var(--ed-text-muted);
 }
 
 .editor-footer {
-  padding: 0.85rem 1.15rem;
-  background: linear-gradient(90deg, #fff7ed 0%, #fffbeb 100%);
-  border-top: 1px solid #fed7aa;
-}
-
-.changes-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #c2410c;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  padding: 0.55rem 1.15rem 0.65rem;
+  background: var(--ed-bg);
+  border-top: 1px solid var(--ed-border);
 }
 
 /* Table Creator Modal */
@@ -1369,4 +1613,199 @@ export default {
   font-size: 0.75rem;
   cursor: pointer;
 }
+
+/* ── Phase 2: Fullscreen toggle ──────────────────────────────────────── */
+.toolbar-section-right {
+  margin-left: auto;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ed-border);
+  color: var(--ed-text-muted);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: var(--ed-font);
+  transition: background 0.15s, color 0.15s;
+}
+.btn-ghost:hover {
+  background: var(--ed-bg);
+  color: var(--ed-text);
+}
+.editor-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10200;
+  background: var(--ed-bg);
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+}
+.editor-fullscreen .nodes-container {
+  max-height: calc(100vh - 110px) !important;
+  flex: 1;
+}
+
+/* ── Phase 7: Global formatting bar ──────────────────────────────────── */
+.global-format-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0.35rem 0.75rem;
+  background: var(--ed-card-bg);
+  border-bottom: 1px solid var(--ed-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.gfb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.gfb-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--ed-border);
+  margin: 0 6px;
+}
+.gfb-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--ed-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.gfb-btn:hover {
+  background: var(--ed-bg);
+  color: var(--ed-text);
+  border-color: var(--ed-border);
+}
+.gfb-btn:active {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: var(--ed-accent);
+}
+.gfb-select {
+  height: 28px;
+  font-size: 0.75rem;
+  border: 1px solid var(--ed-border);
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--ed-card-bg);
+  color: var(--ed-text);
+  cursor: pointer;
+  font-family: var(--ed-font);
+  transition: border-color 0.15s;
+}
+.gfb-select:hover {
+  border-color: #94a3b8;
+}
+/* Color picker pill -- same pattern as InlineNodeEditor.vue .ine-color-input */
+.gfb-color-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  background: #fff;
+}
+.gfb-color-wrap:hover {
+  border-color: #94a3b8;
+}
+.gfb-color-icon {
+  font-weight: 700;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1;
+  line-height: 1;
+}
+.gfb-bg-icon {
+  border-radius: 2px;
+  padding: 1px 3px;
+}
+.gfb-color-input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  border: none;
+  padding: 0;
+}
+/* In fullscreen mode, format bar sticks just below the top toolbar */
+.editor-fullscreen .global-format-bar {
+  flex-shrink: 0;
+}
+.editor-fullscreen .nodes-container {
+  max-height: calc(100vh - 150px) !important;
+}
+
+/* ── Phase 4L: Split Add-Item button ────────────────────────────────────── */
+.split-btn-wrap {
+  display: flex;
+  align-items: stretch;
+}
+.split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 1px solid rgba(255,255,255,0.3);
+}
+.split-arrow {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 0 0.5rem;
+  min-width: 0;
+}
+.dropdown-item--active {
+  font-weight: 600;
+  color: var(--ed-accent);
+  background: #f0fdf4;
+}
+
+.gfb-size-group {
+  align-items: center;
+  gap: 6px;
+}
+.gfb-custom-pt {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--ed-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ed-card-bg);
+}
+.gfb-pt-input {
+  width: 48px;
+  border: none;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--ed-text);
+  font-family: var(--ed-font);
+}
+.gfb-pt-input:focus { outline: none; background: var(--ed-bg); }
 </style> 

@@ -1040,11 +1040,10 @@ export default {
 
 <style scoped>
 .enhanced-node-editor {
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 1.25rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 252, 248, 0.95) 100%);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgba(249, 115, 22, 0.09), 0 2px 8px rgba(15, 23, 42, 0.04);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
   overflow: hidden;
 }
 
@@ -1053,9 +1052,13 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0.85rem 1.2rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.75);
-  color: #1e293b;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .toolbar-section {
@@ -1069,7 +1072,7 @@ export default {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #0f172a;
+  color: #111827;
 }
 
 .dropdown {
@@ -1091,10 +1094,10 @@ export default {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
   margin-top: 0.5rem;
   padding: 0.5rem 0;
-  color: #374151;
+  color: #111827;
 }
 
 .dropdown-section {
@@ -1115,17 +1118,19 @@ export default {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 1rem;
   border: none;
   background: none;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease-in-out;
   gap: 0.75rem;
+  color: #111827;
+  font-size: 0.875rem;
 }
 
 .dropdown-item:hover {
-  background-color: #f3f4f6;
+  background-color: #f9fafb;
 }
 
 .dropdown-item .preview {
@@ -1142,48 +1147,51 @@ export default {
 }
 
 .btn {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.875rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  background: #06b6d4;
   color: #fff;
-  border: 1px solid #4338ca;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+  border: 1px solid #06b6d4;
+  box-shadow: 0 1px 3px rgba(6, 182, 212, 0.15);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.05);
+  background: #0891b2;
+  border-color: #0891b2;
 }
 
 .btn-secondary {
-  background: #fff;
-  color: #475569;
-  border: 1px solid #e2e8f0;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
 }
 
 .btn-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
 }
 
 .nodes-container {
   
   max-height: 600px;
   overflow-y: auto;
-  transition: max-height 0.3s ease;
+  transition: max-height 0.3s ease-in-out;
   position: relative;
   scroll-behavior: smooth;
+  padding: 1rem;
+  background: #ffffff;
 }
 
 /* Dynamic height adjustment when context menu is open */
@@ -1215,19 +1223,19 @@ export default {
 .empty-state {
   padding: 3rem 1.5rem;
   text-align: center;
-  color: #64748b;
-  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  color: #6b7280;
+  background: #ffffff;
 }
 
 .empty-icon {
   font-size: 2.5rem;
   margin-bottom: 0.75rem;
-  color: #cbd5e1;
+  color: #d1d5db;
 }
 
 .empty-state h5 {
   margin: 0 0 0.35rem 0;
-  color: #334155;
+  color: #111827;
   font-size: 1.05rem;
   font-weight: 700;
 }
@@ -1236,19 +1244,20 @@ export default {
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.45;
+  color: #6b7280;
 }
 
 .editor-footer {
   padding: 0.85rem 1.15rem;
-  background: linear-gradient(90deg, #fff7ed 0%, #fffbeb 100%);
-  border-top: 1px solid #fed7aa;
+  background: #fef3c7;
+  border-top: 1px solid #fcd34d;
 }
 
 .changes-indicator {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #c2410c;
+  color: #92400e;
   font-size: 0.8125rem;
   font-weight: 600;
 }

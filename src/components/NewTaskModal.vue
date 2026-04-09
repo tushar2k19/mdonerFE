@@ -1,134 +1,198 @@
 <template>
   <div class="modal-overlay new-task-modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
+    <div
+      class="modal-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-task-modal-title"
+    >
       <div class="modal-header">
-        <h3>{{ mode === 'add' ? 'Add Task' : 'Edit Task' }}</h3>
-        <button class="btn-close" @click="$emit('close')">&times;</button>
+        <h3 id="new-task-modal-title">{{ mode === 'add' ? 'Add Task' : 'Edit Task' }}</h3>
+        <button class="btn-close" aria-label="Close dialog" @click="$emit('close')">&times;</button>
+      </div>
+
+      <div class="modal-stepper" role="tablist" aria-label="Task form sections">
+        <button
+          id="task-meta-tab"
+          type="button"
+          class="step-btn"
+          :class="{ active: modalStep === 'meta' }"
+          role="tab"
+          :aria-selected="modalStep === 'meta' ? 'true' : 'false'"
+          aria-controls="task-meta-panel"
+          @click="modalStep = 'meta'"
+        >
+          <span class="step-pill">1</span>
+          Task Details
+        </button>
+        <button
+          id="task-action-tab"
+          type="button"
+          class="step-btn"
+          :class="{ active: modalStep === 'action' }"
+          role="tab"
+          :aria-selected="modalStep === 'action' ? 'true' : 'false'"
+          aria-controls="task-action-panel"
+          @click="modalStep = 'action'"
+        >
+          <span class="step-pill">2</span>
+          Action to be Taken
+        </button>
       </div>
 
       <div class="modal-body">
-        <div class="form-group">
-          <label>Sector/Division</label>
-          <input
-            v-model="formData.sector_division"
-            type="text"
-            class="form-control"
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Description</label>
-          <input
-            v-model="formData.description"
-            type="text"
-            class="form-control"
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Responsibility</label>
-          <input
-            v-model="formData.responsibility"
-            type="text"
-            class="form-control"
-          >
-        </div>
-
-        <!-- Phase 1: Simple tag add/remove (no dropdown yet) - placed below Responsibility -->
-        <div class="form-group" ref="tagField">
-          <label>Tags</label>
-
-          <!-- Add-by-name input (placed first) -->
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <section
+          v-show="modalStep === 'meta'"
+          id="task-meta-panel"
+          class="modal-panel"
+          role="tabpanel"
+          aria-labelledby="task-meta-tab"
+        >
+          <div class="form-group">
+            <label>Sector/Division</label>
             <input
-              v-model="newTagName"
+              v-model="formData.sector_division"
               type="text"
               class="form-control"
-              placeholder="Type a tag and click Add"
-              style="max-width:320px;"
-              @focus="openTagDropdown"
-              @click="openTagDropdown"
-              @input="openTagDropdown"
             >
-            <button class="btn" @click="addTagByName" style="background:#1e3a8a;color:white;">Add</button>
           </div>
 
-          <!-- Tag suggestions dropdown (Task 1) -->
-          <div v-if="showTagDropdown" class="tag-suggest-dropdown">
-            <div v-if="isLoadingTags" class="tag-suggest-empty">Loading tags…</div>
-            <!-- Show first 20 tags for now (sorting and filtering come in later tasks) -->
-            <div v-else-if="filteredTagSuggestions && filteredTagSuggestions.length" class="tag-suggest-list">
-              <button
-                v-for="t in filteredTagSuggestions"
-                :key="t.id"
-                class="tag-suggest-item"
-                :class="{ selected: isTagSelected(t.id) }"
-                :disabled="isTagSelected(t.id)"
-                @click.prevent="!isTagSelected(t.id) && selectExistingTag(t)"
-              >
-                {{ t.name }}
-              </button>
-            </div>
-            <div v-else class="tag-suggest-empty">
-              No matching tags. Use Add to create "{{ newTagName }}".
-            </div>
-          </div>
-
-          <!-- Selected tag chips (now below the input) -->
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <span
-              v-for="tag in selectedTags"
-              :key="tag.id"
-              style="background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:12px;padding:2px 8px;font-size:12px;display:inline-flex;align-items:center;gap:6px;"
+          <div class="form-group">
+            <label>Description</label>
+            <input
+              v-model="formData.description"
+              type="text"
+              class="form-control"
             >
-              {{ tag.name }}
-              <button
-                @click.prevent="removeTag(tag.id)"
-                title="Remove"
-                style="background:transparent;border:none;color:#1e40af;cursor:pointer;font-weight:bold;"
-              >
-                ×
-              </button>
-            </span>
           </div>
 
-          <small style="color:#6b7280;">Add multiple tags by repeating Add. Use × to remove.</small>
-        </div>
+          <div class="form-group">
+            <label>Responsibility</label>
+            <input
+              v-model="formData.responsibility"
+              type="text"
+              class="form-control"
+            >
+          </div>
 
-        <div class="form-group">
-          <label>Review Date</label>
-          <datepicker
-            v-model="formData.review_date"
-            class="custom-datepicker"
-            :calendar-class="'calendar-wrapper'"
-            :input-class="'datepicker-input'"
-            :monday-first="true"
-            format="dd MMM yyyy"
-          ></datepicker>
-        </div>
+          <!-- Phase 1: Simple tag add/remove (no dropdown yet) - placed below Responsibility -->
+          <div class="form-group" ref="tagField">
+            <label>Tags</label>
 
-        <div class="form-group">
-          <label>Action to be Taken</label>
-          <!-- <editor
-            :api-key="apiKey"
-            :init="editorConfig"
-            v-model="formData.action_to_be_taken" -->
+            <!-- Add-by-name input (placed first) -->
+            <div class="tag-input-row">
+              <input
+                v-model="newTagName"
+                type="text"
+                class="form-control"
+                placeholder="Type a tag and click Add"
+                @focus="openTagDropdown"
+                @click="openTagDropdown"
+                @input="openTagDropdown"
+              >
+              <button class="btn btn-primary" type="button" @click="addTagByName">Add</button>
+            </div>
 
-          <NewEnhancedNodeEditor
-            :task-version-id="taskVersionId"
-            :meeting-draft-task-id="meetingDraftTaskIdForEditor"
-            :initial-nodes="actionNodes"
-            :meeting-editor-overlay="meetingEditorOverlay"
-            :meeting-pack-highlight-mode="packHighlightMode"
-            @nodes-changed="onNodesChanged"
-          />
-        </div>
+            <!-- Tag suggestions dropdown (Task 1) -->
+            <div v-if="showTagDropdown" class="tag-suggest-dropdown">
+              <div v-if="isLoadingTags" class="tag-suggest-empty">Loading tags…</div>
+              <!-- Show first 20 tags for now (sorting and filtering come in later tasks) -->
+              <div v-else-if="filteredTagSuggestions && filteredTagSuggestions.length" class="tag-suggest-list">
+                <button
+                  v-for="t in filteredTagSuggestions"
+                  :key="t.id"
+                  class="tag-suggest-item"
+                  :class="{ selected: isTagSelected(t.id) }"
+                  :disabled="isTagSelected(t.id)"
+                  @click.prevent="!isTagSelected(t.id) && selectExistingTag(t)"
+                >
+                  {{ t.name }}
+                </button>
+              </div>
+              <div v-else class="tag-suggest-empty">
+                No matching tags. Use Add to create "{{ newTagName }}".
+              </div>
+            </div>
+
+            <!-- Selected tag chips (now below the input) -->
+            <div class="tag-chip-wrap">
+              <span
+                v-for="tag in selectedTags"
+                :key="tag.id"
+                class="tag-chip"
+              >
+                {{ tag.name }}
+                <button
+                  class="tag-chip-remove"
+                  @click.prevent="removeTag(tag.id)"
+                  title="Remove"
+                  type="button"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+
+            <small class="form-help-text">Add multiple tags by repeating Add. Use × to remove.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Review Date</label>
+            <datepicker
+              v-model="formData.review_date"
+              class="custom-datepicker"
+              :calendar-class="'calendar-wrapper'"
+              :input-class="'datepicker-input'"
+              :monday-first="true"
+              format="dd MMM yyyy"
+            ></datepicker>
+          </div>
+        </section>
+
+        <section
+          v-show="modalStep === 'action'"
+          id="task-action-panel"
+          class="modal-panel modal-panel-editor"
+          role="tabpanel"
+          aria-labelledby="task-action-tab"
+        >
+          <div class="action-editor-shell">
+            <NewEnhancedNodeEditor
+              :task-version-id="taskVersionId"
+              :meeting-draft-task-id="meetingDraftTaskIdForEditor"
+              :initial-nodes="actionNodes"
+              :meeting-editor-overlay="meetingEditorOverlay"
+              :meeting-pack-highlight-mode="packHighlightMode"
+              @nodes-changed="onNodesChanged"
+            />
+          </div>
+        </section>
 
       </div>
 
       <div class="modal-footer">
-        <button @click="$emit('close')" class="btn">Cancel</button>
-        <button @click="saveTask" class="btn btn-primary">Save</button>
+        <div class="modal-footer-left">
+          <button
+            v-if="modalStep === 'action'"
+            type="button"
+            class="btn btn-secondary"
+            @click="modalStep = 'meta'"
+          >
+            Back
+          </button>
+          <button
+            v-if="modalStep === 'meta'"
+            type="button"
+            class="btn btn-primary"
+            @click="modalStep = 'action'"
+          >
+            Next
+          </button>
+        </div>
+        <div class="modal-footer-right">
+          <button @click="$emit('close')" class="btn btn-ghost">Cancel</button>
+          <button @click="saveTask" class="btn btn-primary">Save</button>
+        </div>
       </div>
     </div>
 
@@ -202,6 +266,7 @@ export default {
       isTagsLoaded: false,
       showTagDropdown: false,
       isLoadingTags: false,
+      modalStep: 'meta',
       tagSearch: '',
       meetingEditorOverlay: {},
       oldEditorConfig: {
@@ -734,10 +799,12 @@ export default {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
 .custom-datepicker {
   position: relative;
 
-  color: #1a1a1a;
+  color: #111827;
 }
 
 .modal-overlay {
@@ -755,26 +822,28 @@ export default {
 }
 
 .modal-content {
-  background: white;
-  border-radius: 16px;
-  width: 92%;
-  max-width: 1650px;
+  background: #ffffff;
+  border-radius: 12px;
+  width: 94%;
+  max-width: 1600px;
   height: 90vh;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  animation: slideIn 0.3s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  animation: slideIn 0.25s ease;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .modal-header {
-  background: rgba(0, 128, 128, 0.16);
-  padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #040548;
   font-weight: 700;
   flex-shrink: 0;
   position: sticky;
@@ -784,52 +853,133 @@ export default {
 
 .modal-header h3 {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 800;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e40af;
+  letter-spacing: -0.01em;
+}
+
+.modal-stepper {
+  padding: 0.7rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.step-btn {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #6b7280;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.step-btn:hover {
+  background: #f3f4f6;
+  border-color: #1e40af;
+  color: #1e40af;
+}
+
+.step-btn.active {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #ffffff;
+}
+
+.step-pill {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1e40af;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.step-btn.active .step-pill {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 .modal-body {
-  padding: 1.5rem;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 70, 128, 0.05),
-    rgba(0, 54, 102, 0.02)
-  );
+  padding: 1rem 1.25rem 0.75rem;
+  background: #f9fafb;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
 .modal-footer {
-  padding: 1rem;
-  border-top: 1px solid #e5e7eb;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
   display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  background: white;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
   flex-shrink: 0;
 }
 
+.modal-footer-left,
+.modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.modal-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.modal-panel-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(90vh - 295px);
+}
+
+.action-editor-shell {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.4rem;
+  background: #ffffff;
+}
+
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.1rem;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
-  color: #374151;
-  font-weight: 500;
-  font-size: 0.95rem;
+  margin-bottom: 0.45rem;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .form-control {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid rgba(0, 70, 128, 0.2);
-  border-radius: 8px;
-  font-size: 0.95rem;
-  color: #1f2937;
-  transition: all 0.2s ease;
+  padding: 0.68rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #111827;
+  transition: all 0.2s ease-in-out;
   background: white;
   position: relative;
   z-index: 1;
@@ -837,30 +987,50 @@ export default {
 
 .form-control:focus {
   outline: none;
-  border-color: #004680;
-  box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1);
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
 }
 
 .btn {
-  padding: 0.675rem 1.5rem;
+  padding: 0.62rem 1.2rem;
   border-radius: 8px;
-  font-weight: 500;
-  font-size: 0.925rem;
+  font-weight: 600;
+  font-size: 0.88rem;
   transition: all 0.2s ease;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
 }
 
 .btn-primary {
-  background: #004680;
+  background: #06b6d4;
   color: white;
-  box-shadow: 0 2px 4px rgba(0, 70, 128, 0.2);
+  border-color: #06b6d4;
+  box-shadow: 0 1px 3px rgba(6, 182, 212, 0.15);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #003666;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(0, 70, 128, 0.3);
+  background: #0891b2;
+  border-color: #0891b2;
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: #2d6a4f;
+  border-color: #c6a059;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #fef9ee;
+}
+
+.btn-ghost {
+  background: #ffffff;
+  color: #334155;
+  border-color: #dbe4f0;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #f8fafc;
 }
 
 .btn-primary:disabled {
@@ -869,25 +1039,66 @@ export default {
 }
 
 .btn-close {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: black;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
   width: 32px;
   height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition: all 0.2s ease-in-out;
 }
 
 .btn-close:hover {
-  background: black;
-  color: white;
-  transform: rotate(90deg);
+  background: #f3f4f6;
+  color: #111827;
+  border-color: #d1d5db;
+}
+
+.tag-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.5rem;
+}
+
+.tag-input-row .form-control {
+  max-width: 360px;
+}
+
+.tag-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag-chip {
+  background: #eef2ff;
+  color: #1e40af;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.76rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tag-chip-remove {
+  background: transparent;
+  border: none;
+  color: #1e40af;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.form-help-text {
+  color: #6b7280;
+  font-size: 0.75rem;
 }
 
 /* Date picker customization */
@@ -903,13 +1114,15 @@ export default {
 }
 
 .modal-body::-webkit-scrollbar-track {
-  background: rgba(0, 70, 128, 0.05);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .modal-body::-webkit-scrollbar-thumb {
-  background: #004680;
-  border-radius: 3px;
+  background: #d1d5db;
+  border-radius: 999px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 @keyframes slideIn {
@@ -923,16 +1136,6 @@ export default {
   }
 }
 
-/* Styles for TinyMCE */
-:deep(.tox-tinymce) {
-  border-radius: 8px !important;
-  border-color: rgba(0, 70, 128, 0.2) !important;
-}
-
-:deep(.tox-tinymce:focus-within) {
-  border-color: #004680 !important;
-  box-shadow: 0 0 0 3px rgba(0, 70, 128, 0.1) !important;
-}
 
 .tag-suggest-dropdown {
   position: relative;
@@ -975,6 +1178,69 @@ export default {
   color: #9ca3af;
   background: #fafafa;
   cursor: not-allowed;
+}
+
+/* Deep overrides: align embedded editor with modern blue/cyan tokens */
+:deep(.enhanced-node-editor) {
+  border-color: #e5e7eb;
+}
+
+:deep(.enhanced-node-editor .editor-toolbar) {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+:deep(.enhanced-node-editor .nodes-container) {
+  background: #ffffff;
+}
+
+:deep(.enhanced-node-editor .btn.btn-primary) {
+  background: #06b6d4;
+  border-color: #06b6d4;
+  color: #fff;
+}
+
+:deep(.enhanced-node-editor .btn.btn-secondary) {
+  background: #ffffff;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+:deep(.enhanced-node-item .action-btn) {
+  border: 1px solid #e5e7eb;
+  background: transparent;
+  color: #64748b;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+:deep(.enhanced-node-item .action-btn:hover) {
+  background: #f9fafb;
+  color: #111827;
+}
+
+:deep(.enhanced-node-item .action-menu),
+:deep(.enhanced-node-editor .dropdown-menu) {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 900px) {
+  .modal-content {
+    width: 97%;
+    height: 94vh;
+  }
+
+  .modal-stepper {
+    flex-wrap: wrap;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }
 </style>
 
@@ -1022,5 +1288,23 @@ export default {
 .new-task-modal-overlay .enhanced-node-item.has-reviewer.meeting-hub-blue > .node-content {
   background-color: transparent !important;
   border-color: transparent !important;
+}
+
+/* Keep modal/editor clipping sane so fullscreen and inner scroll remain functional. */
+.new-task-modal-overlay .modal-content {
+  overflow: hidden !important;
+}
+.new-task-modal-overlay .modal-panel-editor,
+.new-task-modal-overlay .action-editor-shell {
+  overflow: hidden !important;
+}
+/* Non-fullscreen editor scroll area stays internal. */
+.new-task-modal-overlay .enhanced-node-editor:not(.editor-fullscreen) .nodes-container {
+  max-height: 600px !important;
+  overflow-y: auto !important;
+  overflow-x: visible !important;
+}
+.new-task-modal-overlay .enhanced-node-editor:not(.editor-fullscreen) .nodes-container.context-menu-open {
+  max-height: 800px !important;
 }
 </style>

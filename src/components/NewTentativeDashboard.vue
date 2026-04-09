@@ -179,6 +179,31 @@
                 @input="onTentativePackHighlightSelect"
               />
             </div>
+
+            <div
+              v-if="showMeetingDashboardBar && latestPublishedVersionId && assignmentReviewerOptions.length"
+              class="filter-section filter-section--assigned-reviewer"
+            >
+              <div class="filter-section-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Assigned reviewer</span>
+              </div>
+              <FilterPrettySelect
+                :value="selectedReviewerUserId"
+                :options="reviewerFilterOptions"
+                aria-label="Assigned reviewer filter"
+                @input="onTentativeReviewerSelect"
+              />
+              <p
+                v-if="selectedReviewerUserId && !assignedNavNodes.length"
+                class="filter-tags-state"
+                style="margin: 8px 0 0;"
+              >
+                No nodes for this reviewer (not assigned to them and no comments by them on unassigned nodes).
+              </p>
+            </div>
             
             <!-- Review Date Filter -->
             <div class="filter-section filter-section--review-date">
@@ -274,6 +299,13 @@
                 <span v-if="packHighlightListFilterActive" class="active-filter-tag">
                   {{ getPackHighlightFilterLabel() }}
                   <button type="button" @click="clearPackHighlightListFilter" class="remove-filter-btn">×</button>
+                </span>
+                <span
+                  v-if="showMeetingDashboardBar && selectedReviewerUserId"
+                  class="active-filter-tag"
+                >
+                  {{ getReviewerFilterLabel() }}
+                  <button type="button" @click="clearReviewerFilter" class="remove-filter-btn" aria-label="Clear reviewer filter">×</button>
                 </span>
                 <span
                   v-for="tid in selectedTagsFilter"
@@ -2439,19 +2471,22 @@ export default {
     
     toggleFilterDropdown() {
       this.showFilterDropdown = !this.showFilterDropdown
-    if (this.showFilterDropdown) {
-        // Close dropdown when clicking outside
+      if (this.showFilterDropdown) {
         this.$nextTick(() => {
           document.addEventListener('click', this.handleFilterClickOutside)
         })
-      // Recompute tags in-use every time filter opens
-      this.loadTagsForFilter()
-      // prepare dropdown query each open
-      this.filterTagQuery = ''
-      this.showFilterTagDropdown = false
+        this.loadTagsForFilter()
+        this.filterTagQuery = ''
+        this.showFilterTagDropdown = false
       } else {
         document.removeEventListener('click', this.handleFilterClickOutside)
       }
+    },
+
+    closeFilterDropdownAfterSelection () {
+      if (!this.showFilterDropdown) return
+      this.showFilterDropdown = false
+      document.removeEventListener('click', this.handleFilterClickOutside)
     },
     
     handleFilterClickOutside(event) {
@@ -2518,6 +2553,10 @@ export default {
       this.reviewDateToYmd = ''
       this.calendarRangeValue = null
       this.selectedTagsFilter = []
+      if (this.showMeetingDashboardBar) {
+        this.selectedReviewerUserId = ''
+        this.assignedNavIndex = 0
+      }
     },
 
     clearDateFilter() {
@@ -2538,6 +2577,42 @@ export default {
     onTentativePackHighlightSelect (val) {
       this.packHighlightMode = val
       this.onPackHighlightModeChange()
+      this.closeFilterDropdownAfterSelection()
+    },
+
+    onTentativeReviewerSelect (val) {
+      this.selectedReviewerUserId = val
+      this.onReviewerFilterChange()
+      this.closeFilterDropdownAfterSelection()
+    },
+
+    onReviewerFilterChange () {
+      this.assignedNavIndex = 0
+      if (this.showMeetingDashboardBar) {
+        this.scheduleApplyEditorOverlays()
+      }
+      if (this.selectedReviewerUserId && this.assignedNavNodes.length) {
+        this.$nextTick(() => this.assignedNavScrollToCurrent())
+      }
+    },
+
+    getReviewerFilterLabel () {
+      const row = this.reviewerFilterOptions.find(
+        (o) => String(o.value) === String(this.selectedReviewerUserId)
+      )
+      return (row && row.label) || 'Reviewer'
+    },
+
+    clearReviewerFilter () {
+      this.selectedReviewerUserId = ''
+      this.assignedNavIndex = 0
+      this.scheduleApplyEditorOverlays()
+    },
+
+    assignedNavScrollToCurrent () {
+      const item = this.assignedNavNodes[this.assignedNavIndex]
+      if (!item) return
+      this.scrollToStableNode(item.new_task_id, item.stable_node_id)
     },
 
     getPackHighlightFilterLabel () {
@@ -2572,6 +2647,7 @@ export default {
         this.reviewDateToYmd = ''
         this.calendarRangeValue = null
         this.applyFilters()
+        this.closeFilterDropdownAfterSelection()
         return
       }
       if (v === 'all') {
@@ -2580,6 +2656,7 @@ export default {
         this.reviewDateToYmd = ''
         this.calendarRangeValue = null
         this.applyFilters()
+        this.closeFilterDropdownAfterSelection()
         return
       }
       this.reviewDateMode = 'preset'
@@ -2589,6 +2666,7 @@ export default {
       this.reviewDateToYmd = toYmd
       this.calendarRangeValue = ymdPairToDateRange(fromYmd, toYmd)
       this.applyFilters()
+      this.closeFilterDropdownAfterSelection()
     },
 
     onReviewCalendarInput (val) {
@@ -2606,6 +2684,7 @@ export default {
         }
       }
       this.applyFilters()
+      this.closeFilterDropdownAfterSelection()
     },
 
     onReviewBoundChange () {
@@ -2686,6 +2765,7 @@ export default {
       if (!this.selectedTagsFilter.includes(tag.id)) {
         this.selectedTagsFilter = [...this.selectedTagsFilter, tag.id]
         this.applyFilters()
+        this.closeFilterDropdownAfterSelection()
       }
     },
 

@@ -56,13 +56,16 @@ describe('NewEnhancedNodeItem.vue (action menu)', () => {
   })
 
   async function openMenu () {
-    wrapper.find('.dropdown-toggle').trigger('click')
+    // Open both tiers so all items are rendered for assertion
+    wrapper.vm.showNodeContextMenu = true
+    wrapper.vm.showNodeContextMenuMore = true
     await wrapper.vm.$nextTick()
     await flushPromises()
   }
 
   function clickActionContaining (substring) {
-    const items = wrapper.findAll('.action-item')
+    // Items are now in .node-context-menu as .context-menu-item (two-tier Phase 2 menu)
+    const items = wrapper.findAll('.context-menu-item')
     for (let i = 0; i < items.length; i++) {
       const w = items.at(i)
       if (w.text().indexOf(substring) !== -1) {

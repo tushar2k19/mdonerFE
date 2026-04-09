@@ -278,4 +278,80 @@ describe('NewTentativeDashboard.vue (filter panel)', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.vm.displayTasks.length).toBe(2)
   })
+
+  it('displayTasks narrows by assigned reviewer when meeting UI is on', async () => {
+    setEditorUserCookie()
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    const ymd = localYmd(d)
+    const nodesA = [
+      { stable_node_id: 'sn-a', display_counter: '1', children: [] }
+    ]
+    const nodesB = [
+      { stable_node_id: 'sn-b', display_counter: '1', children: [] }
+    ]
+    const t1 = {
+      id: 501,
+      sector_division: 'S',
+      description: 'One',
+      responsibility: 'All',
+      review_date: ymd,
+      original_date: ymd,
+      status: 'draft',
+      meeting_dashboard_draft: true,
+      action_to_be_taken: '<p>x</p>',
+      current_version: { action_nodes: nodesA },
+      tags: []
+    }
+    const t2 = {
+      id: 502,
+      sector_division: 'S',
+      description: 'Two',
+      responsibility: 'All',
+      review_date: ymd,
+      original_date: ymd,
+      status: 'draft',
+      meeting_dashboard_draft: true,
+      action_to_be_taken: '<p>y</p>',
+      current_version: { action_nodes: nodesB },
+      tags: []
+    }
+    const overlay = {
+      'sn-a': { assignment_users: [{ id: 9, name: 'Reviewer Nine' }], comment_count: 0 },
+      'sn-b': { assignment_users: [{ id: 8, name: 'Other' }], comment_count: 0 }
+    }
+
+    wrapper = shallowMount(NewTentativeDashboard, {
+      stubs: {
+        NewTaskModal: true,
+        ReviewModal: true,
+        CommentsModal: true,
+        DashboardNodeCommentsModal: true,
+        Datepicker: true,
+        VDatePicker: true,
+        RouterLink: true
+      },
+      mocks: {
+        $http: { secured: buildHttpMock() },
+        $toast: { success: jest.fn(), error: jest.fn(), info: jest.fn() },
+        $route: { query: {} },
+        $router: { push: jest.fn() }
+      }
+    })
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    wrapper.setData({
+      activeTasks: [t1, t2],
+      editorOverlay: overlay,
+      latestPublishedVersionId: 40,
+      reviewDateMode: 'all',
+      selectedReviewerUserId: '9'
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.assignedNavNodes.length).toBe(1)
+    expect(wrapper.vm.displayTasks.length).toBe(1)
+    expect(wrapper.vm.displayTasks[0].id).toBe(501)
+  })
 })
